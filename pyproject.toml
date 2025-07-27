@@ -2,7 +2,7 @@
 name = "gamdl"
 description = "A Python CLI app for downloading Apple Music songs, music videos and post videos."
 requires-python = ">=3.9"
-authors = [{ name = "glomatico" }]
+authors = [{ name = "wenfeng110402" }]
 dependencies = [
     "click",
     "colorama",
@@ -17,8 +17,8 @@ readme = "README.md"
 dynamic = ["version"]
 
 [project.urls]
-homepage = "https://github.com/glomatico/gamdl"
-repository = "https://github.com/glomatico/gamdl"
+homepage = "https://github.com/wenfeng110402/AppleMusic-Downloader"
+repository = "https://github.com/wenfeng110402/AppleMusic-Downloader"
 
 [build-system]
 requires = ["flit_core"]

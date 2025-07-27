@@ -1,0 +1,5 @@
+*.exe
+__pycache__/
+*.pyc
+temp/
+*.log

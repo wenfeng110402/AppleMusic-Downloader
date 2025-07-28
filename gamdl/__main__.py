@@ -138,6 +138,9 @@ class DownloadThread(QThread):
                 if self.download_options.get('no_exceptions'):
                     args.append('--no-exceptions')
                 
+                # 添加音频解码格式选项
+                if self.download_options.get('codec_song'):
+                    args.extend(['--codec-song', self.download_options.get('codec_song')])
                 # 创建字符串IO对象来捕获日志输出
                 log_stream = io.StringIO()
                 
@@ -206,6 +209,43 @@ class GamdlGUI(QMainWindow):
         
         # 加载保存的设置
         self.load_settings()
+        
+    def get_default_tool_path(self, tool_name):
+        """
+        获取工具的默认路径
+        首先检查当前目录下的tools文件夹，如果找不到则返回默认名称
+        """
+        # 获取程序所在目录
+        app_path = Path(sys.argv[0]).parent.absolute()
+        
+        # 检查tools目录下的工具
+        tool_path = app_path / "tools" / tool_name
+        if tool_path.exists():
+            return str(tool_path)
+        
+        # 如果tools目录中没有找到，则返回默认名称
+        # 让系统在PATH中查找
+        return tool_name.split('.')[0]
+        
+    def get_default_cookie_path(self):
+        """
+        获取默认的cookie文件路径
+        自动查找程序目录下的cookie文件
+        """
+        # 获取程序所在目录
+        app_path = Path(sys.argv[0]).parent.absolute()
+        
+        # 常见的cookie文件名
+        cookie_filenames = ["cookies.txt", "cookie.txt", "cookies", "cookie"]
+        
+        # 查找目录下的cookie文件
+        for filename in cookie_filenames:
+            cookie_path = app_path / filename
+            if cookie_path.exists():
+                return str(cookie_path)
+        
+        # 如果没找到，返回默认路径
+        return str(app_path / "cookies.txt")
         
     def create_widgets(self):
         # 创建主窗口部件
@@ -390,37 +430,18 @@ class GamdlGUI(QMainWindow):
         self.truncate.setValue(0)
         advanced_layout.addWidget(self.truncate, 6, 1)
         
+        # 音频解码格式
+        advanced_layout.addWidget(QLabel("音频解码格式:"), 7, 0)
+        self.codec_song = QComboBox()
+        self.codec_song.addItems([
+            "aac-legacy", "aac-he-legacy", "aac", "aac-he", "aac-binaural", 
+            "aac-downmix", "aac-he-binaural", "aac-he-downmix", "atmos", 
+            "ac3", "alac", "ask"
+        ])
+        advanced_layout.addWidget(self.codec_song, 7, 1)
+        
         scroll_layout.addWidget(advanced_group)
         
-        # 路径设置
-        path_group = QGroupBox("工具路径设置")
-        path_layout = QGridLayout(path_group)
-        
-        # N_m3u8DL-RE路径
-        path_layout.addWidget(QLabel("N_m3u8DL-RE路径:"), 0, 0)
-        self.nm3u8dlre_path = QLineEdit()
-        self.nm3u8dlre_path.setPlaceholderText("N_m3u8DL-RE")
-        path_layout.addWidget(self.nm3u8dlre_path, 0, 1)
-        
-        # mp4decrypt路径
-        path_layout.addWidget(QLabel("mp4decrypt路径:"), 1, 0)
-        self.mp4decrypt_path = QLineEdit()
-        self.mp4decrypt_path.setPlaceholderText("mp4decrypt")
-        path_layout.addWidget(self.mp4decrypt_path, 1, 1)
-        
-        # FFmpeg路径
-        path_layout.addWidget(QLabel("FFmpeg路径:"), 2, 0)
-        self.ffmpeg_path = QLineEdit()
-        self.ffmpeg_path.setPlaceholderText("ffmpeg")
-        path_layout.addWidget(self.ffmpeg_path, 2, 1)
-        
-        # MP4Box路径
-        path_layout.addWidget(QLabel("MP4Box路径:"), 3, 0)
-        self.mp4box_path = QLineEdit()
-        self.mp4box_path.setPlaceholderText("MP4Box")
-        path_layout.addWidget(self.mp4box_path, 3, 1)
-        
-        scroll_layout.addWidget(path_group)
         
         # 模板设置
         template_group = QGroupBox("文件命名模板")
@@ -459,6 +480,28 @@ class GamdlGUI(QMainWindow):
         template_layout.addLayout(template_h_layout4)
         
         scroll_layout.addWidget(template_group)
+        
+        # 路径设置
+        path_group = QGroupBox("工具路径设置")
+        path_layout = QVBoxLayout(path_group)
+        
+        # 添加说明标签
+        info_label = QLabel("工具已内嵌，无需额外配置路径。")
+        info_label.setWordWrap(True)
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info_label.setStyleSheet("""
+            QLabel {
+                color: green;
+                font-weight: bold;
+                padding: 10px;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                background-color: #f0fff0;
+            }
+        """)
+        path_layout.addWidget(info_label)
+        
+        scroll_layout.addWidget(path_group)
         
         # 应用按钮
         button_layout = QHBoxLayout()
@@ -530,9 +573,6 @@ class GamdlGUI(QMainWindow):
         <ul>
             <li><b>临时许可证</b>: 有固定的有效期</li>
             <li><b>永久许可证</b>: 永久有效</li>
-        </ul>
-        <h4>获取许可证:</h4>
-        <p>请使用配套的许可证生成工具创建许可证文件。</p>
         """)
         info_layout.addWidget(info_text)
         
@@ -702,7 +742,8 @@ class GamdlGUI(QMainWindow):
             'synced_lyrics_only': self.synced_lyrics_only.isChecked(),
             'no_synced_lyrics': self.no_synced_lyrics.isChecked(),
             'read_urls_as_txt': self.read_urls_as_txt.isChecked(),
-            'no_exceptions': self.no_exceptions.isChecked()
+            'no_exceptions': self.no_exceptions.isChecked(),
+            'codec_song': self.codec_song.currentText()
         }
                 
         # 显示开始下载信息
@@ -762,12 +803,6 @@ class GamdlGUI(QMainWindow):
         self.settings.setValue("paths/temp", self.temp_path.text())
         self.settings.setValue("paths/wvd", self.wvd_path.text())
         
-        # 保存工具路径
-        self.settings.setValue("tools/nm3u8dlre", self.nm3u8dlre_path.text())
-        self.settings.setValue("tools/mp4decrypt", self.mp4decrypt_path.text())
-        self.settings.setValue("tools/ffmpeg", self.ffmpeg_path.text())
-        self.settings.setValue("tools/mp4box", self.mp4box_path.text())
-        
         # 保存下载选项
         self.settings.setValue("options/save_cover", self.save_cover.isChecked())
         self.settings.setValue("options/overwrite", self.overwrite.isChecked())
@@ -784,6 +819,7 @@ class GamdlGUI(QMainWindow):
         self.settings.setValue("advanced/cover_format", self.cover_format.currentText())
         self.settings.setValue("advanced/cover_size", self.cover_size.value())
         self.settings.setValue("advanced/truncate", self.truncate.value())
+        self.settings.setValue("advanced/codec_song", self.codec_song.currentText())
         
         # 保存模板设置
         self.settings.setValue("templates/folder_album", self.template_folder_album.text())
@@ -796,16 +832,10 @@ class GamdlGUI(QMainWindow):
     def load_settings(self):
         """加载设置"""
         # 加载路径设置
-        self.cookie_path.setText(self.settings.value("paths/cookie", ""))
+        self.cookie_path.setText(self.settings.value("paths/cookie", self.get_default_cookie_path()))
         self.output_path.setText(self.settings.value("paths/output", ""))
         self.temp_path.setText(self.settings.value("paths/temp", "./temp"))
         self.wvd_path.setText(self.settings.value("paths/wvd", ""))
-        
-        # 加载工具路径
-        self.nm3u8dlre_path.setText(self.settings.value("tools/nm3u8dlre", "N_m3u8DL-RE"))
-        self.mp4decrypt_path.setText(self.settings.value("tools/mp4decrypt", "mp4decrypt"))
-        self.ffmpeg_path.setText(self.settings.value("tools/ffmpeg", "ffmpeg"))
-        self.mp4box_path.setText(self.settings.value("tools/mp4box", "MP4Box"))
         
         # 加载下载选项
         self.save_cover.setChecked(self.settings.value("options/save_cover", False, type=bool))
@@ -836,6 +866,11 @@ class GamdlGUI(QMainWindow):
         self.cover_size.setValue(self.settings.value("advanced/cover_size", 1200, type=int))
         self.truncate.setValue(self.settings.value("advanced/truncate", 0, type=int))
         
+        codec_song = self.settings.value("advanced/codec_song", "aac-legacy")
+        index = self.codec_song.findText(codec_song)
+        if index >= 0:
+            self.codec_song.setCurrentIndex(index)
+            
         # 加载模板设置
         self.template_folder_album.setText(self.settings.value("templates/folder_album", "{album_artist}/{album}"))
         self.template_folder_compilation.setText(self.settings.value("templates/folder_compilation", "Compilations/{album}"))
@@ -851,15 +886,10 @@ class GamdlGUI(QMainWindow):
             self.settings.clear()
             
             # 重置界面元素为默认值
-            self.cookie_path.clear()
+            self.cookie_path.setText(self.get_default_cookie_path())
             self.output_path.clear()
             self.temp_path.setText("./temp")
             self.wvd_path.clear()
-            
-            self.nm3u8dlre_path.setText("N_m3u8DL-RE")
-            self.mp4decrypt_path.setText("mp4decrypt")
-            self.ffmpeg_path.setText("ffmpeg")
-            self.mp4box_path.setText("MP4Box")
             
             self.save_cover.setChecked(False)
             self.overwrite.setChecked(False)
@@ -875,6 +905,44 @@ class GamdlGUI(QMainWindow):
             self.cover_format.setCurrentIndex(0)   # jpg
             self.cover_size.setValue(1200)
             self.truncate.setValue(0)
+            self.codec_song.setCurrentIndex(0)     # aac-legacy
+            
+            self.template_folder_album.setText("{album_artist}/{album}")
+            self.template_folder_compilation.setText("Compilations/{album}")
+            self.template_file_single_disc.setText("{track:02d} {title}")
+            self.template_file_multi_disc.setText("{disc}-{track:02d} {title}")
+            
+            QMessageBox.information(self, "设置", "设置已重置为默认值!")
+        
+    def reset_settings(self):
+        """重置设置"""
+        reply = QMessageBox.question(self, "重置设置", "确定要重置所有设置吗？",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            # 清除所有设置
+            self.settings.clear()
+            
+            # 重置界面元素为默认值
+            self.cookie_path.setText(self.get_default_cookie_path())
+            self.output_path.clear()
+            self.temp_path.setText("./temp")
+            self.wvd_path.clear()
+            
+            self.save_cover.setChecked(False)
+            self.overwrite.setChecked(False)
+            self.disable_music_video_skip.setChecked(False)
+            self.save_playlist.setChecked(False)
+            self.synced_lyrics_only.setChecked(False)
+            self.no_synced_lyrics.setChecked(False)
+            self.read_urls_as_txt.setChecked(False)
+            self.no_exceptions.setChecked(False)
+            
+            self.download_mode.setCurrentIndex(0)  # ytdlp
+            self.remux_mode.setCurrentIndex(0)     # ffmpeg
+            self.cover_format.setCurrentIndex(0)   # jpg
+            self.cover_size.setValue(1200)
+            self.truncate.setValue(0)
+            self.codec_song.setCurrentIndex(0)     # aac-legacy
             
             self.template_folder_album.setText("{album_artist}/{album}")
             self.template_folder_compilation.setText("Compilations/{album}")
@@ -898,5 +966,7 @@ def main():
     # 运行应用
     sys.exit(app.exec())
 
+# 当脚本作为主程序运行时，调用main函数启动应用程序
+# 这是程序的入口点，确保只有直接运行此脚本时才会启动GUI
 if __name__ == "__main__":
     main()

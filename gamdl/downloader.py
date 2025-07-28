@@ -4,9 +4,11 @@ import base64
 import datetime
 import functools
 import io
+import os
 import re
 import shutil
 import subprocess
+import sys
 import typing
 from pathlib import Path
 
@@ -89,10 +91,62 @@ class Downloader:
         self._set_subprocess_additional_args()
 
     def _set_binaries_path_full(self):
-        self.nm3u8dlre_path_full = shutil.which(self.nm3u8dlre_path)
-        self.ffmpeg_path_full = shutil.which(self.ffmpeg_path)
-        self.mp4box_path_full = shutil.which(self.mp4box_path)
-        self.mp4decrypt_path_full = shutil.which(self.mp4decrypt_path)
+        # 获取程序所在目录（兼容打包后的exe文件和开发环境）
+        if getattr(sys, 'frozen', False):
+            # 如果是打包后的exe文件
+            app_path = Path(sys.executable).parent.absolute()
+        else:
+            # 如果是Python脚本，使用模块文件所在目录
+            app_path = Path(__file__).parent.parent.absolute()
+        
+        # 设置tools目录路径
+        tools_path = app_path / "tools"
+        
+        # 调试信息（可选）
+        # print(f"App path: {app_path}")
+        # print(f"Tools path: {tools_path}")
+        # print(f"Tools path exists: {tools_path.exists()}")
+        
+        # 直接使用打包的工具，如果不存在则尝试在系统PATH中查找
+        # Handle nm3u8dlre path
+        nm3u8dlre_path = tools_path / "N_m3u8DL-RE.exe"
+        if nm3u8dlre_path.exists():
+            self.nm3u8dlre_path_full = str(nm3u8dlre_path)
+        else:
+            self.nm3u8dlre_path_full = shutil.which(self.nm3u8dlre_path)
+            # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
+            if not self.nm3u8dlre_path_full and not self.nm3u8dlre_path.endswith('.exe'):
+                self.nm3u8dlre_path_full = shutil.which(self.nm3u8dlre_path + '.exe')
+        
+        # Handle ffmpeg path
+        ffmpeg_path = tools_path / "ffmpeg.exe"
+        if ffmpeg_path.exists():
+            self.ffmpeg_path_full = str(ffmpeg_path)
+        else:
+            self.ffmpeg_path_full = shutil.which(self.ffmpeg_path)
+            # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
+            if not self.ffmpeg_path_full and not self.ffmpeg_path.endswith('.exe'):
+                self.ffmpeg_path_full = shutil.which(self.ffmpeg_path + '.exe')
+        
+        # Handle mp4box path
+        mp4box_path = tools_path / "MP4Box.exe"
+        if mp4box_path.exists():
+            self.mp4box_path_full = str(mp4box_path)
+        else:
+            self.mp4box_path_full = shutil.which(self.mp4box_path)
+            # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
+            if not self.mp4box_path_full and not self.mp4box_path.endswith('.exe'):
+                self.mp4box_path_full = shutil.which(self.mp4box_path + '.exe')
+        
+        # Handle mp4decrypt path
+        mp4decrypt_path = tools_path / "mp4decrypt.exe"
+        if mp4decrypt_path.exists():
+            self.mp4decrypt_path_full = str(mp4decrypt_path)
+        else:
+            self.mp4decrypt_path_full = shutil.which(self.mp4decrypt_path)
+            # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
+            if not self.mp4decrypt_path_full and not self.mp4decrypt_path.endswith('.exe'):
+                self.mp4decrypt_path_full = shutil.which(self.mp4decrypt_path + '.exe')
 
     def _set_exclude_tags_list(self):
         self.exclude_tags_list = (

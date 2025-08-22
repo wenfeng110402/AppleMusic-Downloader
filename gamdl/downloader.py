@@ -4,7 +4,6 @@ import base64
 import datetime
 import functools
 import io
-import os
 import re
 import shutil
 import subprocess
@@ -100,53 +99,71 @@ class Downloader:
             app_path = Path(__file__).parent.parent.absolute()
         
         # 设置tools目录路径
-        tools_path = app_path / "tools"
+        tools_paths = [
+            app_path / "tools",           # 程序目录下的tools文件夹
+            Path.cwd() / "tools",         # 当前工作目录下的tools文件夹
+            Path.cwd()                   # 当前工作目录（直接放在目录下）
+        ]
         
-        # 调试信息（可选）
-        # print(f"App path: {app_path}")
-        # print(f"Tools path: {tools_path}")
-        # print(f"Tools path exists: {tools_path.exists()}")
-        
-        # 直接使用打包的工具，如果不存在则尝试在系统PATH中查找
         # Handle nm3u8dlre path
-        nm3u8dlre_path = tools_path / "N_m3u8DL-RE.exe"
-        if nm3u8dlre_path.exists():
-            self.nm3u8dlre_path_full = str(nm3u8dlre_path)
-        else:
-            self.nm3u8dlre_path_full = shutil.which(self.nm3u8dlre_path)
-            # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
-            if not self.nm3u8dlre_path_full and not self.nm3u8dlre_path.endswith('.exe'):
-                self.nm3u8dlre_path_full = shutil.which(self.nm3u8dlre_path + '.exe')
+        self.nm3u8dlre_path_full = shutil.which(self.nm3u8dlre_path)
+        if not self.nm3u8dlre_path_full:
+            for tools_path in tools_paths:
+                nm3u8dlre_path = tools_path / "N_m3u8DL-RE.exe"
+                if nm3u8dlre_path.exists():
+                    self.nm3u8dlre_path_full = str(nm3u8dlre_path)
+                    break
+        
+        # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
+        if not self.nm3u8dlre_path_full and not self.nm3u8dlre_path.endswith('.exe'):
+            self.nm3u8dlre_path_full = shutil.which(self.nm3u8dlre_path + '.exe')
         
         # Handle ffmpeg path
-        ffmpeg_path = tools_path / "ffmpeg.exe"
-        if ffmpeg_path.exists():
-            self.ffmpeg_path_full = str(ffmpeg_path)
-        else:
-            self.ffmpeg_path_full = shutil.which(self.ffmpeg_path)
-            # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
-            if not self.ffmpeg_path_full and not self.ffmpeg_path.endswith('.exe'):
-                self.ffmpeg_path_full = shutil.which(self.ffmpeg_path + '.exe')
+        self.ffmpeg_path_full = shutil.which(self.ffmpeg_path)
+        if not self.ffmpeg_path_full:
+            for tools_path in tools_paths:
+                ffmpeg_path = tools_path / "ffmpeg.exe"
+                if ffmpeg_path.exists():
+                    self.ffmpeg_path_full = str(ffmpeg_path)
+                    break
+        
+        # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
+        if not self.ffmpeg_path_full and not self.ffmpeg_path.endswith('.exe'):
+            self.ffmpeg_path_full = shutil.which(self.ffmpeg_path + '.exe')
         
         # Handle mp4box path
-        mp4box_path = tools_path / "MP4Box.exe"
-        if mp4box_path.exists():
-            self.mp4box_path_full = str(mp4box_path)
-        else:
-            self.mp4box_path_full = shutil.which(self.mp4box_path)
-            # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
-            if not self.mp4box_path_full and not self.mp4box_path.endswith('.exe'):
-                self.mp4box_path_full = shutil.which(self.mp4box_path + '.exe')
+        self.mp4box_path_full = shutil.which(self.mp4box_path)
+        if not self.mp4box_path_full:
+            for tools_path in tools_paths:
+                mp4box_path = tools_path / "MP4Box.exe"
+                if mp4box_path.exists():
+                    self.mp4box_path_full = str(mp4box_path)
+                    break
+        
+        # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
+        if not self.mp4box_path_full and not self.mp4box_path.endswith('.exe'):
+            self.mp4box_path_full = shutil.which(self.mp4box_path + '.exe')
         
         # Handle mp4decrypt path
-        mp4decrypt_path = tools_path / "mp4decrypt.exe"
-        if mp4decrypt_path.exists():
-            self.mp4decrypt_path_full = str(mp4decrypt_path)
-        else:
-            self.mp4decrypt_path_full = shutil.which(self.mp4decrypt_path)
-            # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
-            if not self.mp4decrypt_path_full and not self.mp4decrypt_path.endswith('.exe'):
-                self.mp4decrypt_path_full = shutil.which(self.mp4decrypt_path + '.exe')
+        self.mp4decrypt_path_full = shutil.which(self.mp4decrypt_path)
+        if not self.mp4decrypt_path_full:
+            for tools_path in tools_paths:
+                mp4decrypt_path = tools_path / "mp4decrypt.exe"
+                if mp4decrypt_path.exists():
+                    self.mp4decrypt_path_full = str(mp4decrypt_path)
+                    break
+        
+        # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
+        if not self.mp4decrypt_path_full and not self.mp4decrypt_path.endswith('.exe'):
+            self.mp4decrypt_path_full = shutil.which(self.mp4decrypt_path + '.exe')
+    
+    def _find_binary_in_tools(self, tools_paths, bin_path):
+        """在tools路径中查找指定的二进制文件"""
+        for tools_path in tools_paths:
+            bin_full_path = tools_path / bin_path
+            if bin_full_path.exists():
+                return str(bin_full_path)
+        return None
 
     def _set_exclude_tags_list(self):
         self.exclude_tags_list = (
@@ -180,6 +197,9 @@ class Downloader:
             self.VALID_URL_RE,
             url,
         )
+        if not url_regex_result:
+            raise Exception(f"无效的Apple Music URL: {url}")
+            
         url_info.storefront = url_regex_result.group(1)
         url_info.type = (
             "song" if url_regex_result.group(5) else url_regex_result.group(2)
@@ -189,6 +209,16 @@ class Downloader:
             or url_regex_result.group(4)
             or url_regex_result.group(3)
         )
+        
+        # 确保对于歌曲类型，ID是数字
+        if url_info.type == "song" and not url_info.id.isdigit():
+            # 从URL中提取歌曲ID
+            song_id_match = re.search(r'/(\d+)(?:\?|$)', url)
+            if song_id_match:
+                url_info.id = song_id_match.group(1)
+            else:
+                raise Exception(f"无法从歌曲URL中提取有效的歌曲ID: {url}")
+        
         return url_info
 
     def get_download_queue(self, url_info: UrlInfo) -> DownloadQueue:
@@ -317,10 +347,7 @@ class Downloader:
         }
         return tags
 
-    def get_playlist_file_path(
-        self,
-        tags: dict,
-    ):
+    def get_playlist_file_path(self, tags: dict):
         template_file = self.template_file_playlist.split("/")
         return Path(
             self.output_path,
@@ -328,10 +355,7 @@ class Downloader:
                 self.get_sanitized_string(i.format(**tags), True)
                 for i in template_file[0:-1]
             ],
-            *[
-                self.get_sanitized_string(template_file[-1].format(**tags), False)
-                + ".m3u8"
-            ],
+            self.get_sanitized_string(template_file[-1].format(**tags), True) + ".m3u8",
         )
 
     def update_playlist_file(
@@ -403,13 +427,11 @@ class Downloader:
                 "allow_unplayable_formats": True,
                 "fixup": "never",
                 "allowed_extractors": ["generic"],
-                "noprogress": self.silent,
             }
-        ) as ydl:
-            ydl.download(stream_url)
+        ) as ytdlp:
+            ytdlp.download([stream_url])
 
     def download_nm3u8dlre(self, path: Path, stream_url: str):
-        path.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(
             [
                 self.nm3u8dlre_path_full,
@@ -420,31 +442,29 @@ class Downloader:
                 "off",
                 "--ffmpeg-binary-path",
                 self.ffmpeg_path_full,
-                "--save-name",
-                path.stem,
                 "--save-dir",
                 path.parent,
-                "--tmp-dir",
-                path.parent,
+                "--save-name",
+                path.stem,
             ],
-            check=True,
             **self.subprocess_additional_args,
         )
 
-    def get_sanitized_string(self, dirty_string: str, is_folder: bool) -> str:
-        dirty_string = re.sub(
+    def get_sanitized_string(self, name: str, is_folder: bool) -> str:
+        sanitized_name = re.sub(
             self.ILLEGAL_CHARS_RE,
             self.ILLEGAL_CHAR_REPLACEMENT,
-            dirty_string,
+            name,
         )
         if is_folder:
-            dirty_string = dirty_string[: self.truncate]
-            if dirty_string.endswith("."):
-                dirty_string = dirty_string[:-1] + self.ILLEGAL_CHAR_REPLACEMENT
+            sanitized_name = sanitized_name[:225]
         else:
-            if self.truncate is not None:
-                dirty_string = dirty_string[: self.truncate - 4]
-        return dirty_string.strip()
+            sanitized_name = (
+                sanitized_name[: (255 - len(Path(name).suffix)) - 10]
+                if self.truncate is None
+                else sanitized_name[: self.truncate]
+            )
+        return sanitized_name.strip()
 
     def get_final_path(self, tags: dict, file_extension: str) -> Path:
         if tags.get("album"):
@@ -473,6 +493,70 @@ class Downloader:
                 + file_extension
             ),
         )
+
+    def get_tags(
+        self,
+        track_metadata: dict,
+        cover_url: str,
+        lyrics_unsynced: str,
+        lyrics_synced: str,
+        is_compilation: bool,
+    ) -> dict:
+        tags = {
+            "album": track_metadata["attributes"]["albumName"],
+            "album_artist": track_metadata["attributes"]["albumArtistName"],
+            "artist": track_metadata["attributes"]["artistName"],
+            "comments": track_metadata["attributes"].get("editorialNotes", {}).get(
+                "standard", ""
+            ),
+            "compilation": is_compilation,
+            "composer": track_metadata["attributes"].get("composerName"),
+            "copyright": track_metadata["attributes"].get("copyright"),
+            "date": self.sanitize_date(track_metadata["attributes"]["releaseDate"]),
+            "disc": track_metadata["attributes"]["discNumber"],
+            "disc_total": track_metadata["attributes"]["discCount"],
+            "gapless": track_metadata["attributes"]["isMasteredForItunes"],
+            "genre": track_metadata["attributes"]["genreNames"][0],
+            "lyrics": lyrics_unsynced,
+            "lyrics_synced": lyrics_synced,
+            "media_type": 1,
+            "rating": track_metadata["attributes"].get("contentRating", "none"),
+            "storefront": track_metadata["attributes"]["url"].split("/")[3],
+            "title": track_metadata["attributes"]["name"],
+            "track": track_metadata["attributes"]["trackNumber"],
+            "track_total": track_metadata["attributes"]["trackCount"],
+            "cover": cover_url,
+        }
+        return tags
+
+    def get_path(self, tags: dict, file_extension: str) -> Path:
+        if tags.get("album"):
+            if tags["compilation"]:
+                template_folder = self.template_folder_compilation
+            else:
+                template_folder = self.template_folder_album
+            template_file = (
+                self.template_file_multi_disc
+                if tags["disc_total"] > 1
+                else self.template_file_single_disc
+            )
+        else:
+            template_folder = self.template_folder_no_album
+            template_file = self.template_file_no_album
+        template_folder = template_folder.split("/")
+        path = Path(
+            self.output_path,
+            *[
+                self.get_sanitized_string(i.format(**tags), True)
+                for i in template_folder
+            ],
+            *[
+                self.get_sanitized_string(template_file.format(**tags), False)
+                + file_extension
+            ],
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
 
     def get_cover_file_extension(self, cover_url: str) -> str | None:
         cover_bytes = self.get_url_response_bytes(cover_url)
@@ -512,14 +596,31 @@ class Downloader:
     @staticmethod
     @functools.lru_cache()
     def get_url_response_bytes(url: str) -> bytes:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return response.content
-        elif response.status_code == 404:
-            return None
-        else:
-            raise_response_exception(response)
-        return response.content
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, timeout=30)  # 添加超时设置
+                response.raise_for_status()
+                return response.content
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    # 添加更详细的错误信息
+                    error_msg = f"Failed to fetch URL: {url}\nError: {str(e)}\nStatus code: {getattr(response, 'status_code', 'Unknown')}"
+                    if hasattr(response, 'text') and response.text:
+                        error_msg += f"\nResponse text: {response.text[:500]}..."  # 只显示前500个字符
+                    raise Exception(error_msg)
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise Exception(f"获取URL内容时发生未知错误: {str(e)}")
 
     def apply_tags(
         self,
@@ -578,18 +679,24 @@ class Downloader:
         mp4.update(mp4_tags)
         mp4.save()
 
-    def move_to_output_path(
-        self,
-        remuxed_path: Path,
-        final_path: Path,
-    ):
-        final_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(remuxed_path, final_path)
+    def move_to_output_path(self, remuxed_path: Path, path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # 使用shutil.move代替rename，以支持跨驱动器移动文件
+        shutil.move(str(remuxed_path), str(path))
 
     @functools.lru_cache()
-    def save_cover(self, cover_path: Path, cover_url: str):
-        cover_path.parent.mkdir(parents=True, exist_ok=True)
-        cover_path.write_bytes(self.get_url_response_bytes(cover_url))
+    def save_lyrics(
+        self,
+        path: Path,
+        lyrics_synced: str,
+        lyrics_unsynced: str,
+    ):
+        if lyrics_synced:
+            lrc_path = path.with_suffix(".lrc")
+            lrc_path.write_text(lyrics_synced, encoding="utf8")
+        if lyrics_unsynced:
+            txt_path = path.with_suffix(".txt")
+            txt_path.write_text(lyrics_unsynced, encoding="utf8")
 
     def cleanup_temp_path(self):
         shutil.rmtree(self.temp_path)

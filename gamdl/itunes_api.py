@@ -17,12 +17,6 @@ class ItunesApi:
         storefront: str = "us",
         language: str = "en-US",
     ):
-        """
-        初始化 ItunesApi 实例。
-        
-        :param storefront: 店铺前端标识符，用于指定地区/国家，默认为 "us"
-        :param language: 语言设置，默认为 "en-US"
-        """
         self.storefront = storefront
         self.language = language
         self._setup_session()

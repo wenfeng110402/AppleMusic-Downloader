@@ -59,14 +59,41 @@ class AppleMusicApi:
                 "origin": self.APPLE_MUSIC_HOMEPAGE_URL,
             }
         )
-        home_page = self.session.get(self.APPLE_MUSIC_HOMEPAGE_URL).text
+        # 添加重试机制获取主页
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                home_page = self.session.get(self.APPLE_MUSIC_HOMEPAGE_URL, timeout=30).text
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e
+
         index_js_uri = re.search(
             r"/(assets/index-legacy-[^/]+\.js)",
             home_page,
         ).group(1)
-        index_js_page = self.session.get(
-            f"{self.APPLE_MUSIC_HOMEPAGE_URL}/{index_js_uri}"
-        ).text
+        
+        # 添加重试机制获取JS文件
+        for attempt in range(max_retries):
+            try:
+                index_js_page = self.session.get(
+                    f"{self.APPLE_MUSIC_HOMEPAGE_URL}/{index_js_uri}",
+                    timeout=30
+                ).text
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e
+                    
         token = re.search('(?=eyJh)(.*?)(?=")', index_js_page).group(1)
         self.session.headers.update({"authorization": f"Bearer {token}"})
         self.session.params = {"l": self.language}
@@ -80,8 +107,11 @@ class AppleMusicApi:
             requests.HTTPError,
             requests.exceptions.JSONDecodeError,
             AssertionError,
-        ):
+        ) as e:
             raise_response_exception(response)
+        except Exception as e:
+            # 处理其他可能的异常
+            raise Exception(f"检查API响应时发生未知错误: {str(e)}")
 
     def get_artist(
         self,
@@ -90,23 +120,35 @@ class AppleMusicApi:
         limit: int = 100,
         fetch_all: bool = True,
     ) -> dict:
-        response = self.session.get(
-            f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/artists/{artist_id}",
-            params={
-                "include": include,
-                **{f"limit[{_include}]": limit for _include in include.split(",")},
-            },
-        )
-        self._check_amp_api_response(response)
-        artist = response.json()["data"][0]
-        if fetch_all:
-            for _include in include.split(","):
-                for additional_data in self._extend_api_data(
-                    artist["relationships"][_include],
-                    limit,
-                ):
-                    artist["relationships"][_include]["data"].extend(additional_data)
-        return artist
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(
+                    f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/artists/{artist_id}",
+                    params={
+                        "include": include,
+                        **{f"limit[{_include}]": limit for _include in include.split(",")},
+                    },
+                    timeout=30  # 添加超时设置
+                )
+                self._check_amp_api_response(response)
+                artist = response.json()["data"][0]
+                if fetch_all:
+                    for _include in include.split(","):
+                        for additional_data in self._extend_api_data(
+                            artist["relationships"][_include],
+                            limit,
+                        ):
+                            artist["relationships"][_include]["data"].extend(additional_data)
+                return artist
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e
 
     def get_song(
         self,
@@ -114,78 +156,133 @@ class AppleMusicApi:
         extend: str = "extendedAssetUrls",
         include: str = "lyrics,albums",
     ) -> dict:
-        response = self.session.get(
-            f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/songs/{song_id}",
-            params={
-                "include": include,
-                "extend": extend,
-            },
-        )
-        self._check_amp_api_response(response)
-        return response.json()["data"][0]
+        # 验证song_id是否为数字
+        if not song_id.isdigit():
+            raise Exception(f"无效的歌曲ID: {song_id}，必须为数字")
+            
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(
+                    f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/songs/{song_id}",
+                    params={
+                        "include": include,
+                        "extend": extend,
+                    },
+                    timeout=30  # 添加超时设置
+                )
+                self._check_amp_api_response(response)
+                return response.json()["data"][0]
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e
 
     def get_music_video(
         self,
         music_video_id: str,
         include: str = "albums",
     ) -> dict:
-        response = self.session.get(
-            f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/music-videos/{music_video_id}",
-            params={
-                "include": include,
-            },
-        )
-        self._check_amp_api_response(response)
-        return response.json()["data"][0]
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(
+                    f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/music-videos/{music_video_id}",
+                    params={
+                        "include": include,
+                    },
+                    timeout=30  # 添加超时设置
+                )
+                self._check_amp_api_response(response)
+                return response.json()["data"][0]
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e
 
     def get_post(
         self,
         post_id: str,
     ) -> dict:
-        response = self.session.get(
-            f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/uploaded-videos/{post_id}"
-        )
-        self._check_amp_api_response(response)
-        return response.json()["data"][0]
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(
+                    f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/uploaded-videos/{post_id}",
+                    timeout=30  # 添加超时设置
+                )
+                self._check_amp_api_response(response)
+                return response.json()["data"][0]
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e
 
     @functools.lru_cache()
     def get_album(
         self,
         album_id: str,
-        extend: str = "extendedAssetUrls",
+        include: str = "tracks",
     ) -> dict:
-        response = self.session.get(
-            f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/albums/{album_id}",
-            params={
-                "extend": extend,
-            },
-        )
-        self._check_amp_api_response(response)
-        return response.json()["data"][0]
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(
+                    f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/albums/{album_id}",
+                    params={
+                        "include": include,
+                    },
+                    timeout=30  # 添加超时设置
+                )
+                self._check_amp_api_response(response)
+                return response.json()["data"][0]
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e
 
+    @functools.lru_cache()
     def get_playlist(
         self,
         playlist_id: str,
-        limit_tracks: int = 300,
-        extend: str = "extendedAssetUrls",
-        fetch_all: bool = True,
+        include: str = "tracks",
     ) -> dict:
-        response = self.session.get(
-            f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/playlists/{playlist_id}",
-            params={
-                "extend": extend,
-                "limit[tracks]": limit_tracks,
-            },
-        )
-        self._check_amp_api_response(response)
-        playlist = response.json()["data"][0]
-        if fetch_all:
-            for additional_data in self._extend_api_data(
-                playlist["relationships"]["tracks"],
-                limit_tracks,
-            ):
-                playlist["relationships"]["tracks"]["data"].extend(additional_data)
-        return playlist
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(
+                    f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/playlists/{playlist_id}",
+                    params={
+                        "include": include,
+                    },
+                    timeout=30  # 添加超时设置
+                )
+                self._check_amp_api_response(response)
+                return response.json()["data"][0]
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e
 
     def search(
         self,
@@ -194,18 +291,29 @@ class AppleMusicApi:
         limit: int = 25,
         offset: int = 0,
     ) -> dict:
-
-        response = self.session.get(
-            f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/search",
-            params={
-                "term": term,
-                "types": types,
-                "limit": limit,
-                "offset": offset,
-            },
-        )
-        self._check_amp_api_response(response)
-        return response.json()["results"]
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(
+                    f"{self.AMP_API_URL}/v1/catalog/{self.storefront}/search",
+                    params={
+                        "term": term,
+                        "types": types,
+                        "limit": limit,
+                        "offset": offset,
+                    },
+                    timeout=30  # 添加超时设置
+                )
+                self._check_amp_api_response(response)
+                return response.json()["results"]
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e
 
     def _extend_api_data(
         self,
@@ -220,38 +328,62 @@ class AppleMusicApi:
             time.sleep(self.WAIT_TIME)
 
     def _get_next_uri_response(self, next_uri: str, limit: int) -> dict:
-        response = self.session.get(
-            self.AMP_API_URL + next_uri,
-            params={
-                "limit": limit,
-            },
-        )
-        self._check_amp_api_response(response)
-        return response.json()
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get(
+                    self.AMP_API_URL + next_uri,
+                    params={
+                        "limit": limit,
+                    },
+                    timeout=30  # 添加超时设置
+                )
+                self._check_amp_api_response(response)
+                return response.json()
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e
 
     def get_webplayback(
         self,
         track_id: str,
     ) -> dict:
-        response = self.session.post(
-            self.WEBPLAYBACK_API_URL,
-            json={
-                "salableAdamId": track_id,
-                "language": self.language,
-            },
-        )
-        try:
-            response.raise_for_status()
-            response_dict = response.json()
-            webplayback = response_dict.get("songList")
-            assert webplayback
-        except (
-            requests.HTTPError,
-            requests.exceptions.JSONDecodeError,
-            AssertionError,
-        ):
-            raise_response_exception(response)
-        return webplayback[0]
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.post(
+                    self.WEBPLAYBACK_API_URL,
+                    json={
+                        "salableAdamId": track_id,
+                        "language": self.language,
+                    },
+                    timeout=30  # 添加超时设置
+                )
+                try:
+                    response.raise_for_status()
+                    response_dict = response.json()
+                    webplayback = response_dict.get("songList")
+                    assert webplayback
+                except (
+                    requests.HTTPError,
+                    requests.exceptions.JSONDecodeError,
+                    AssertionError,
+                ):
+                    raise_response_exception(response)
+                return webplayback[0]
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e
 
     def get_widevine_license(
         self,
@@ -259,26 +391,38 @@ class AppleMusicApi:
         track_uri: str,
         challenge: str,
     ) -> str:
-        response = self.session.post(
-            self.LICENSE_API_URL,
-            json={
-                "challenge": challenge,
-                "key-system": "com.widevine.alpha",
-                "uri": track_uri,
-                "adamId": track_id,
-                "isLibrary": False,
-                "user-initiated": True,
-            },
-        )
-        try:
-            response.raise_for_status()
-            response_dict = response.json()
-            widevine_license = response_dict.get("license")
-            assert widevine_license
-        except (
-            requests.HTTPError,
-            requests.exceptions.JSONDecodeError,
-            AssertionError,
-        ):
-            raise_response_exception(response)
-        return widevine_license
+        # 添加重试机制
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.post(
+                    self.LICENSE_API_URL,
+                    json={
+                        "challenge": challenge,
+                        "key-system": "com.widevine.alpha",
+                        "uri": track_uri,
+                        "adamId": track_id,
+                        "isLibrary": False,
+                        "user-initiated": True,
+                    },
+                    timeout=30  # 添加超时设置
+                )
+                try:
+                    response.raise_for_status()
+                    response_dict = response.json()
+                    widevine_license = response_dict.get("license")
+                    assert widevine_license
+                except (
+                    requests.HTTPError,
+                    requests.exceptions.JSONDecodeError,
+                    AssertionError,
+                ):
+                    raise_response_exception(response)
+                return widevine_license
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)  # 指数退避
+                    continue
+                else:
+                    raise e

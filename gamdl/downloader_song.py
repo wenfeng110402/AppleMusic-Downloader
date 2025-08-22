@@ -304,6 +304,26 @@ class DownloaderSong:
     def get_remuxed_path(self, track_id: str) -> Path:
         return self.downloader.temp_path / f"{track_id}_remuxed.m4a"
 
+    def get_decryption_key(self, song_id: str) -> str:
+        if self.codec == SongCodec.ALAC:
+            # ALAC格式使用默认密钥，不需要从API获取
+            return self.DEFAULT_DECRYPTION_KEY
+            
+        track_uri = self.downloader.apple_music_api.get_webplayback(song_id)["assets"][
+            0
+        ]["URL"]
+        key_info = self.downloader.apple_music_api.get_widevine_license(
+            song_id,
+            track_uri,
+            base64.b64encode(
+                self.downloader.widevine_client.get_challenge(
+                    self.downloader.remux_mode == RemuxMode.FFMPEG
+                )
+            ).decode("utf-8"),
+        )
+        self.downloader.widevine_client.provide_license(key_info)
+        return self.downloader.widevine_client.get_key()
+
     def fix_key_id(self, encrypted_path: Path):
         count = 0
         with open(encrypted_path, "rb+") as file:

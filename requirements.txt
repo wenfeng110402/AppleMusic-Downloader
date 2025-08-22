@@ -8,3 +8,4 @@ pywidevine
 pyyaml
 termcolor
 yt-dlp
+PyQt6

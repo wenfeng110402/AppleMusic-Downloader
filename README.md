@@ -22,10 +22,10 @@
 2. 运行 `AppleMusicDownloader_Setup.exe` 并按照提示完成安装
 3. 安装完成后，您可以在开始菜单中找到 "Apple Music Downloader"
 
-### 方法三：从源码运行
+### 方法二：从源码运行
 
 ```bash
-git clone https://github.com/your-repo/AppleMusic-Downloader.git
+git clone https://github.com/wenfeng110402/AppleMusic-Downloader.git
 cd AppleMusic-Downloader
 pip install -r requirements.txt
 ```
@@ -40,16 +40,17 @@ pip install -r requirements.txt
 - **FFmpeg**
 
 获取 Cookies 文件：
+
 - **Firefox 用户**：使用 [Export Cookies](https://addons.mozilla.org/firefox/addon/export-cookies-txt/) 扩展
 - **Chromium 内核浏览器用户**：使用 [Open Cookies.txt](https://chromewebstore.google.com/detail/open-cookiestxt/gdocmgbfkjnnpapoeobnolbbkoibbcif) 扩展
 
 ### 可选工具
 
 以下工具为特定功能所需：
+
 - [mp4decrypt](https://www.bento4.com/downloads/)：用于音乐视频下载和实验性音频编码
 - [MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)：替代混流模式
 - [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE/releases/latest)：替代下载模式
-
 
 ## 支持的链接类型
 
@@ -59,4 +60,3 @@ pip install -r requirements.txt
 - 音乐视频
 - 艺术家主页
 - 帖子视频
-

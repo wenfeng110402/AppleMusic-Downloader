@@ -18,7 +18,7 @@
 
 ### 方法一：使用安装程序（推荐，仅限Windows）
 
-1. 从 [Releases](https://github.com/your-repo/releases) 页面下载最新版本的安装程序
+1. 从 [Releases](https://github.com/wenfeng110402/AppleMusic-Downloader/releases) 页面下载最新版本的安装程序
 2. 运行 `AppleMusicDownloader_Setup.exe` 并按照提示完成安装
 3. 安装完成后，您可以在开始菜单中找到 "Apple Music Downloader"
 

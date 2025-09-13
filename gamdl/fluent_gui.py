@@ -418,63 +418,70 @@ class DownloadThread(QThread):
             if target_format == "mp3":
                 # MP3格式，使用320kbps比特率
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-vn", "-ar", "44100", "-ac", "2", "-ab", "320k", "-f", "mp3",
                     target_path
                 ]
             elif target_format == "flac":
                 # FLAC无损格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-vn", "-f", "flac",
                     target_path
                 ]
             elif target_format == "wav":
                 # WAV格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-vn", "-f", "wav",
                     target_path
                 ]
             elif target_format == "aac":
                 # AAC格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-vn", "-c:a", "aac", "-b:a", "256k",
                     target_path
                 ]
             elif target_format == "m4a":
                 # M4A格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-vn", "-c:a", "aac", "-b:a", "256k",
                     target_path
                 ]
             elif target_format == "ogg":
                 # OGG格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-vn", "-c:a", "libvorbis", "-q:a", "5",
                     target_path
                 ]
             elif target_format == "wma":
                 # WMA格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-vn", "-c:a", "wmav2", "-b:a", "192k",
                     target_path
                 ]
             else:
                 # 默认AAC格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-vn", "-c:a", "aac", "-b:a", "256k",
                     target_path
                 ]
             
             # 执行FFmpeg命令
             self.log_callback.emit(f"    执行转换命令: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            # 隐藏控制台窗口
+            startupinfo = None
+            if sys.platform == "win32":
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
             
             if result.returncode == 0:
                 self.log_callback.emit(f"    FFmpeg输出: {result.stdout}")
@@ -497,7 +504,7 @@ class DownloadThread(QThread):
         try:
             # 构建FFmpeg命令，保留所有流（音频、视频、字幕等）
             cmd = [
-                "ffmpeg", "-i", source_path,
+                "ffmpeg.exe", "-i", source_path,
                 "-c", "copy",  # 默认复制所有流
                 target_path
             ]
@@ -509,121 +516,58 @@ class DownloadThread(QThread):
             elif target_format == "mkv":
                 # MKV格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-c", "copy",
                     target_path
                 ]
             elif target_format == "avi":
                 # AVI格式可能需要重新编码
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-c:v", "libx264", "-c:a", "aac",
                     target_path
                 ]
             elif target_format == "wmv":
                 # WMV格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-c:v", "wmv2", "-c:a", "wmav2",
                     target_path
                 ]
             elif target_format == "flv":
                 # FLV格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-c:v", "flv", "-c:a", "aac",
                     target_path
                 ]
             elif target_format == "webm":
                 # WebM格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    "ffmpeg.exe", "-i", source_path,
                     "-c:v", "libvpx-vp9", "-c:a", "libopus",
                     target_path
                 ]
             
             # 执行FFmpeg命令
-            self.log_signal.emit(f"    执行转换命令: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            self.log_callback.emit(f"    执行转换命令: {' '.join(cmd)}")
+            
+            # 隐藏控制台窗口
+            startupinfo = None
+            if sys.platform == "win32":
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
             
             if result.returncode == 0:
-                self.log_signal.emit(f"    FFmpeg输出: {result.stdout}")
+                self.log_callback.emit(f"    FFmpeg输出: {result.stdout}")
                 return True
             else:
-                self.log_signal.emit(f"    FFmpeg错误: {result.stderr}")
+                self.log_callback.emit(f"    FFmpeg错误: {result.stderr}")
                 return False
         except Exception as e:
-            self.log_signal.emit(f"    执行音频转换时出错: {str(e)}")
-            return False
-    
-    def convert_video_file(self, source_path, target_path, target_format):
-        """
-        转换视频文件格式
-        :param source_path: 源文件路径
-        :param target_path: 目标文件路径
-        :param target_format: 目标格式
-        :return: 转换是否成功
-        """
-        try:
-            # 构建FFmpeg命令，保留所有流（音频、视频、字幕等）
-            cmd = [
-                "ffmpeg", "-i", source_path,
-                "-c", "copy",  # 默认复制所有流
-                target_path
-            ]
-            
-            # 对于某些格式，可能需要重新编码
-            if target_format in ["mp4", "mov"]:
-                # 这些格式通常可以无损复制流
-                pass
-            elif target_format == "mkv":
-                # MKV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c", "copy",
-                    target_path
-                ]
-            elif target_format == "avi":
-                # AVI格式可能需要重新编码
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libx264", "-c:a", "aac",
-                    target_path
-                ]
-            elif target_format == "wmv":
-                # WMV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "wmv2", "-c:a", "wmav2",
-                    target_path
-                ]
-            elif target_format == "flv":
-                # FLV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "flv", "-c:a", "aac",
-                    target_path
-                ]
-            elif target_format == "webm":
-                # WebM格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libvpx-vp9", "-c:a", "libopus",
-                    target_path
-                ]
-            
-            # 执行FFmpeg命令
-            self.log_signal.emit(f"    执行转换命令: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                self.log_signal.emit(f"    FFmpeg输出: {result.stdout}")
-                return True
-            else:
-                self.log_signal.emit(f"    FFmpeg错误: {result.stderr}")
-                return False
-        except Exception as e:
-            self.log_signal.emit(f"    执行视频转换时出错: {str(e)}")
+            self.log_callback.emit(f"    执行视频转换时出错: {str(e)}")
             return False
 
 

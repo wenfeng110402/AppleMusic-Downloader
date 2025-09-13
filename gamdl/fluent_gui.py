@@ -201,23 +201,18 @@ class DownloadThread(QThread):
                         # 捕获并显示错误信息
                         log_output = log_stream.getvalue()
                         if log_output:
-                            self.log_callback.emit(f"    错误详情: {log_output}")
-                            
-                        # 检查是否是认证错误
-                        if "Authentication required" in log_output or "Invalid cookie" in log_output:
-                            self.log_callback.emit("    错误: Cookie文件无效或需要重新登录Apple Music账户")
-                            
-                        # 检查是否是网络错误
-                        if "ERROR: Unable to extract video data" in log_output or "HTTP Error 403" in log_output:
-                            self.log_callback.emit("    错误: 网络连接问题或Apple Music服务器错误")
+                            for line in log_output.splitlines():
+                                if line.strip():  # 只显示非空行
+                                    self.log_callback.emit(line)
                 except Exception as e:
                     self.log_callback.emit(f"    下载失败! 异常: {str(e)}")
                     success = False
                     # 捕获并显示错误信息
                     log_output = log_stream.getvalue()
                     if log_output:
-                        self.log_callback.emit(f"    错误详情: {log_output}")
-                        
+                        for line in log_output.splitlines():
+                            if line.strip():  # 只显示非空行
+                                self.log_callback.emit(line)
                     # 记录异常类型和堆栈跟踪
                     self.log_callback.emit(f"    异常类型: {type(e).__name__}")
                     self.log_callback.emit(f"    堆栈跟踪: {traceback.format_exc()}")

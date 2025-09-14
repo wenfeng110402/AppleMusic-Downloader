@@ -1,4 +1,4 @@
-# Apple Music Downloader
+# Apple Music 下载器
 
 一个功能强大的 Apple Music 下载工具，支持下载歌曲、音乐视频和帖子内容。
 
@@ -8,17 +8,15 @@
 ## 功能特性
 
 - 🎵 **高品质音频下载** - 支持 AAC 256kbps 等多种编码格式
-- 🎬 **高清音乐视频** - 支持最高 4K 分辨率下载
-- 📝 **同步歌词支持** - 支持 LRC、SRT 和 TTML 格式
-- 👤 **艺术家作品批量下载** - 通过艺术家链接下载全部作品
+- 🎬 **高清音乐视频** - 支持最高 1080p 分辨率下载
+- 👤 **艺术家作品批量下载** - 通过多个链接或专辑歌单链接下载
 - 🎨 **高度可定制** - 丰富的配置选项满足个性化需求
-- 🖥️ **双模式操作** - 支持图形界面和命令行两种使用方式
 
 ## 安装方式
 
 ### 方法一：使用安装程序（推荐，仅限Windows）
 
-1. 从 [Releases](https://github.com/your-repo/releases) 页面下载最新版本的安装程序
+1. 从 [Releases](https://github.com/wenfeng110402/AppleMusic-Downloader/releases) 页面下载最新版本的安装程序
 2. 运行 `AppleMusicDownloader_Setup.exe` 并按照提示完成安装
 3. 安装完成后，您可以在开始菜单中找到 "Apple Music Downloader"
 

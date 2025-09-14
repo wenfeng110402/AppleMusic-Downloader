@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QListWidget, QStackedWidget, QSplitter, QToolBar
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSettings, QTimer, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QFont, QColor, QPalette, QAction
+from PyQt6.QtGui import QFont, QColor, QPalette, QAction, QIcon
 
 # Fluent UI imports for PyQt6
 from qfluentwidgets import (
@@ -576,6 +576,14 @@ class FluentMainWindow(FluentWindow):
         self.setWindowTitle("Apple Music Downloader")
         self.setGeometry(100, 100, 1200, 800)
         self.setMinimumSize(800, 600)
+        
+        # 设置窗口图标
+        if os.path.exists("icon.ico"):
+            self.setWindowIcon(QIcon("icon.ico"))
+        elif os.path.exists(os.path.join(os.path.dirname(sys.executable), "icon.ico")):
+            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(sys.executable), "icon.ico")))
+        elif os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icon.ico")):
+            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icon.ico")))
         
         # 连接日志信号到处理函数
         self.append_log_signal.connect(self.append_log)

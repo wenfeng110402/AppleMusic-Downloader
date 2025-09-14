@@ -1,4 +1,5 @@
 # fluent ui
+# 9/14修改到628行，添加info界面
 import sys
 import os
 import io
@@ -612,6 +613,10 @@ class FluentMainWindow(FluentWindow):
         # 创建设置界面
         self.settings_interface = QWidget()
         self.settings_interface.setObjectName("settingsInterface")
+
+        # 创建关于界面
+        self.info_interface = QWidget()
+        self.info_interface.setObjectName("infoInterface")
         
         # 初始化界面
         self.init_download_interface()
@@ -620,6 +625,7 @@ class FluentMainWindow(FluentWindow):
         # 添加到导航栏
         self.addSubInterface(self.download_interface, FluentIcon.DOWNLOAD, "下载")
         self.addSubInterface(self.settings_interface, FluentIcon.SETTING, "设置", NavigationItemPosition.BOTTOM)
+        self.addSubInterface(self.info_interface, FluentIcon.INFO, "关于", NavigationItemPosition.BOTTOM)
 
     def init_settings_interface(self):
         """初始化设置界面"""

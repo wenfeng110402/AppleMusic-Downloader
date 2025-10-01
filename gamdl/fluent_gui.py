@@ -608,6 +608,10 @@ class FluentMainWindow(FluentWindow):
         # 设置窗口图标
         self._setup_window_icon()
         
+        # Windows任务栏图标设置
+        if sys.platform == "win32":
+            self._setup_taskbar_icon()
+        
         # 连接日志信号到处理函数
         self.append_log_signal.connect(self.append_log)
         
@@ -630,7 +634,10 @@ class FluentMainWindow(FluentWindow):
         
         for icon_path in icon_paths:
             if os.path.exists(icon_path):
-                self.setWindowIcon(QIcon(icon_path))
+                icon = QIcon(icon_path)
+                self.setWindowIcon(icon)
+                # 同时设置应用程序图标
+                QApplication.instance().setWindowIcon(icon)
                 return
         
         # 如果找不到图标文件，尝试使用资源中的图标
@@ -640,6 +647,22 @@ class FluentMainWindow(FluentWindow):
         except:
             # 如果都失败了，就使用默认图标（无）
             pass
+
+    def _setup_taskbar_icon(self):
+        """设置Windows任务栏图标"""
+        try:
+            # 设置AppUserModelID以确保任务栏图标正确显示
+            myappid = 'wenfeng110402.AppleMusicDownloader.1.0'
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception as e:
+            # 如果设置失败，不进行处理，继续运行程序
+            pass
+
+    def showEvent(self, event):
+        """窗口显示事件，确保任务栏图标正确显示"""
+        super().showEvent(event)
+        # 在窗口显示后再次设置图标，确保任务栏图标正确显示
+        self._setup_window_icon()
 
     def init_ui(self):
         """初始化用户界面"""

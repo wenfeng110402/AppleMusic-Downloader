@@ -177,14 +177,24 @@ class Downloader:
             self.truncate = None if self.truncate < 4 else self.truncate
 
     def _set_subprocess_additional_args(self):
+        # 创建startupinfo对象来隐藏控制台窗口
+        startupinfo = None
+        if sys.platform == "win32":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            
         if self.silent:
             self.subprocess_additional_args = {
                 "stdout": subprocess.DEVNULL,
                 "stderr": subprocess.DEVNULL,
+                "startupinfo": startupinfo
             }
         else:
-            self.subprocess_additional_args = {}
-
+            self.subprocess_additional_args = {
+                "startupinfo": startupinfo
+            }
+    
     def set_cdm(self):
         if self.wvd_path:
             self.cdm = Cdm.from_device(Device.load(self.wvd_path))

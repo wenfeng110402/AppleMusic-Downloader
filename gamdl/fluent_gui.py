@@ -411,61 +411,73 @@ class DownloadThread(QThread):
         :return: 转换是否成功
         """
         try:
-            # 构建FFmpeg命令
+            # 构建FFmpeg命令，使用-map 0来保留所有流，包括元数据
             if target_format == "mp3":
-                # MP3格式，使用320kbps比特率
+                # MP3格式，使用320kbps比特率，并确保保留元数据
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-vn", "-ar", "44100", "-ac", "2", "-ab", "320k", "-f", "mp3",
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "libmp3lame", "-b:a", "320k", 
+                    "-map_metadata", "0", "-id3v2_version", "3", "-write_id3v1", "1",
+                    "-f", "mp3",
                     target_path
                 ]
             elif target_format == "flac":
                 # FLAC无损格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-vn", "-f", "flac",
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "flac", 
+                    "-map_metadata", "0",
+                    "-f", "flac",
                     target_path
                 ]
             elif target_format == "wav":
                 # WAV格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-vn", "-f", "wav",
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "pcm_s16le", 
+                    "-map_metadata", "0",
+                    "-f", "wav",
                     target_path
                 ]
             elif target_format == "aac":
                 # AAC格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-vn", "-c:a", "aac", "-b:a", "256k",
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "aac", "-b:a", "256k",
+                    "-map_metadata", "0",
                     target_path
                 ]
             elif target_format == "m4a":
                 # M4A格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-vn", "-c:a", "aac", "-b:a", "256k",
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "aac", "-b:a", "256k",
+                    "-map_metadata", "0",
+                    "-f", "mp4",
                     target_path
                 ]
             elif target_format == "ogg":
                 # OGG格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-vn", "-c:a", "libvorbis", "-q:a", "5",
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "libvorbis", "-q:a", "5",
+                    "-map_metadata", "0",
                     target_path
                 ]
             elif target_format == "wma":
                 # WMA格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-vn", "-c:a", "wmav2", "-b:a", "192k",
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "wmav2", "-b:a", "192k",
+                    "-map_metadata", "0",
                     target_path
                 ]
             else:
                 # 默认AAC格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-vn", "-c:a", "aac", "-b:a", "256k",
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "aac", "-b:a", "256k",
+                    "-map_metadata", "0",
                     target_path
                 ]
             
@@ -499,50 +511,63 @@ class DownloadThread(QThread):
         :return: 转换是否成功
         """
         try:
-            # 构建FFmpeg命令，保留所有流（音频、视频、字幕等）
-            cmd = [
-                "ffmpeg.exe", "-i", source_path,
-                "-c", "copy",  # 默认复制所有流
-                target_path
-            ]
-            
-            # 对于某些格式，可能需要重新编码
-            if target_format in ["mp4", "mov"]:
-                # 这些格式通常可以无损复制流
-                pass
+            # 构建FFmpeg命令
+            if target_format == "mp4":
+                # MP4格式
+                cmd = [
+                    "ffmpeg", "-i", source_path,
+                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
+                    "-movflags", "+faststart",
+                    target_path
+                ]
             elif target_format == "mkv":
                 # MKV格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-c", "copy",
+                    "ffmpeg", "-i", source_path,
+                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
                     target_path
                 ]
             elif target_format == "avi":
-                # AVI格式可能需要重新编码
+                # AVI格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-c:v", "libx264", "-c:a", "aac",
+                    "ffmpeg", "-i", source_path,
+                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
+                    target_path
+                ]
+            elif target_format == "mov":
+                # MOV格式
+                cmd = [
+                    "ffmpeg", "-i", source_path,
+                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
                     target_path
                 ]
             elif target_format == "wmv":
                 # WMV格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-c:v", "wmv2", "-c:a", "wmav2",
+                    "ffmpeg", "-i", source_path,
+                    "-c:v", "wmv2", "-c:a", "wmav2", "-b:a", "192k",
                     target_path
                 ]
             elif target_format == "flv":
                 # FLV格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-c:v", "flv", "-c:a", "aac",
+                    "ffmpeg", "-i", source_path,
+                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
                     target_path
                 ]
             elif target_format == "webm":
                 # WebM格式
                 cmd = [
-                    "ffmpeg.exe", "-i", source_path,
-                    "-c:v", "libvpx-vp9", "-c:a", "libopus",
+                    "ffmpeg", "-i", source_path,
+                    "-c:v", "libvpx-vp9", "-c:a", "libvorbis", "-b:a", "192k",
+                    target_path
+                ]
+            else:
+                # 默认MP4格式
+                cmd = [
+                    "ffmpeg", "-i", source_path,
+                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
+                    "-movflags", "+faststart",
                     target_path
                 ]
             

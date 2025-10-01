@@ -59,43 +59,9 @@ SetCompressor /SOLID LZMA
 Section "MainSection" SEC01
   SetOutPath "$INSTDIR"
   
-  ; Add files
+  ; Add only the executable from dist
   SetOverwrite ifnewer
   File "dist\AppleMusicDownloader.exe"
-  File "LICENSE"
-  File "__main__.exe.manifest"
-  File "icon.ico"
-  File "run_with_uac.bat"
- 
-  
-  ; Create tools directory and add tools
-  SetOutPath "$INSTDIR\tools"
-  File "tools\N_m3u8DL-RE.exe"
-  File "tools\ffmpeg.exe"
-  File "tools\mp4box.exe"
-  File "tools\mp4decrypt.exe"
-  
-  ; Create gamdl directory and add Python files
-  SetOutPath "$INSTDIR\gamdl"
-  File "gamdl\__main__.py"
-  File "gamdl\__init__.py"
-  File "gamdl\apple_music_api.py"
-  File "gamdl\cli.py"
-  File "gamdl\constants.py"
-  File "gamdl\custom_formatter.py"
-  File "gamdl\downloader.py"
-  File "gamdl\downloader_music_video.py"
-  File "gamdl\downloader_post.py"
-  File "gamdl\downloader_song.py"
-  File "gamdl\downloader_song_legacy.py"
-  File "gamdl\enums.py"
-  File "gamdl\fluent_gui.py"
-  File "gamdl\fluent_main_window.py"
-  File "gamdl\hardcoded_wvd.py"
-  File "gamdl\itunes_api.py"
-  File "gamdl\main_window.py"
-  File "gamdl\models.py"
-  File "gamdl\utils.py"
   
   ; Return to main directory
   SetOutPath "$INSTDIR"
@@ -118,9 +84,7 @@ Section "MainSection" SEC01
   ; Create start menu shortcuts
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
   CreateShortCut "$SMPROGRAMS\${APPNAME}\Apple Music Downloader.lnk" "$INSTDIR\AppleMusicDownloader.exe" "" "$INSTDIR\icon.ico" 0
-  CreateShortCut "$SMPROGRAMS\${APPNAME}\Apple Music Downloader (UAC).lnk" "$INSTDIR\run_with_uac.bat" "" "$INSTDIR\icon.ico" 0
   CreateShortCut "$SMPROGRAMS\${APPNAME}\Uninstall Apple Music Downloader.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\icon.ico" 0
-  CreateShortCut "$SMPROGRAMS\${APPNAME}\README.lnk" "$INSTDIR\README.md" "" "$INSTDIR\icon.ico" 0
   
 SectionEnd
 
@@ -149,46 +113,13 @@ Section "Uninstall"
   ; Remove files and directories
   Delete "$INSTDIR\Uninstall.exe"
   Delete "$INSTDIR\AppleMusicDownloader.exe"
-  Delete "$INSTDIR\LICENSE"
-  Delete "$INSTDIR\__main__.exe.manifest"
-  Delete "$INSTDIR\icon.ico"
-  Delete "$INSTDIR\run_with_uac.bat"
-  Delete "$INSTDIR\gamdl\__main__.py"
-  Delete "$INSTDIR\gamdl\__init__.py"
-  Delete "$INSTDIR\gamdl\apple_music_api.py"
-  Delete "$INSTDIR\gamdl\cli.py"
-  Delete "$INSTDIR\gamdl\constants.py"
-  Delete "$INSTDIR\gamdl\custom_formatter.py"
-  Delete "$INSTDIR\gamdl\downloader.py"
-  Delete "$INSTDIR\gamdl\downloader_music_video.py"
-  Delete "$INSTDIR\gamdl\downloader_post.py"
-  Delete "$INSTDIR\gamdl\downloader_song.py"
-  Delete "$INSTDIR\gamdl\downloader_song_legacy.py"
-  Delete "$INSTDIR\gamdl\enums.py"
-  Delete "$INSTDIR\gamdl\fluent_gui.py"
-  Delete "$INSTDIR\gamdl\fluent_main_window.py"
-  Delete "$INSTDIR\gamdl\hardcoded_wvd.py"
-  Delete "$INSTDIR\gamdl\itunes_api.py"
-  Delete "$INSTDIR\gamdl\main_window.py"
-  Delete "$INSTDIR\gamdl\models.py"
-  Delete "$INSTDIR\gamdl\utils.py"
-  
-  ; Remove tools
-  Delete "$INSTDIR\tools\N_m3u8DL-RE.exe"
-  Delete "$INSTDIR\tools\ffmpeg.exe"
-  Delete "$INSTDIR\tools\mp4box.exe"
-  Delete "$INSTDIR\tools\mp4decrypt.exe"
   
   ; Remove directories
-  RMDir "$INSTDIR\tools"
-  RMDir "$INSTDIR\gamdl"
   RMDir "$INSTDIR"
   
   ; Remove start menu shortcuts
   Delete "$SMPROGRAMS\${APPNAME}\Apple Music Downloader.lnk"
-  Delete "$SMPROGRAMS\${APPNAME}\Apple Music Downloader (UAC).lnk"
   Delete "$SMPROGRAMS\${APPNAME}\Uninstall Apple Music Downloader.lnk"
-  Delete "$SMPROGRAMS\${APPNAME}\README.lnk"
   RMDir "$SMPROGRAMS\${APPNAME}"
   
   ; Remove desktop shortcut if it exists

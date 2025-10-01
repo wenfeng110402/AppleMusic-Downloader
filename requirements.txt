@@ -9,5 +9,4 @@ pyyaml
 termcolor
 yt-dlp
 PyQt6
-
 PyQt-Fluent-Widgets

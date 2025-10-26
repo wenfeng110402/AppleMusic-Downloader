@@ -1,6 +1,6 @@
 # Apple Music 下载器
 
-一个功能强大的 Apple Music 下载工具，支持下载歌曲、音乐视频和帖子内容。
+初中生写的一个功能强大的 Apple Music 下载工具，支持下载歌曲、音乐视频和帖子内容。
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/github/license/wenfeng110402/AppleMusic-Downloader)](LICENSE)

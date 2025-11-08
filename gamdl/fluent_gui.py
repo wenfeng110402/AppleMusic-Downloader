@@ -1,5 +1,4 @@
 # fluent ui
-# 9/14修改到628行，添加info界面
 import sys
 import os
 import io
@@ -30,7 +29,7 @@ from qfluentwidgets import (
     TransparentToolButton, FluentIcon, CardWidget, SubtitleLabel, BodyLabel,
     HyperlinkButton, PrimaryPushButton, ToggleButton, SwitchButton, 
     FolderListSettingCard, OptionsSettingCard, CustomColorSettingCard, Theme, setTheme,
-    TransparentTogglePushButton, Pivot, SegmentedWidget, IconWidget, StrongBodyLabel, MessageBox
+    TransparentTogglePushButton, Pivot, SegmentedWidget
 )
 
 
@@ -411,73 +410,61 @@ class DownloadThread(QThread):
         :return: 转换是否成功
         """
         try:
-            # 构建FFmpeg命令，使用-map 0来保留所有流，包括元数据
+            # 构建FFmpeg命令
             if target_format == "mp3":
-                # MP3格式，使用320kbps比特率，并确保保留元数据
+                # MP3格式，使用320kbps比特率
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "libmp3lame", "-b:a", "320k", 
-                    "-map_metadata", "0", "-id3v2_version", "3", "-write_id3v1", "1",
-                    "-f", "mp3",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-vn", "-ar", "44100", "-ac", "2", "-ab", "320k", "-f", "mp3",
                     target_path
                 ]
             elif target_format == "flac":
                 # FLAC无损格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "flac", 
-                    "-map_metadata", "0",
-                    "-f", "flac",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-vn", "-f", "flac",
                     target_path
                 ]
             elif target_format == "wav":
                 # WAV格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "pcm_s16le", 
-                    "-map_metadata", "0",
-                    "-f", "wav",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-vn", "-f", "wav",
                     target_path
                 ]
             elif target_format == "aac":
                 # AAC格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "aac", "-b:a", "256k",
-                    "-map_metadata", "0",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-vn", "-c:a", "aac", "-b:a", "256k",
                     target_path
                 ]
             elif target_format == "m4a":
                 # M4A格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "aac", "-b:a", "256k",
-                    "-map_metadata", "0",
-                    "-f", "mp4",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-vn", "-c:a", "aac", "-b:a", "256k",
                     target_path
                 ]
             elif target_format == "ogg":
                 # OGG格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "libvorbis", "-q:a", "5",
-                    "-map_metadata", "0",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-vn", "-c:a", "libvorbis", "-q:a", "5",
                     target_path
                 ]
             elif target_format == "wma":
                 # WMA格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "wmav2", "-b:a", "192k",
-                    "-map_metadata", "0",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-vn", "-c:a", "wmav2", "-b:a", "192k",
                     target_path
                 ]
             else:
                 # 默认AAC格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "aac", "-b:a", "256k",
-                    "-map_metadata", "0",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-vn", "-c:a", "aac", "-b:a", "256k",
                     target_path
                 ]
             
@@ -511,63 +498,50 @@ class DownloadThread(QThread):
         :return: 转换是否成功
         """
         try:
-            # 构建FFmpeg命令
-            if target_format == "mp4":
-                # MP4格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
-                    "-movflags", "+faststart",
-                    target_path
-                ]
+            # 构建FFmpeg命令，保留所有流（音频、视频、字幕等）
+            cmd = [
+                "ffmpeg.exe", "-i", source_path,
+                "-c", "copy",  # 默认复制所有流
+                target_path
+            ]
+            
+            # 对于某些格式，可能需要重新编码
+            if target_format in ["mp4", "mov"]:
+                # 这些格式通常可以无损复制流
+                pass
             elif target_format == "mkv":
                 # MKV格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-c", "copy",
                     target_path
                 ]
             elif target_format == "avi":
-                # AVI格式
+                # AVI格式可能需要重新编码
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
-                    target_path
-                ]
-            elif target_format == "mov":
-                # MOV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-c:v", "libx264", "-c:a", "aac",
                     target_path
                 ]
             elif target_format == "wmv":
                 # WMV格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "wmv2", "-c:a", "wmav2", "-b:a", "192k",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-c:v", "wmv2", "-c:a", "wmav2",
                     target_path
                 ]
             elif target_format == "flv":
                 # FLV格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-c:v", "flv", "-c:a", "aac",
                     target_path
                 ]
             elif target_format == "webm":
                 # WebM格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libvpx-vp9", "-c:a", "libvorbis", "-b:a", "192k",
-                    target_path
-                ]
-            else:
-                # 默认MP4格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libx264", "-c:a", "aac", "-b:a", "192k",
-                    "-movflags", "+faststart",
+                    "ffmpeg.exe", "-i", source_path,
+                    "-c:v", "libvpx-vp9", "-c:a", "libopus",
                     target_path
                 ]
             
@@ -596,8 +570,6 @@ class DownloadThread(QThread):
 class FluentMainWindow(FluentWindow):
     # 定义日志信号
     append_log_signal = pyqtSignal(str)
-    # 定义进度信号
-    update_progress_signal = pyqtSignal(str, float)
     
     def __init__(self):
         super().__init__()
@@ -606,63 +578,30 @@ class FluentMainWindow(FluentWindow):
         self.setMinimumSize(800, 600)
         
         # 设置窗口图标
-        self._setup_window_icon()
-        
-        # Windows任务栏图标设置
-        if sys.platform == "win32":
-            self._setup_taskbar_icon()
+        if os.path.exists("icon.ico"):
+            self.setWindowIcon(QIcon("icon.ico"))
+        elif os.path.exists(os.path.join(os.path.dirname(sys.executable), "icon.ico")):
+            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(sys.executable), "icon.ico")))
+        elif os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icon.ico")):
+            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icon.ico")))
         
         # 连接日志信号到处理函数
         self.append_log_signal.connect(self.append_log)
         
         # 创建设置对象用于保存和加载用户配置
-        self.settings = QSettings("AppleMusicDownloader", "Settings")
+        self.settings = QSettings("AppleMusicDownloader", "Config")
         
-        # 初始化界面
+        # 初始化UI
         self.init_ui()
         
         # 加载保存的设置
         self.load_settings()
-
-    def _setup_window_icon(self):
-        """设置窗口图标"""
-        icon_paths = [
-            "icon.ico",  # 当前目录
-            os.path.join(os.path.dirname(sys.executable), "icon.ico"),  # 打包后可执行文件目录
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icon.ico"),  # 项目根目录
-        ]
         
-        for icon_path in icon_paths:
-            if os.path.exists(icon_path):
-                icon = QIcon(icon_path)
-                self.setWindowIcon(icon)
-                # 同时设置应用程序图标
-                QApplication.instance().setWindowIcon(icon)
-                return
+        # 初始化下载线程为空
+        self.download_thread = None
         
-        # 如果找不到图标文件，尝试使用资源中的图标
-        try:
-            # 这里可以添加从资源中加载图标的代码
-            pass
-        except:
-            # 如果都失败了，就使用默认图标（无）
-            pass
-
-    def _setup_taskbar_icon(self):
-        """设置Windows任务栏图标"""
-        try:
-            # 设置AppUserModelID以确保任务栏图标正确显示
-            myappid = 'wenfeng110402.AppleMusicDownloader.1.0'
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-        except Exception as e:
-            # 如果设置失败，不进行处理，继续运行程序
-            pass
-
-    def showEvent(self, event):
-        """窗口显示事件，确保任务栏图标正确显示"""
-        super().showEvent(event)
-        # 在窗口显示后再次设置图标，确保任务栏图标正确显示
-        self._setup_window_icon()
+        # 日志窗口展开状态
+        self.log_expanded = True
 
     def init_ui(self):
         """初始化用户界面"""
@@ -673,20 +612,14 @@ class FluentMainWindow(FluentWindow):
         # 创建设置界面
         self.settings_interface = QWidget()
         self.settings_interface.setObjectName("settingsInterface")
-
-        # 创建关于界面
-        self.info_interface = QWidget()
-        self.info_interface.setObjectName("infoInterface")
         
         # 初始化界面
         self.init_download_interface()
         self.init_settings_interface()
-        self.init_info_interface()  # 初始化关于界面
         
         # 添加到导航栏
         self.addSubInterface(self.download_interface, FluentIcon.DOWNLOAD, "下载")
         self.addSubInterface(self.settings_interface, FluentIcon.SETTING, "设置", NavigationItemPosition.BOTTOM)
-        self.addSubInterface(self.info_interface, FluentIcon.INFO, "关于", NavigationItemPosition.BOTTOM)
 
     def init_settings_interface(self):
         """初始化设置界面"""
@@ -1165,142 +1098,6 @@ class FluentMainWindow(FluentWindow):
         layout.addLayout(button_layout)
         
         layout.addStretch(1)
-
-    def init_info_interface(self):
-        """初始化关于界面"""
-        # 创建主布局
-        layout = QVBoxLayout(self.info_interface)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(20)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        # 创建卡片容器
-        cards_container = QWidget()
-        cards_layout = QHBoxLayout(cards_container)
-        cards_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        cards_layout.setSpacing(20)
-        
-        # 创建并添加卡片
-        def github(event):
-            import webbrowser
-            webbrowser.open("https://github.com/wenfeng110402")
-        # 创建作者卡片
-        author_card = self.create_card(
-            icon=FluentIcon.PEOPLE, 
-            title="作者", 
-            content="wenfeng110402"
-        )
-        # 为卡片添加点击功能
-        author_card.mousePressEvent = github
-
-        def github_repo(event):
-            import webbrowser
-            webbrowser.open("https://github.com/wenfeng110402/AppleMusic-Downloader")
-
-        # 创建项目仓库卡片
-        repo_card = self.create_card(
-            icon=FluentIcon.GITHUB, 
-            title="项目仓库", 
-            content="访问 GitHub"
-        )
-        repo_card.mousePressEvent = github_repo
-        
-        # 创建许可证卡片
-        license_card = self.create_card(
-            icon=FluentIcon.CERTIFICATE, 
-            title="许可证", 
-            content="MIT License"
-        )
-        def license_turn(event):
-            import webbrowser
-            webbrowser.open("https://github.com/wenfeng110402/AppleMusic-Downloader?tab=MIT-1-ov-file")
-        
-        license_card.mousePressEvent = license_turn
-
-        update_card = self.create_card(
-            icon=FluentIcon.UPDATE, 
-            title="更新", 
-            content="查看新版本"
-        )
-
-        def check_update(event):
-            import webbrowser as web
-            web.open("https://github.com/wenfeng110402/AppleMusic-Downloader/releases")
-        
-        update_card.mousePressEvent = check_update
-        
-        # 将卡片添加到布局中
-        cards_layout.addWidget(author_card, 0, Qt.AlignmentFlag.AlignCenter)
-        cards_layout.addWidget(repo_card, 0, Qt.AlignmentFlag.AlignCenter)
-        cards_layout.addWidget(license_card, 0, Qt.AlignmentFlag.AlignCenter)
-        cards_layout.addWidget(update_card, 0, Qt.AlignmentFlag.AlignCenter)
-        
-        # 将卡片容器添加到主布局
-        layout.addWidget(cards_container)
-
-         # 添加版本信息
-        version_label = BodyLabel("v2.2.0")
-        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(version_label)
-        
-    
-        # 添加版权信息
-        copyright_label = BodyLabel("© 2025 wenfeng110402")
-        copyright_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(copyright_label)
-
-    def create_card(self, icon, title, content):
-        """
-        创建卡片的通用方法
-        """
-        try:
-            # 创建卡片部件
-            card = CardWidget()
-            card.setFixedSize(240, 180)
-            
-            # 创建卡片内部布局
-            layout = QVBoxLayout(card)
-            layout.setContentsMargins(15, 10, 15, 10)
-            
-            # 添加图标和标题的水平布局
-            header_layout = QHBoxLayout()
-            icon_widget = IconWidget(icon)
-            icon_widget.setFixedSize(20, 20)
-            
-            title_label = StrongBodyLabel(title)
-            title_label.setStyleSheet("font-size: 14px; font-weight: bold;")
-            
-            header_layout.addWidget(icon_widget)
-            header_layout.addWidget(title_label)
-            header_layout.addStretch()  # 添加弹性空间
-            
-            # 添加内容标签
-            content_label = BodyLabel(content)
-            content_label.setStyleSheet("font-size: 12px; color: gray;")
-            content_label.setWordWrap(True)
-            
-            # 将组件添加到卡片布局
-            layout.addLayout(header_layout)
-            layout.addWidget(content_label)
-            layout.addStretch()
-            
-            return card
-        except Exception as e:
-            print(f"创建卡片时出错: {e}")
-            return None
-    
-    def show_message(self, title, content):
-        """
-        显示消息框
-        """
-        try:
-            msg_box = MessageBox(title, content, self)
-            msg_box.setClosableOnMaskClicked(True)
-            msg_box.setDraggable(True)
-            msg_box.exec()
-        except Exception as e:
-            print(f"显示消息框时出错: {e}")
-            QMessageBox.warning(self, title, content)
 
     def select_cookie_file(self):
         """选择Cookie文件"""

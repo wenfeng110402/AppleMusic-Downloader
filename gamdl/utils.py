@@ -1,5 +1,7 @@
 import json
 import time
+import sys
+import subprocess
 import colorama
 import requests
 
@@ -17,6 +19,21 @@ def raise_response_exception(response):
         "request_headers": dict(response.request.headers),
         "response_headers": dict(response.headers)
     }
+    
+    
+def get_subprocess_startupinfo():
+    """
+    获取用于隐藏命令行窗口的 startupinfo 配置
+    
+    Returns:
+        subprocess.STARTUPINFO: 配置了隐藏窗口的 startupinfo 对象，在非 Windows 系统上返回 None
+    """
+    if sys.platform == "win32":
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        return startupinfo
+    return None
     
     # 创建错误消息
     error_message = f"""

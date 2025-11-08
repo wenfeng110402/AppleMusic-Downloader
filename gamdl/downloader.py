@@ -99,6 +99,26 @@ class Downloader:
             app_path = Path(__file__).parent.parent.absolute()
         
         # 设置tools目录路径
+        tools_path = app_path / 'tools'
+        
+        # 设置各个工具的完整路径
+        self.nm3u8dlre_path_full = str(tools_path / self.nm3u8dlre_path)
+        self.mp4decrypt_path_full = str(tools_path / self.mp4decrypt_path)
+        self.ffmpeg_path_full = str(tools_path / self.ffmpeg_path)
+        self.mp4box_path_full = str(tools_path / self.mp4box_path)
+        
+        # 如果文件名没有.exe后缀，添加.exe后缀（Windows系统）
+        if sys.platform == "win32":
+            if not self.nm3u8dlre_path_full.endswith('.exe'):
+                self.nm3u8dlre_path_full += '.exe'
+            if not self.mp4decrypt_path_full.endswith('.exe'):
+                self.mp4decrypt_path_full += '.exe'
+            if not self.ffmpeg_path_full.endswith('.exe'):
+                self.ffmpeg_path_full += '.exe'
+            if not self.mp4box_path_full.endswith('.exe'):
+                self.mp4box_path_full += '.exe'
+        
+        # 设置tools目录路径
         tools_paths = [
             app_path / "tools",           # 程序目录下的tools文件夹
             Path.cwd() / "tools",         # 当前工作目录下的tools文件夹
@@ -177,12 +197,9 @@ class Downloader:
             self.truncate = None if self.truncate < 4 else self.truncate
 
     def _set_subprocess_additional_args(self):
-        # 创建startupinfo对象来隐藏控制台窗口
-        startupinfo = None
-        if sys.platform == "win32":
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = subprocess.SW_HIDE
+        # 使用utils中的函数获取startupinfo
+        from .utils import get_subprocess_startupinfo
+        startupinfo = get_subprocess_startupinfo()
             
         if self.silent:
             self.subprocess_additional_args = {

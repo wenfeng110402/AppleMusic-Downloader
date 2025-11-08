@@ -74,7 +74,7 @@ class AppleMusicApi:
                     raise e
 
         index_js_uri = re.search(
-            r"/(assets/index-legacy-[^/]+\.js)",
+            r"/(assets/index-legacy[~-][^/]+\.js)",
             home_page,
         ).group(1)
         

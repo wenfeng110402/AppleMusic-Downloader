@@ -1,41 +1,22 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_all
+
+datas = [('tools/*', 'gamdl/tools/')]
+binaries = []
+hiddenimports = ['pkgutil', 'tempfile', 'PyQt6', 'qfluentwidgets']
+tmp_ret = collect_all('gamdl')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
 
 block_cipher = None
 
-added_files = [
-    ('gamdl/*', 'gamdl'),
-    ('icon.ico', '.'),
-    ('LICENSE', '.'),
-    ('tools/N_m3u8DL-RE.exe', 'tools'),
-    ('tools/ffmpeg.exe', 'tools'),
-    ('tools/mp4box.exe', 'tools'),
-    ('tools/mp4decrypt.exe', 'tools'),
-]
 
 a = Analysis(
-    ['gamdl/fluent_gui.py'],
+    ['gamdl\\fluent_gui.py'],
     pathex=[],
-    binaries=[],
-    datas=added_files,
-    hiddenimports=[
-        'gamdl',
-        'gamdl.cli',
-        'gamdl.fluent_gui',
-        'gamdl.fluent_main_window',
-        'gamdl.main_window',
-        'click',
-        'colorama',
-        'InquirerPy',
-        'm3u8',
-        'mutagen',
-        'PIL',
-        'pywidevine',
-        'yt_dlp',
-        'PyQt6',
-        'PyQt6.QtWidgets',
-        'PyQt6.QtCore',
-        'PyQt6.QtGui'
-    ],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -45,7 +26,6 @@ a = Analysis(
     cipher=block_cipher,
     noarchive=False,
 )
-
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
@@ -68,5 +48,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.ico'
+    icon=['icon.ico'],
 )

@@ -1,0 +1,83 @@
+name: Build and Package
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+
+name: Build and Package
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: [3.11]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: Prepare platform-specific tools
+        env:
+          FFMPEG_URL: ${{ secrets.FFMPEG_URL }}
+          MP4DECRYPT_URL: ${{ secrets.MP4DECRYPT_URL }}
+          N_M3U8DL_RE_URL: ${{ secrets.N_M3U8DL_RE_URL }}
+        run: |
+          echo "Preparing platform-specific tools"
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            PLATFORM_DIR=tools/linux-x86_64
+            bash ./scripts/fetch_tools.sh "$PLATFORM_DIR" linux x86_64
+          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+            ARCH=$(uname -m)
+            PLATFORM_DIR=tools/macos-${ARCH}
+            bash ./scripts/fetch_tools.sh "$PLATFORM_DIR" macos $ARCH
+          else
+            PLATFORM_DIR=tools/windows-x86_64
+            pwsh ./scripts/fetch_tools.ps1 -PlatformDir $PLATFORM_DIR -Platform windows -Arch x86_64
+          fi
+
+      - name: Build with PyInstaller
+        env:
+          TZ: UTC
+        run: |
+          echo "Running PyInstaller for platform $RUNNER_OS"
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            PLATFORM_DIR=tools/linux-x86_64
+          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+            PLATFORM_DIR=tools/macos-$(uname -m)
+          else
+            PLATFORM_DIR=tools/windows-x86_64
+          fi
+
+          # Ensure platform dir exists (CI should provide or you can add download logic)
+          ls -la $PLATFORM_DIR || true
+
+          # Use onedir to avoid long onefile startup and make artifacts easier to debug
+          pyinstaller --noconfirm --clean --onedir --windowed --name AppleMusicDownloader \
+            --add-data "$PLATFORM_DIR/ffmpeg*;tools" \
+            --add-data "$PLATFORM_DIR/mp4decrypt*;tools" \
+            --add-data "$PLATFORM_DIR/N_m3u8DL-RE*;tools" \
+            gamdl/fluent_gui.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppleMusicDownloader-${{ matrix.os }}
+          path: dist/

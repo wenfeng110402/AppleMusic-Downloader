@@ -1,38 +1,24 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_all
-
-datas = [('tools/*', 'gamdl/tools/')]
-binaries = []
-hiddenimports = ['pkgutil', 'tempfile', 'PyQt6', 'qfluentwidgets']
-tmp_ret = collect_all('gamdl')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-
-
-block_cipher = None
-
 
 a = Analysis(
     ['gamdl\\fluent_gui.py'],
     pathex=[],
-    binaries=binaries,
-    datas=datas,
-    hiddenimports=hiddenimports,
+    binaries=[],
+    datas=[('tools/*', 'tools'), ('icon.ico', '.')],
+    hiddenimports=['qfluentwidgets', 'yt_dlp', 'mutagen', 'm3u8', 'PIL', 'pywidevine', 'InquirerPy', 'colorama'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
     noarchive=False,
+    optimize=0,
 )
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.zipfiles,
     a.datas,
     [],
     name='AppleMusicDownloader',
@@ -48,5 +34,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['icon.ico'],
+    icon='icon.ico',
 )

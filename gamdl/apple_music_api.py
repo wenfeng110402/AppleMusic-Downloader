@@ -151,6 +151,7 @@ class AppleMusicApi:
                     },
                     timeout=30  # 添加超时设置
                 )
+                
                 self._check_amp_api_response(response)
                 artist = response.json()["data"][0]
                 if fetch_all:

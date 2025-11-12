@@ -417,29 +417,82 @@ class DownloadThread(QThread):
         :return: 转换是否成功
         """
         try:
-            # 使用映射来减少重复代码
-            templates = {
-                "mp3": [
-                    "-i", source_path, "-vn", "-ar", "44100", "-ac", "2", "-ab", "320k", "-f", "mp3", target_path
-                ],
-                "flac": ["-i", source_path, "-vn", "-f", "flac", target_path],
-                "wav": ["-i", source_path, "-vn", "-f", "wav", target_path],
-                "aac": ["-i", source_path, "-vn", "-c:a", "aac", "-b:a", "256k", target_path],
-                "m4a": ["-i", source_path, "-vn", "-c:a", "aac", "-b:a", "256k", target_path],
-                "ogg": ["-i", source_path, "-vn", "-c:a", "libvorbis", "-q:a", "5", target_path],
-                "wma": ["-i", source_path, "-vn", "-c:a", "wmav2", "-b:a", "192k", target_path],
-            }
-
-            args = templates.get(target_format) or templates["aac"]
-            cmd = [self.ffmpeg_exe] + args
-
-            code, stdout, stderr = self.run_subprocess(cmd)
-            if code == 0:
-                if stdout:
-                    self.log_callback.emit(f"    FFmpeg输出: {stdout}")
+            # 构建FFmpeg命令，确保保留封面和元数据
+            if target_format == "mp3":
+                # MP3格式，使用320kbps比特率，并确保保留封面和元数据
+                cmd = [
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "libmp3lame", "-b:a", "320k",
+                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?", 
+                    "-id3v2_version", "3", "-write_id3v1", "1",
+                    target_path
+                ]
+            elif target_format == "flac":
+                # FLAC无损格式
+                cmd = [
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "flac", 
+                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
+                    target_path
+                ]
+            elif target_format == "wav":
+                # WAV格式
+                cmd = [
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "pcm_s16le",
+                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
+                    target_path
+                ]
+            elif target_format == "aac":
+                # AAC格式
+                cmd = [
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "aac", "-b:a", "256k",
+                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
+                    target_path
+                ]
+            elif target_format == "m4a":
+                # M4A格式
+                cmd = [
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "aac", "-b:a", "256k",
+                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
+                    target_path
+                ]
+            elif target_format == "ogg":
+                # OGG格式
+                cmd = [
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "libvorbis", "-q:a", "5",
+                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
+                    target_path
+                ]
+            elif target_format == "wma":
+                # WMA格式
+                cmd = [
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "wmav2", "-b:a", "192k",
+                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
+                    target_path
+                ]
+            else:
+                # 默认AAC格式
+                cmd = [
+                    "ffmpeg", "-i", source_path,
+                    "-c:a", "aac", "-b:a", "256k",
+                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
+                    target_path
+                ]
+            
+            # 执行FFmpeg命令
+            self.log_callback.emit(f"    执行转换命令: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                self.log_callback.emit(f"    FFmpeg输出: {result.stdout}")
                 return True
             else:
-                self.log_callback.emit(f"    FFmpeg错误: {stderr}")
+                self.log_callback.emit(f"    FFmpeg错误: {result.stderr}")
                 return False
         except Exception as e:
             self.log_callback.emit(f"    执行音频转换时出错: {str(e)}")
@@ -510,33 +563,7 @@ class FluentMainWindow(FluentWindow):
         self.setMinimumSize(800, 600)
         
         # 设置窗口图标
-        def find_icon():
-            # 检查可能的图标路径
-            icon_paths = [
-                "icon.ico",  # 当前目录
-                os.path.join(os.path.dirname(sys.executable), "icon.ico"),  # exe所在目录
-                os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icon.ico"),  # 项目根目录
-            ]
-            
-            if getattr(sys, 'frozen', False):
-                # 如果是打包后的 exe，安全地读取 _MEIPASS
-                base_path = getattr(sys, '_MEIPASS', None)
-                if base_path:
-                    icon_paths.append(os.path.join(base_path, "icon.ico"))
-            
-            # 返回第一个存在的图标路径
-            for path in icon_paths:
-                if os.path.exists(path):
-                    return path
-            return None
-
-        icon_path = find_icon()
-        if icon_path:
-            self.setWindowIcon(QIcon(icon_path))
-            # 设置任务栏图标
-            if hasattr(ctypes, 'windll'):  # Windows 平台
-                myappid = 'AppleMusicDownloader'  # 任意字符串
-                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        self._setup_icons()
         
         # 连接日志信号到处理函数
         self.append_log_signal.connect(self.append_log)
@@ -556,6 +583,53 @@ class FluentMainWindow(FluentWindow):
         # 日志窗口展开状态
         self.log_expanded = True
 
+    def _setup_icons(self):
+        """设置窗口和任务栏图标"""
+        # 查找图标文件
+        icon_paths = [
+            "icon.ico",  # 当前目录
+            os.path.join(os.path.dirname(sys.executable), "icon.ico"),  # exe所在目录
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "icon.ico"),  # 项目根目录
+        ]
+        
+        # 如果是打包后的程序，检查_MEIPASS目录
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            icon_paths.insert(0, os.path.join(sys._MEIPASS, "icon.ico"))
+        
+        icon_path = None
+        for path in icon_paths:
+            if os.path.exists(path):
+                icon_path = path
+                break
+        
+        if icon_path:
+            icon = QIcon(icon_path)
+            self.setWindowIcon(icon)
+            
+            # 设置应用程序图标
+            app = QApplication.instance()
+            if app:
+                app.setWindowIcon(icon)
+            
+            # 特别设置FluentWindow的标题栏图标
+            if hasattr(self, 'titleBar') and hasattr(self.titleBar, 'setIcon'):
+                self.titleBar.setIcon(icon)
+            
+            # Windows任务栏图标设置
+            if sys.platform == "win32":
+                try:
+                    import ctypes
+                    myappid = 'AppleMusicDownloader.3.1.0'  # 任意字符串
+                    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+                except Exception:
+                    pass  # 忽略错误，继续执行
+
+    def showEvent(self, event):
+        """窗口显示事件，确保任务栏图标正确显示"""
+        super().showEvent(event)
+        # 在窗口显示后再次设置图标，确保任务栏图标正确显示
+        self._setup_icons()
+        
     def init_ui(self):
         """初始化用户界面"""
         # 创建下载界面

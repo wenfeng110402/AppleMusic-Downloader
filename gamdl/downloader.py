@@ -90,62 +90,47 @@ class Downloader:
         self._set_subprocess_additional_args()
 
     def _set_binaries_path_full(self):
-        import tempfile
-        import pkgutil
         import os
-        
-        def extract_binary(binary_name):
-            """从打包的二进制文件中提取工具"""
-            try:
-                # 从package中读取二进制文件
-                binary_data = pkgutil.get_data('gamdl', f'tools/{binary_name}')
-                if binary_data:
-                    # 创建临时目录（如果不存在）
-                    temp_dir = os.path.join(tempfile.gettempdir(), 'AppleMusicDownloader')
-                    os.makedirs(temp_dir, exist_ok=True)
-                    
-                    # 写入临时文件
-                    temp_path = os.path.join(temp_dir, binary_name)
-                    if not os.path.exists(temp_path):
-                        with open(temp_path, 'wb') as f:
-                            f.write(binary_data)
-                        os.chmod(temp_path, 0o755)  # 设置可执行权限
-                    return temp_path
-            except Exception:
-                pass
-            return None
-        
-        # 获取程序所在目录（兼容打包后的exe文件和开发环境）
+        import sys
+        from pathlib import Path
+
+        def find_binary(binary_name, search_paths):
+            """在给定的路径列表中查找二进制文件"""
+            for path in search_paths:
+                binary_path = path / binary_name
+                if binary_path.exists():
+                    return str(binary_path)
+            return binary_name  # 如果找不到，返回原始名称
+
+        # 确定程序根目录
         if getattr(sys, 'frozen', False):
-            # 如果是打包后的exe，从临时目录提取工具
-            binaries = ['ffmpeg.exe', 'mp4box.exe', 'mp4decrypt.exe', 'N_m3u8DL-RE.exe']
-            temp_paths = {}
-            
-            for binary in binaries:
-                temp_path = extract_binary(binary)
-                if temp_path:
-                    temp_paths[binary] = temp_path
-                
-            self.ffmpeg_path_full = temp_paths.get('ffmpeg.exe', 'ffmpeg.exe')
-            self.mp4box_path_full = temp_paths.get('mp4box.exe', 'mp4box.exe')
-            self.mp4decrypt_path_full = temp_paths.get('mp4decrypt.exe', 'mp4decrypt.exe')
-            self.nm3u8dlre_path_full = temp_paths.get('N_m3u8DL-RE.exe', 'N_m3u8DL-RE.exe')
+            # 如果是打包后的exe
+            base_dir = Path(sys._MEIPASS)
+            app_dir = Path(sys.executable).parent
         else:
-            # 如果是Python脚本，使用开发环境中的工具
-            app_path = Path(__file__).parent.parent.absolute()
-            tools_path = app_path / 'tools'
-            
-            self.ffmpeg_path_full = str(tools_path / 'ffmpeg.exe')
-            self.mp4box_path_full = str(tools_path / 'mp4box.exe')
-            self.mp4decrypt_path_full = str(tools_path / 'mp4decrypt.exe')
-            self.nm3u8dlre_path_full = str(tools_path / 'N_m3u8DL-RE.exe')
-        
-        # 设置tools目录路径
-        tools_paths = [
-            app_path / "tools",           # 程序目录下的tools文件夹
-            Path.cwd() / "tools",         # 当前工作目录下的tools文件夹
-            Path.cwd()                   # 当前工作目录（直接放在目录下）
+            # 如果是开发环境
+            base_dir = Path(__file__).parent.parent
+            app_dir = base_dir
+
+        # 设置搜索路径
+        search_paths = [
+            base_dir,                     # 程序根目录
+            base_dir / 'tools',           # tools子目录
+            app_dir,                      # 应用程序目录
+            app_dir / 'tools',            # 应用程序tools目录
+            Path.cwd(),                   # 当前工作目录
+            Path.cwd() / 'tools',         # 当前工作目录的tools子目录
         ]
+
+        # 统一的 tools 路径列表（确保为 Path 类型），并保存到实例以便后续使用
+        tools_paths = [p if isinstance(p, Path) else Path(p) for p in search_paths]
+        self.tools_paths = tools_paths
+
+        # 设置工具路径
+        self.ffmpeg_path_full = find_binary('ffmpeg.exe', search_paths)
+        self.mp4box_path_full = find_binary('mp4box.exe', search_paths)
+        self.mp4decrypt_path_full = find_binary('mp4decrypt.exe', search_paths)
+        self.nm3u8dlre_path_full = find_binary('N_m3u8DL-RE.exe', search_paths)
         
         # Handle nm3u8dlre path
         self.nm3u8dlre_path_full = shutil.which(self.nm3u8dlre_path)
@@ -163,7 +148,7 @@ class Downloader:
         # Handle ffmpeg path
         self.ffmpeg_path_full = shutil.which(self.ffmpeg_path)
         if not self.ffmpeg_path_full:
-            for tools_path in tools_paths:
+            for tools_path in self.tools_paths:
                 ffmpeg_path = tools_path / "ffmpeg.exe"
                 if ffmpeg_path.exists():
                     self.ffmpeg_path_full = str(ffmpeg_path)
@@ -176,7 +161,7 @@ class Downloader:
         # Handle mp4box path
         self.mp4box_path_full = shutil.which(self.mp4box_path)
         if not self.mp4box_path_full:
-            for tools_path in tools_paths:
+            for tools_path in self.tools_paths:  # 使用 self.tools_paths
                 mp4box_path = tools_path / "MP4Box.exe"
                 if mp4box_path.exists():
                     self.mp4box_path_full = str(mp4box_path)
@@ -189,7 +174,7 @@ class Downloader:
         # Handle mp4decrypt path
         self.mp4decrypt_path_full = shutil.which(self.mp4decrypt_path)
         if not self.mp4decrypt_path_full:
-            for tools_path in tools_paths:
+            for tools_path in self.tools_paths:
                 mp4decrypt_path = tools_path / "mp4decrypt.exe"
                 if mp4decrypt_path.exists():
                     self.mp4decrypt_path_full = str(mp4decrypt_path)

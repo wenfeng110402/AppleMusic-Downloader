@@ -38,8 +38,10 @@ class AppleMusicApi:
             cookies = MozillaCookieJar(self.cookies_path)
             cookies.load(ignore_discard=True, ignore_expires=True)
             self.session.cookies.update(cookies)
-            self.storefront = self.session.cookies.get_dict()["itua"]
-            media_user_token = self.session.cookies.get_dict()["media-user-token"]
+            cookies_dict = self.session.cookies.get_dict()
+            # 使用 get 避免 KeyError，当 cookie 中缺少字段时保持原有 storefront 或使用空字符串
+            self.storefront = cookies_dict.get("itua", self.storefront)
+            media_user_token = cookies_dict.get("media-user-token", "")
         else:
             media_user_token = ""
         self.session.headers.update(
@@ -73,10 +75,21 @@ class AppleMusicApi:
                 else:
                     raise e
 
-        index_js_uri = re.search(
-            r"/(assets/index-legacy[~-][^/]+\.js)",
-            home_page,
-        ).group(1)
+        # 有时主页中 index js 的命名会变化，使用多个候选正则按优先级查找
+        index_patterns = [
+            r"/(assets/index(?:-legacy)?[^/\'\"]+\.js)",
+            r"/(assets/[^/\'\"]+index[^/\'\"]+\.js)",
+        ]
+        index_js_uri = None
+        for pat in index_patterns:
+            m = re.search(pat, home_page)
+            if m:
+                index_js_uri = m.group(1)
+                break
+        if not index_js_uri:
+            # 无法找到 index js，抛出可调试的异常，包含主页片段
+            snippet = home_page[:1000] if home_page else ""
+            raise Exception(f"无法从 Apple Music 主页提取 index js 路径，页面片段: {snippet!r}")
         
         # 添加重试机制获取JS文件
         for attempt in range(max_retries):
@@ -94,7 +107,13 @@ class AppleMusicApi:
                 else:
                     raise e
                     
-        token = re.search('(?=eyJh)(.*?)(?=")', index_js_page).group(1)
+        # token 有时以 eyJh 开头（Base64 JWT），使用更宽松的匹配并进行空值检查
+        token_match = re.search(r"(eyJh[^\"\'\s]+)", index_js_page)
+        if not token_match:
+            # 若未匹配到 token，抛出包含 JS 片段的异常以便调试
+            snippet = index_js_page[:1000] if index_js_page else ""
+            raise Exception(f"无法从 index js 中提取授权 token，JS 片段: {snippet!r}")
+        token = token_match.group(1)
         self.session.headers.update({"authorization": f"Bearer {token}"})
         self.session.params = {"l": self.language}
 

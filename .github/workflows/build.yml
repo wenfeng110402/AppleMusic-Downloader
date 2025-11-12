@@ -34,24 +34,48 @@ jobs:
           pip install pyinstaller
           pip install -r requirements.txt
 
-      - name: Prepare platform-specific tools
+      - name: Prepare platform-specific tools (Linux)
+        if: matrix.os == 'ubuntu-latest'
         env:
-          FFMPEG_URL: ${{ secrets.FFMPEG_URL }}
-          MP4DECRYPT_URL: ${{ secrets.MP4DECRYPT_URL }}
-          N_M3U8DL_RE_URL: ${{ secrets.N_M3U8DL_RE_URL }}
+          FFMPEG_URL: ${{ secrets.FFMPEG_URL_LINUX }}
+          MP4DECRYPT_URL: ${{ secrets.MP4DECRYPT_URL_LINUX }}
+          N_M3U8DL_RE_URL: ${{ secrets.N_M3U8DL_RE_URL_LINUX }}
+          FFMPEG_SHA256: ${{ secrets.FFMPEG_SHA256_LINUX }}
+          MP4DECRYPT_SHA256: ${{ secrets.MP4DECRYPT_SHA256_LINUX }}
+          N_M3U8DL_RE_SHA256: ${{ secrets.N_M3U8DL_RE_SHA256_LINUX }}
         run: |
-          echo "Preparing platform-specific tools"
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            PLATFORM_DIR=tools/linux-x86_64
-            bash ./scripts/fetch_tools.sh "$PLATFORM_DIR" linux x86_64
-          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-            ARCH=$(uname -m)
-            PLATFORM_DIR=tools/macos-${ARCH}
-            bash ./scripts/fetch_tools.sh "$PLATFORM_DIR" macos $ARCH
-          else
-            PLATFORM_DIR=tools/windows-x86_64
-            pwsh ./scripts/fetch_tools.ps1 -PlatformDir $PLATFORM_DIR -Platform windows -Arch x86_64
-          fi
+          echo "Preparing platform-specific tools for Linux"
+          PLATFORM_DIR=tools/linux-x86_64
+          bash ./scripts/fetch_tools.sh "$PLATFORM_DIR" linux x86_64
+
+      - name: Prepare platform-specific tools (macOS)
+        if: matrix.os == 'macos-latest'
+        env:
+          FFMPEG_URL: ${{ secrets.FFMPEG_URL_MACOS }}
+          MP4DECRYPT_URL: ${{ secrets.MP4DECRYPT_URL_MACOS }}
+          N_M3U8DL_RE_URL: ${{ secrets.N_M3U8DL_RE_URL_MACOS }}
+          FFMPEG_SHA256: ${{ secrets.FFMPEG_SHA256_MACOS }}
+          MP4DECRYPT_SHA256: ${{ secrets.MP4DECRYPT_SHA256_MACOS }}
+          N_M3U8DL_RE_SHA256: ${{ secrets.N_M3U8DL_RE_SHA256_MACOS }}
+        run: |
+          echo "Preparing platform-specific tools for macOS"
+          ARCH=$(uname -m)
+          PLATFORM_DIR=tools/macos-${ARCH}
+          bash ./scripts/fetch_tools.sh "$PLATFORM_DIR" macos $ARCH
+
+      - name: Prepare platform-specific tools (Windows)
+        if: matrix.os == 'windows-latest'
+        env:
+          FFMPEG_URL: ${{ secrets.FFMPEG_URL_WINDOWS }}
+          MP4DECRYPT_URL: ${{ secrets.MP4DECRYPT_URL_WINDOWS }}
+          N_M3U8DL_RE_URL: ${{ secrets.N_M3U8DL_RE_URL_WINDOWS }}
+          FFMPEG_SHA256: ${{ secrets.FFMPEG_SHA256_WINDOWS }}
+          MP4DECRYPT_SHA256: ${{ secrets.MP4DECRYPT_SHA256_WINDOWS }}
+          N_M3U8DL_RE_SHA256: ${{ secrets.N_M3U8DL_RE_SHA256_WINDOWS }}
+        run: |
+          echo "Preparing platform-specific tools for Windows"
+          PLATFORM_DIR=tools/windows-x86_64
+          pwsh ./scripts/fetch_tools.ps1 -PlatformDir $PLATFORM_DIR -Platform windows -Arch x86_64
 
       - name: Build with PyInstaller
         env:

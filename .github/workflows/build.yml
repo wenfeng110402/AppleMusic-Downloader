@@ -3,7 +3,16 @@ name: Build and Package
 on:
   workflow_dispatch:
   push:
-    tags: ['v*']
+    # trigger on pushes to any branch (so commits/pushes will start CI)
+    branches:
+      - '*'
+    # also trigger on version tags like v1.0.0
+    tags:
+      - 'v*'
+  # trigger on PRs as well so CI runs for pull requests
+  pull_request:
+    branches:
+      - '*'
 
 jobs:
   build:

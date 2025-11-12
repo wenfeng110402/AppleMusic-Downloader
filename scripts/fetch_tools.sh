@@ -15,16 +15,9 @@ mkdir -p "$PLATFORM_DIR"
 echo "Fetching tools into $PLATFORM_DIR for $PLATFORM/$ARCH"
 
 require_var() {
-  local name="$1"
-  if [ -z "${!name:-}" ]; then
-    echo "ERROR: $name is not set. Please set it as an env var or GitHub secret."
-    exit 2
-  fi
+  # kept for backward compatibility but not used; prefer per-dep checks
+  :
 }
-
-require_var FFMPEG_URL
-require_var MP4DECRYPT_URL
-require_var N_M3U8DL_RE_URL
 
 tmpdir=$(mktemp -d)
 cleanup() { rm -rf "$tmpdir"; }
@@ -53,10 +46,14 @@ verify_checksum_if_provided() {
   fi
 }
 
-echo "Downloading ffmpeg from $FFMPEG_URL"
-fffile="$tmpdir/ff"
-curl -L "$FFMPEG_URL" -o "$fffile"
-verify_checksum_if_provided "$fffile" FFMPEG_SHA256 || exit 3
+if [ -n "${FFMPEG_URL:-}" ]; then
+  echo "Downloading ffmpeg from $FFMPEG_URL"
+  fffile="$tmpdir/ff"
+  curl -L "$FFMPEG_URL" -o "$fffile"
+  verify_checksum_if_provided "$fffile" FFMPEG_SHA256 || exit 3
+else
+  echo "FFMPEG_URL not set; skipping ffmpeg"
+fi
 
 # try to extract known archive types
 if file "$fffile" | grep -q "gzip\|XZ\|tar"; then
@@ -85,11 +82,12 @@ if [ -n "$found_ff" ]; then
   echo "ffmpeg placed: $PLATFORM_DIR/$(basename "$found_ff")"
 fi
 
-echo "Downloading mp4decrypt from $MP4DECRYPT_URL"
-mp4file="$tmpdir/mp4d"
-curl -L "$MP4DECRYPT_URL" -o "$mp4file"
-verify_checksum_if_provided "$mp4file" MP4DECRYPT_SHA256 || exit 3
-if file "$mp4file" | grep -q "Zip\|gzip\|tar"; then
+if [ -n "${MP4DECRYPT_URL:-}" ]; then
+  echo "Downloading mp4decrypt from $MP4DECRYPT_URL"
+  mp4file="$tmpdir/mp4d"
+  curl -L "$MP4DECRYPT_URL" -o "$mp4file"
+  verify_checksum_if_provided "$mp4file" MP4DECRYPT_SHA256 || exit 3
+  if file "$mp4file" | grep -q "Zip\|gzip\|tar"; then
   mkdir -p "$tmpdir/mp4d_ex"
   unzip -q "$mp4file" -d "$tmpdir/mp4d_ex" || tar -xf "$mp4file" -C "$tmpdir/mp4d_ex" || true
   # copy any mp4decrypt binary found
@@ -101,16 +99,20 @@ if file "$mp4file" | grep -q "Zip\|gzip\|tar"; then
       break
     fi
   done < <(find "$tmpdir/mp4d_ex" -type f -print0)
+  else
+    chmod +x "$mp4file"
+    mv "$mp4file" "$PLATFORM_DIR/mp4decrypt"
+  fi
 else
-  chmod +x "$mp4file"
-  mv "$mp4file" "$PLATFORM_DIR/mp4decrypt"
+  echo "MP4DECRYPT_URL not set; skipping mp4decrypt"
 fi
 
-echo "Downloading N_m3u8DL-RE from $N_M3U8DL_RE_URL"
-nfile="$tmpdir/nm3u8"
-curl -L "$N_M3U8DL_RE_URL" -o "$nfile"
-verify_checksum_if_provided "$nfile" N_M3U8DL_RE_SHA256 || exit 3
-if file "$nfile" | grep -q "Zip\|gzip\|tar"; then
+if [ -n "${N_M3U8DL_RE_URL:-}" ]; then
+  echo "Downloading N_m3u8DL-RE from $N_M3U8DL_RE_URL"
+  nfile="$tmpdir/nm3u8"
+  curl -L "$N_M3U8DL_RE_URL" -o "$nfile"
+  verify_checksum_if_provided "$nfile" N_M3U8DL_RE_SHA256 || exit 3
+  if file "$nfile" | grep -q "Zip\|gzip\|tar"; then
   mkdir -p "$tmpdir/nm_ex"
   unzip -q "$nfile" -d "$tmpdir/nm_ex" || tar -xf "$nfile" -C "$tmpdir/nm_ex" || true
   while IFS= read -r -d '' f; do
@@ -122,9 +124,12 @@ if file "$nfile" | grep -q "Zip\|gzip\|tar"; then
       break
     fi
   done < <(find "$tmpdir/nm_ex" -type f -print0)
+  else
+    chmod +x "$nfile"
+    mv "$nfile" "$PLATFORM_DIR/N_m3u8DL-RE"
+  fi
 else
-  chmod +x "$nfile"
-  mv "$nfile" "$PLATFORM_DIR/N_m3u8DL-RE"
+  echo "N_M3U8DL_RE_URL not set; skipping N_m3u8DL-RE"
 fi
 
 echo "Finished fetching tools into $PLATFORM_DIR"

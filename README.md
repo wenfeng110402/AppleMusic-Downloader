@@ -4,7 +4,7 @@
 I will create a multi-language version soon!
 
 捐助链接（非盈利免税）Support me Donate me（non-porfit,no tax)
-[here！(https://hcb.hackclub.com/donations/start/amdl)]
+[here！](https://hcb.hackclub.com/donations/start/amdl)
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/github/license/wenfeng110402/AppleMusic-Downloader)](LICENSE)

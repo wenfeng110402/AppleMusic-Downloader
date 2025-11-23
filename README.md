@@ -3,7 +3,7 @@
 初中生写的一个功能强大的 Apple Music 下载工具，支持下载歌曲、音乐视频和帖子内容。
 I will create a multi-language version soon!
 
-捐助链接（非盈利免税）Support me Donate me（non-porfit,no tax)
+捐助链接（非盈利组织免税）Support me Donate me（non-porfit,no tax)
 [here！](https://hcb.hackclub.com/donations/start/amdl)
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)

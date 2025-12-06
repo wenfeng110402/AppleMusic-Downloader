@@ -330,34 +330,14 @@ class DownloadThread(QThread):
         :param video_format: 目标视频格式
         """
         try:
-            # 获取输出目录
-            output_dir = self.output_dir if self.output_dir else "./"
-            self.log_callback.emit(f"在目录中查找最近下载的文件: {output_dir}")
-            
-            # 查找最近修改的媒体文件（假设在下载过程中创建的）
-            import time
-            current_time = time.time()
-            recently_modified_files = []
-            
-            # 查找最近10分钟内修改的媒体文件
-            for root, dirs, files in os.walk(output_dir):
-                for file in files:
-                    if file.endswith((".m4a", ".mp4", ".mov")):
-                        file_path = os.path.join(root, file)
-                        file_modified_time = os.path.getmtime(file_path)
-                        # 如果文件是最近10分钟内修改的，认为是刚刚下载的
-                        if current_time - file_modified_time < 600:  # 600秒 = 10分钟
-                            recently_modified_files.append(file_path)
-                            self.log_callback.emit(f"    检测到最近下载的文件: {file_path}")
-            
-            self.log_callback.emit(f"准备转换 {len(recently_modified_files)} 个最近下载的文件")
+            self.log_callback.emit(f"准备转换 {len(self.downloaded_files)} 个下载的文件")
             
             # 查找需要转换的文件
             converted_count = 0
             
             if audio_format and audio_format != "保持原格式":
-                # 处理音频文件
-                for file_path in recently_modified_files:
+                # 处理音频文件（只处理本次下载的文件）
+                for file_path in self.downloaded_files:
                     if file_path.endswith((".m4a", ".mp4")):
                         converted_path = os.path.splitext(file_path)[0] + f".{audio_format}"
                         
@@ -380,8 +360,8 @@ class DownloadThread(QThread):
                             self.log_callback.emit(f"    转换失败 {os.path.basename(file_path)}")
             
             if video_format and video_format != "保持原格式":
-                # 处理视频文件
-                for file_path in recently_modified_files:
+                # 处理视频文件（只处理本次下载的文件）
+                for file_path in self.downloaded_files:
                     if file_path.endswith((".mov", ".mp4")):
                         converted_path = os.path.splitext(file_path)[0] + f".{video_format}"
                         
@@ -404,6 +384,8 @@ class DownloadThread(QThread):
                             self.log_callback.emit(f"    转换失败 {os.path.basename(file_path)}")
             
             self.log_callback.emit(f"格式转换完成，共转换 {converted_count} 个文件")
+            # 清空下载文件列表
+            self.downloaded_files.clear()
         except Exception as e:
             error_msg = f"格式转换过程中发生错误: {str(e)}\n{traceback.format_exc()}"
             self.log_callback.emit(error_msg)
@@ -486,7 +468,15 @@ class DownloadThread(QThread):
             
             # 执行FFmpeg命令
             self.log_callback.emit(f"    执行转换命令: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            # 隐藏控制台窗口
+            startupinfo = None
+            if sys.platform == "win32":
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
             
             if result.returncode == 0:
                 self.log_callback.emit(f"    FFmpeg输出: {result.stdout}")
@@ -907,7 +897,7 @@ class FluentMainWindow(FluentWindow):
         
         codec_layout.addWidget(QLabel("音频编码格式:"), 0, 0)
         self.codec_song = ComboBox()
-        self.codec_song.addItems(["aac-legacy", "aac", "alac"])
+        self.codec_song.addItems(["aac-legacy", "aac", "atmos"])
         codec_layout.addWidget(self.codec_song, 0, 1)
         
         codec_layout.addWidget(QLabel("音乐视频编码格式:"), 1, 0)

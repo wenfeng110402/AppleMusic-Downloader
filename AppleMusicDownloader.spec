@@ -1,10 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+
+# 获取当前工作目录（项目根目录）
+project_root = os.getcwd()
+
 a = Analysis(
     ['gamdl/fluent_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('tools/*', 'tools'), ('icon.ico', '.'), ('LICENSE', '.')],
+    datas=[
+        (os.path.join(project_root, 'tools'), 'tools'),
+        (os.path.join(project_root, 'icon.ico'), '.'),
+        (os.path.join(project_root, 'LICENSE'), '.')
+    ],
     hiddenimports=[
         'qfluentwidgets', 
         'yt_dlp', 
@@ -55,5 +64,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.ico',
+    icon=os.path.join(project_root, 'icon.ico'),
 )

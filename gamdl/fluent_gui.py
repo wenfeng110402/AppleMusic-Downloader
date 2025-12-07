@@ -89,8 +89,36 @@ class DownloadThread(QThread):
         self.downloaded_files = []  # 跟踪下载的文件
         self.log_callback = log_callback  # 直接日志回调函数
         # 可替换的 ffmpeg 可执行文件名/路径（便于在打包后修改或替换）
-        self.ffmpeg_exe = "ffmpeg.exe"
+        # 检查是否在打包环境中运行
+        if getattr(sys, 'frozen', False):
+            # 在打包环境中，使用PyInstaller的临时目录
+            if hasattr(sys, '_MEIPASS'):
+                # PyInstaller创建的临时目录
+                self.ffmpeg_exe = os.path.join(sys._MEIPASS, "tools", "ffmpeg.exe")
+            else:
+                # 备用方案：exe同级目录
+                self.ffmpeg_exe = os.path.join(os.path.dirname(sys.executable), "tools", "ffmpeg.exe")
+        else:
+            # 在开发环境中，使用系统PATH中的ffmpeg
+            self.ffmpeg_exe = "ffmpeg.exe"
         
+        # 确保ffmpeg可执行文件存在
+        if not os.path.exists(self.ffmpeg_exe):
+            self.log_callback.emit(f"    警告: FFmpeg可执行文件不存在: {self.ffmpeg_exe}")
+            # 尝试备用路径
+            if getattr(sys, 'frozen', False):
+                # 在打包环境中尝试不同的路径
+                possible_paths = [
+                    os.path.join(os.path.dirname(sys.executable), "tools", "ffmpeg.exe"),
+                    os.path.join(os.path.dirname(sys.executable), "ffmpeg.exe"),
+                    "ffmpeg.exe"
+                ]
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        self.ffmpeg_exe = path
+                        self.log_callback.emit(f"    使用备用FFmpeg路径: {self.ffmpeg_exe}")
+                        break
+    
     def run(self):
         """执行下载任务"""
         try:
@@ -298,7 +326,7 @@ class DownloadThread(QThread):
             r"[Dd]ownload.*completed.*[:：]\s*(.+?\.(?:m4a|mp4|mov))",
             r"(?:已保存到|保存到|Saved to).*[:：]\s*(.+?\.(?:m4a|mp4|mov))",
             r"(?:已完成|完成).*[:：]\s*(.+?\.(?:m4a|mp4|mov))",
-            r"([^\s]+?\.(?:m4a|mp4|mov))",
+            r"([A-Za-z]:[/\\][^\s]*?\.(?:m4a|mp4|mov))(?:\s|$)",
         ]
 
         file_path = None
@@ -309,11 +337,16 @@ class DownloadThread(QThread):
             candidate = m.group(1).strip()
             # 最后一条宽泛匹配需要额外确认日志附近存在成功标志
             if pat == patterns[-1]:
-                if not ("saved" in log_line.lower() or "完成" in log_line or "success" in log_line.lower()):
+                if not ("saved" in log_line.lower() or "完成" in log_line or "success" in log_line.lower() or "Done" in log_line):
                     continue
             file_path = candidate
             break
         
+        # 特殊处理：如果看到"Done"消息，检查最近是否有文件路径
+        if not file_path and "Done" in log_line and self.downloaded_files:
+            # 如果已经有一些文件路径，不需要额外操作
+            pass
+            
         if file_path:
             # 转换为绝对路径
             if not os.path.isabs(file_path):
@@ -322,6 +355,24 @@ class DownloadThread(QThread):
             if file_path not in self.downloaded_files:
                 self.downloaded_files.append(file_path)
                 self.log_callback.emit(f"    检测到下载文件: {file_path}")
+                
+        # 当看到"Done"消息时，如果我们还没有任何文件路径，尝试从输出目录中查找最近创建的媒体文件
+        if "Done" in log_line and not self.downloaded_files and self.output_dir:
+            try:
+                # 查找输出目录中最近创建的媒体文件
+                media_files = []
+                for ext in [".m4a", ".mp4", ".mov"]:
+                    media_files.extend(Path(self.output_dir).rglob(f"*{ext}"))
+                
+                # 按修改时间排序，获取最新的文件
+                if media_files:
+                    latest_file = max(media_files, key=lambda x: x.stat().st_mtime)
+                    file_path = str(latest_file)
+                    if file_path not in self.downloaded_files:
+                        self.downloaded_files.append(file_path)
+                        self.log_callback.emit(f"    检测到下载文件: {file_path}")
+            except Exception as e:
+                self.log_callback.emit(f"    检测下载文件时出错: {str(e)}")
     
     def convert_downloaded_files(self, audio_format, video_format):
         """
@@ -399,52 +450,38 @@ class DownloadThread(QThread):
         :return: 转换是否成功
         """
         try:
-            # 构建FFmpeg命令，确保保留封面和元数据
+            # 检查源文件是否存在
+            if not os.path.exists(source_path):
+                self.log_callback.emit(f"    错误: 源文件不存在: {source_path}")
+                return False
+                
+            # 检查FFmpeg可执行文件是否存在
+            if not os.path.exists(self.ffmpeg_exe):
+                self.log_callback.emit(f"    错误: FFmpeg可执行文件不存在: {self.ffmpeg_exe}")
+                return False
+
+            # 根据目标格式构建FFmpeg命令
             if target_format == "mp3":
-                # MP3格式，使用320kbps比特率，并确保保留封面和元数据
+                # MP3格式 (使用LAME编码器，320kbps)
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    self.ffmpeg_exe, "-i", source_path,
                     "-c:a", "libmp3lame", "-b:a", "320k",
-                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?", 
+                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
                     "-id3v2_version", "3", "-write_id3v1", "1",
                     target_path
                 ]
             elif target_format == "flac":
-                # FLAC无损格式
+                # FLAC格式 (无损压缩)
                 cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "flac", 
-                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
-                    target_path
-                ]
-            elif target_format == "wav":
-                # WAV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "pcm_s16le",
-                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
-                    target_path
-                ]
-            elif target_format == "aac":
-                # AAC格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "aac", "-b:a", "256k",
-                    "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
-                    target_path
-                ]
-            elif target_format == "m4a":
-                # M4A格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:a", "aac", "-b:a", "256k",
+                    self.ffmpeg_exe, "-i", source_path,
+                    "-c:a", "flac", "-compression_level", "8",
                     "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
                     target_path
                 ]
             elif target_format == "ogg":
                 # OGG格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    self.ffmpeg_exe, "-i", source_path,
                     "-c:a", "libvorbis", "-q:a", "5",
                     "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
                     target_path
@@ -452,7 +489,7 @@ class DownloadThread(QThread):
             elif target_format == "wma":
                 # WMA格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    self.ffmpeg_exe, "-i", source_path,
                     "-c:a", "wmav2", "-b:a", "192k",
                     "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
                     target_path
@@ -460,7 +497,7 @@ class DownloadThread(QThread):
             else:
                 # 默认AAC格式
                 cmd = [
-                    "ffmpeg", "-i", source_path,
+                    self.ffmpeg_exe, "-i", source_path,
                     "-c:a", "aac", "-b:a", "256k",
                     "-c:v", "copy", "-map", "0:0", "-map", "0:1?",
                     target_path
@@ -512,6 +549,7 @@ class DownloadThread(QThread):
                 # 默认复制所有流
                 cmd = [self.ffmpeg_exe, "-i", source_path, "-c", "copy", target_path]
 
+            # 使用统一的子进程运行方法
             code, stdout, stderr = self.run_subprocess(cmd)
             if code == 0:
                 if stdout:

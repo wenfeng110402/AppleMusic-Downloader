@@ -34,7 +34,8 @@ a = Analysis(
         'PyQt6',
         'PyQt6.QtWidgets',
         'PyQt6.QtCore',
-        'PyQt6.QtGui'
+        'PyQt6.QtGui',
+        'ffmpeg'
     ],
     hookspath=[],
     hooksconfig={},
@@ -44,6 +45,7 @@ a = Analysis(
     optimize=0,
 )
 pyz = PYZ(a.pure)
+
 
 exe = EXE(
     pyz,

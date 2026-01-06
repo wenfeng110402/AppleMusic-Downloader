@@ -4,10 +4,48 @@ import sys
 import subprocess
 import colorama
 import requests
+from urllib.parse import unquote, quote
 
 
 def color_text(text: str, color) -> str:
     return color + text + colorama.Style.RESET_ALL
+
+
+def normalize_url(url: str) -> str:
+    """
+    标准化 URL，解码特殊字符以便正则表达式匹配。
+    
+    Args:
+        url: 原始 URL，可能包含 URL 编码的特殊字符
+        
+    Returns:
+        解码后的 URL
+    """
+    # URL 解码，处理像 %20 这样的编码字符
+    decoded_url = unquote(url)
+    return decoded_url
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    清理文件名中的非法字符，确保可以安全地用作文件系统路径。
+    
+    Args:
+        filename: 原始文件名
+        
+    Returns:
+        清理后的文件名
+    """
+    import re
+    # Windows 和其他系统中的非法文件名字符
+    illegal_chars = r'[\\/:*?"<>|;]'
+    # 用下划线替换非法字符
+    sanitized = re.sub(illegal_chars, '_', filename)
+    # 移除控制字符
+    sanitized = ''.join(char for char in sanitized if ord(char) >= 32)
+    # 移除前导和尾随空格/点号
+    sanitized = sanitized.strip('. ')
+    return sanitized
 
 
 def raise_response_exception(response):

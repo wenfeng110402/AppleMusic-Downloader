@@ -62,3 +62,9 @@ pip install -r requirements.txt
 - 音乐视频
 - 艺术家主页
 - 帖子视频
+
+## 致谢 / Acknowledgments
+
+本项目使用了 [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) 的代码。我们衷心感谢 [Glomatico](https://github.com/glomatico) 和所有 gamdl 的贡献者们为开源社区所做的杰出工作。
+
+This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl). We sincerely thank [Glomatico](https://github.com/glomatico) and all contributors to gamdl for their outstanding work in the open-source community.

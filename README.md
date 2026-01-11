@@ -76,7 +76,7 @@ This tool is for educational and research purposes only. Any use that violates l
 1. 本项目不直接提供或存储任何受版权保护的内容，用户需自行提供合法的凭证（如有效的 Apple Music 订阅和 Cookies 文件）以使用相关功能。  
    This project does not directly provide or store any copyrighted content. Users must independently provide valid credentials (e.g., a valid Apple Music subscription and cookie files) to use its features.
 
-2. 本人（或开发团队）不对用户如何使用本工具承担任何责任，因使用本工具产生的任何法律或版权争议，均由用户自行承担。  
+2. 本人不对用户如何使用本工具承担任何责任，因使用本工具产生的任何法律或版权争议，均由用户自行承担。  
    I (or the development team) assume no responsibility for how users use this tool. Any legal or copyright disputes arising from its use are the sole responsibility of the user.
 
 3. 本项目基于 [gamdl](https://github.com/glomatico/gamdl) 提供的代码实现，与原项目的作者无直接关联。如有任何异议，请联系本人以便协助处理。  

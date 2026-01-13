@@ -25,7 +25,7 @@ from .enums import CoverFormat, DownloadMode, RemuxMode
 from .hardcoded_wvd import HARDCODED_WVD
 from .itunes_api import ItunesApi
 from .models import DownloadQueue, UrlInfo
-from .utils import raise_response_exception
+from .utils import raise_response_exception, normalize_url, sanitize_filename
 
 
 class Downloader:
@@ -226,10 +226,13 @@ class Downloader:
             self.cdm = Cdm.from_device(Device.loads(HARDCODED_WVD))
 
     def get_url_info(self, url: str) -> UrlInfo:
+        # 标准化 URL，解码特殊字符
+        normalized_url = normalize_url(url)
+        
         url_info = UrlInfo()
         url_regex_result = re.search(
             self.VALID_URL_RE,
-            url,
+            normalized_url,
         )
         if not url_regex_result:
             raise Exception(f"无效的Apple Music URL: {url}")
@@ -247,7 +250,7 @@ class Downloader:
         # 确保对于歌曲类型，ID是数字
         if url_info.type == "song" and not url_info.id.isdigit():
             # 从URL中提取歌曲ID
-            song_id_match = re.search(r'/(\d+)(?:\?|$)', url)
+            song_id_match = re.search(r'/(\d+)(?:\?|$)', normalized_url)
             if song_id_match:
                 url_info.id = song_id_match.group(1)
             else:

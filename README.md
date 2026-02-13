@@ -19,6 +19,8 @@ This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](htt
 - 🎵 **高品质音频下载** - 支持 AAC 256kbps 等多种编码格式
 - 🎬 **高清音乐视频** - 支持最高 1080p 分辨率下载
 - 👤 **艺术家作品批量下载** - 通过多个链接或专辑歌单链接下载
+- 📊 **实时下载进度** - 显示每首歌曲的下载进度，让你了解下载状态
+- ✅ **选择性下载** - 从专辑或播放列表中选择特定歌曲进行下载
 - 🎨 **高度可定制** - 丰富的配置选项满足个性化需求
 
 ## 安装方式
@@ -67,6 +69,72 @@ pip install -r requirements.txt
 - 音乐视频
 - 艺术家主页
 - 帖子视频
+
+## 使用方法
+
+### 图形界面（GUI）
+
+运行程序后，在图形界面中：
+
+1. **输入URL** - 在URL输入框中输入 Apple Music 链接（可多行输入多个链接）
+2. **选择Cookie文件** - 点击"浏览"选择你的 cookies.txt 文件
+3. **设置输出目录** - 选择音乐下载保存的位置
+4. **配置下载选项**：
+   - ✅ **选择要下载的歌曲** - 勾选此选项后，下载专辑或播放列表时会弹出选择界面，让你挑选想要下载的歌曲
+   - 覆盖已存在文件
+   - 保存播放列表
+   - 其他高级选项...
+5. **点击"开始下载"** - 程序会显示：
+   - 总体进度条：显示所有URL的下载进度
+   - 当前歌曲进度条：显示正在下载的歌曲进度
+   - 实时日志：查看详细的下载信息
+
+### 命令行（CLI）
+
+基本用法：
+```bash
+python -m gamdl [OPTIONS] URLS...
+```
+
+#### 新增选项
+
+**选择性下载**：
+```bash
+# 下载专辑时选择特定歌曲
+python -m gamdl --select-tracks "https://music.apple.com/cn/album/..."
+
+# 下载播放列表时选择特定歌曲
+python -m gamdl --select-tracks "https://music.apple.com/cn/playlist/..."
+```
+
+启用 `--select-tracks` 选项后，程序会显示一个交互式菜单，列出所有可用的歌曲，你可以使用方向键和空格键选择要下载的歌曲。
+
+#### 其他常用选项
+
+```bash
+# 指定Cookie文件
+python -m gamdl -c /path/to/cookies.txt "URL"
+
+# 指定输出目录
+python -m gamdl -o /path/to/output "URL"
+
+# 覆盖已存在的文件
+python -m gamdl --overwrite "URL"
+
+# 保存专辑封面为独立文件
+python -m gamdl -s "URL"
+
+# 查看所有选项
+python -m gamdl --help
+```
+
+### 下载进度显示
+
+程序会实时显示：
+- **总体进度**：当前处理的URL进度（例如：URL 1/3）
+- **歌曲进度**：当前下载的歌曲在专辑/播放列表中的位置（例如：Track 5/12）
+- **下载状态**：正在下载、解密、混流、应用标签等各个步骤的进度
+- **完成信息**：下载完成后会显示最终路径和统计信息
 
 ## 免责声明 / Disclaimer
 

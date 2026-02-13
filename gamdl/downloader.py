@@ -255,10 +255,10 @@ class Downloader:
         
         return url_info
 
-    def get_download_queue(self, url_info: UrlInfo) -> DownloadQueue:
-        return self._get_download_queue(url_info.type, url_info.id)
+    def get_download_queue(self, url_info: UrlInfo, enable_track_selection: bool = False) -> DownloadQueue:
+        return self._get_download_queue(url_info.type, url_info.id, enable_track_selection)
 
-    def _get_download_queue(self, url_type: str, id: str) -> DownloadQueue:
+    def _get_download_queue(self, url_type: str, id: str, enable_track_selection: bool = False) -> DownloadQueue:
         download_queue = DownloadQueue()
         if url_type == "artist":
             artist = self.apple_music_api.get_artist(id)
@@ -269,18 +269,25 @@ class Downloader:
             download_queue.tracks_metadata = [self.apple_music_api.get_song(id)]
         elif url_type == "album":
             album = self.apple_music_api.get_album(id)
-            download_queue.tracks_metadata = [
-                track for track in album["relationships"]["tracks"]["data"]
-            ]
+            tracks = album["relationships"]["tracks"]["data"]
+            if enable_track_selection and not self.silent:
+                download_queue.tracks_metadata = self.select_tracks_from_collection(
+                    tracks, 
+                    f'album "{album["attributes"]["name"]}"'
+                )
+            else:
+                download_queue.tracks_metadata = tracks
         elif url_type == "playlist":
             playlist = self.apple_music_api.get_playlist(id)
             download_queue.playlist_attributes = playlist["attributes"]
-            download_queue.tracks_metadata = [
-                track
-                for track in self.apple_music_api.get_playlist(id)["relationships"][
-                    "tracks"
-                ]["data"]
-            ]
+            tracks = playlist["relationships"]["tracks"]["data"]
+            if enable_track_selection and not self.silent:
+                download_queue.tracks_metadata = self.select_tracks_from_collection(
+                    tracks,
+                    f'playlist "{playlist["attributes"]["name"]}"'
+                )
+            else:
+                download_queue.tracks_metadata = tracks
         elif url_type == "music-video":
             download_queue.tracks_metadata = [self.apple_music_api.get_music_video(id)]
         elif url_type == "post":
@@ -368,6 +375,50 @@ class Downloader:
         for music_video in selected:
             yield music_video
 
+    def select_tracks_from_collection(
+        self,
+        tracks: list[dict],
+        collection_name: str,
+    ) -> list[dict]:
+        """
+        Allow user to select specific tracks from an album or playlist.
+        
+        Args:
+            tracks: List of track metadata dictionaries
+            collection_name: Name of the collection (album or playlist) for display
+            
+        Returns:
+            List of selected track metadata dictionaries
+        """
+        if not tracks:
+            return []
+        
+        choices = [
+            Choice(
+                name=" | ".join(
+                    [
+                        f'{track["attributes"].get("trackNumber", 0):02d}',
+                        self.millis_to_min_sec(
+                            track["attributes"].get("durationInMillis", 0)
+                        ),
+                        f'{track["attributes"]["artistName"]}',
+                        f'{track["attributes"]["name"]}',
+                    ]
+                ),
+                value=track,
+            )
+            for track in tracks
+        ]
+        
+        selected = inquirer.select(
+            message=f"Select tracks to download from {collection_name}: (Track # | Duration | Artist | Title)",
+            choices=choices,
+            multiselect=True,
+            default=tracks,  # Select all by default
+        ).execute()
+        
+        return selected
+
     def get_playlist_tags(
         self,
         playlist_attributes: dict,
@@ -446,26 +497,58 @@ class Downloader:
             self.cdm.close(cdm_session)
         return decryption_key
 
-    def download(self, path: Path, stream_url: str):
+    def download(self, path: Path, stream_url: str, progress_callback=None):
         if self.download_mode == DownloadMode.YTDLP:
-            self.download_ytdlp(path, stream_url)
+            self.download_ytdlp(path, stream_url, progress_callback)
         elif self.download_mode == DownloadMode.NM3U8DLRE:
-            self.download_nm3u8dlre(path, stream_url)
+            self.download_nm3u8dlre(path, stream_url, progress_callback)
 
-    def download_ytdlp(self, path: Path, stream_url: str):
-        with YoutubeDL(
-            {
-                "quiet": True,
-                "no_warnings": True,
-                "outtmpl": str(path),
-                "allow_unplayable_formats": True,
-                "fixup": "never",
-                "allowed_extractors": ["generic"],
-            }
-        ) as ytdlp:
+    def download_ytdlp(self, path: Path, stream_url: str, progress_callback=None):
+        """
+        Download using yt-dlp.
+        
+        Args:
+            path: Output file path
+            stream_url: Stream URL to download
+            progress_callback: Optional callback function(percentage, downloaded, total)
+        """
+        def progress_hook(d):
+            if progress_callback and d.get('status') == 'downloading':
+                downloaded = d.get('downloaded_bytes', 0)
+                total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
+                if total > 0:
+                    percentage = (downloaded / total) * 100
+                    progress_callback(percentage, downloaded, total)
+        
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "outtmpl": str(path),
+            "allow_unplayable_formats": True,
+            "fixup": "never",
+            "allowed_extractors": ["generic"],
+        }
+        
+        if progress_callback:
+            ydl_opts["progress_hooks"] = [progress_hook]
+        
+        with YoutubeDL(ydl_opts) as ytdlp:
             ytdlp.download([stream_url])
 
-    def download_nm3u8dlre(self, path: Path, stream_url: str):
+    def download_nm3u8dlre(self, path: Path, stream_url: str, progress_callback=None):
+        """
+        Download using N_m3u8DL-RE.
+        
+        Args:
+            path: Output file path
+            stream_url: Stream URL to download
+            progress_callback: Optional callback function (currently not supported for nm3u8dlre)
+        
+        Note:
+            Progress callback is not currently supported for N_m3u8DL-RE downloads due to
+            subprocess output redirection limitations. The callback parameter is accepted
+            for API consistency but will not be invoked.
+        """
         subprocess.run(
             [
                 self.nm3u8dlre_path_full,

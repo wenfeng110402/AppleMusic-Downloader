@@ -116,6 +116,11 @@ def load_config_file(
     help="Don't download the synced lyrics.",
 )
 @click.option(
+    "--select-tracks",
+    is_flag=True,
+    help="Interactively select specific tracks to download from albums or playlists.",
+)
+@click.option(
     "--config-path",
     type=Path,
     default=Path.home() / ".gamdl" / "config.json",
@@ -319,6 +324,7 @@ def main(
     save_playlist: bool,
     synced_lyrics_only: bool,
     no_synced_lyrics: bool,
+    select_tracks: bool,
     config_path: Path,
     log_level: str,
     no_exceptions: bool,
@@ -472,7 +478,7 @@ def main(
         try:
             logger.info(f'({url_progress}) Checking "{url}"')
             url_info = downloader.get_url_info(url)
-            download_queue = downloader.get_download_queue(url_info)
+            download_queue = downloader.get_download_queue(url_info, select_tracks)
             download_queue_tracks_metadata = download_queue.tracks_metadata
         except Exception as e:
             error_count += 1

@@ -79,6 +79,7 @@ class DownloadThread(QThread):
     # 定义信号，用于向主线程发送进度信息和完成状态
     progress_signal = pyqtSignal(int)
     finished_signal = pyqtSignal(bool)
+    song_progress_signal = pyqtSignal(str, int, int, int)  # (song_name, current_track, total_tracks, percentage)
     
     def __init__(self, urls, cookie_file, output_dir, download_options, log_callback):
         super().__init__()
@@ -132,6 +133,10 @@ class DownloadThread(QThread):
             # 清空下载文件列表
             self.downloaded_files = []
             
+            # 用于跟踪当前歌曲下载进度
+            self.current_track_index = 0
+            self.total_tracks = 0
+            
             # 遍历所有URL进行下载
             for i, url in enumerate(self.urls, 1):
                 self.log_callback.emit(f"正在处理 ({i}/{total}): {url}")
@@ -167,6 +172,9 @@ class DownloadThread(QThread):
                     
                 if self.download_options.get('no_exceptions'):
                     args.append('--no-exceptions')
+                
+                if self.download_options.get('select_tracks'):
+                    args.append('--select-tracks')
                 
                 # 添加音频解码格式选项
                 if self.download_options.get('codec_song'):
@@ -262,6 +270,8 @@ class DownloadThread(QThread):
                                 self.log_callback.emit(line)
                                 # 尝试从日志中提取下载的文件路径
                                 self.extract_downloaded_file_path(line)
+                                # 尝试从日志中提取歌曲信息和进度
+                                self.extract_song_info_from_log(line)
                     else:
                         self.log_callback.emit("    没有捕获到日志输出")
                     
@@ -315,6 +325,33 @@ class DownloadThread(QThread):
             self.log_callback.emit(f"系统信息: {uname_info}")
             
             self.finished_signal.emit(False)
+    
+    def extract_song_info_from_log(self, log_line):
+        """
+        从日志行中提取歌曲下载信息
+        :param log_line: 日志行
+        """
+        # 匹配 "Track X/Y from URL..." 或 "Downloading "song name""
+        track_match = re.search(r'Track (\d+)/(\d+)', log_line)
+        if track_match:
+            self.current_track_index = int(track_match.group(1))
+            self.total_tracks = int(track_match.group(2))
+        
+        # 匹配 "Downloading "song name""
+        download_match = re.search(r'Downloading "(.+?)"', log_line)
+        if download_match and self.total_tracks > 0:
+            song_name = download_match.group(1)
+            self.current_song_name = song_name  # 保存当前歌曲名
+            # 发送歌曲进度信号 (初始进度为0)
+            self.song_progress_signal.emit(song_name, self.current_track_index, self.total_tracks, 0)
+        
+        # 检测下载完成的日志 - 更可靠的模式匹配
+        # 匹配类似 "Moving to" 或 "Applying tags" 或包含 "Done" 的行
+        if self.total_tracks > 0 and self.current_track_index > 0:
+            if re.search(r'Moving to|Applying tags|Done \(\d+ error', log_line):
+                # 使用保存的歌曲名发送100%完成信号
+                current_name = getattr(self, 'current_song_name', '')
+                self.song_progress_signal.emit(current_name, self.current_track_index, self.total_tracks, 100)
     
     def extract_downloaded_file_path(self, log_line):
         """
@@ -811,6 +848,8 @@ class FluentMainWindow(FluentWindow):
         self.no_synced_lyrics = CheckBox("不下载同步歌词")
         self.read_urls_as_txt = CheckBox("将URL作为TXT文件读取")
         self.no_exceptions = CheckBox("禁用例外处理")
+        self.select_tracks = CheckBox("选择要下载的歌曲（专辑/播放列表）")
+        self.select_tracks.setToolTip("启用后，下载专辑或播放列表时可以选择要下载的具体歌曲")
         
         checkboxes_layout.addWidget(self.overwrite, 0, 0)
         checkboxes_layout.addWidget(self.disable_music_video_skip, 0, 1)
@@ -819,6 +858,7 @@ class FluentMainWindow(FluentWindow):
         checkboxes_layout.addWidget(self.no_synced_lyrics, 2, 0)
         checkboxes_layout.addWidget(self.read_urls_as_txt, 2, 1)
         checkboxes_layout.addWidget(self.no_exceptions, 3, 0)
+        checkboxes_layout.addWidget(self.select_tracks, 3, 1)
         
         options_layout.addLayout(checkboxes_layout)
         
@@ -856,11 +896,25 @@ class FluentMainWindow(FluentWindow):
         self.download_btn.clicked.connect(self.start_download)
         layout.addWidget(self.download_btn)
         
-        # 进度条
+        # 总体进度条
+        progress_label = BodyLabel("总体进度:")
+        layout.addWidget(progress_label)
         self.progress_bar = ProgressBar()
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setFixedHeight(20)
         layout.addWidget(self.progress_bar)
+        
+        # 单曲进度条
+        song_progress_label = BodyLabel("当前歌曲:")
+        layout.addWidget(song_progress_label)
+        self.song_progress_bar = ProgressBar()
+        self.song_progress_bar.setTextVisible(True)
+        self.song_progress_bar.setFixedHeight(20)
+        layout.addWidget(self.song_progress_bar)
+        
+        # 当前歌曲名称标签
+        self.current_song_label = BodyLabel("")
+        layout.addWidget(self.current_song_label)
         
         layout.addStretch(1)
         
@@ -1237,6 +1291,7 @@ class FluentMainWindow(FluentWindow):
                 'no_synced_lyrics': self.no_synced_lyrics.isChecked(),
                 'read_urls_as_txt': self.read_urls_as_txt.isChecked(),
                 'no_exceptions': self.no_exceptions.isChecked(),
+                'select_tracks': self.select_tracks.isChecked(),
                 'codec_song': self.codec_song.currentText(),
                 'codec_music_video': self.codec_music_video.currentText(),
                 'quality_post': self.quality_post.currentText(),
@@ -1263,6 +1318,7 @@ class FluentMainWindow(FluentWindow):
             # 创建并启动下载线程
             self.download_thread = DownloadThread(urls, cookie_file, output_dir, download_options, self.append_log_signal)
             self.download_thread.progress_signal.connect(self.update_progress)
+            self.download_thread.song_progress_signal.connect(self.update_song_progress)
             self.download_thread.finished_signal.connect(self.download_finished)
             self.download_thread.start()
         except Exception as e:
@@ -1294,6 +1350,19 @@ class FluentMainWindow(FluentWindow):
             self.progress_bar.setValue(value)
         except Exception as e:
             print(f"更新进度条时出错: {e}")
+    
+    def update_song_progress(self, song_name, current_track, total_tracks, percentage):
+        """更新单曲下载进度"""
+        try:
+            self.song_progress_bar.setValue(percentage)
+            # 只在有歌曲名时更新标签
+            if song_name:
+                self.current_song_label.setText(f"正在下载: {song_name} ({current_track}/{total_tracks})")
+            elif percentage == 100:
+                # 完成时显示完成信息
+                self.current_song_label.setText(f"已完成: {current_track}/{total_tracks}")
+        except Exception as e:
+            print(f"更新歌曲进度时出错: {e}")
         
     def download_finished(self, success):
         """下载完成回调"""
@@ -1302,7 +1371,11 @@ class FluentMainWindow(FluentWindow):
             self.download_btn.setEnabled(True)
             self.download_btn.setText("开始下载")
             
+            # 重置进度条
             if success:
+                self.progress_bar.setValue(100)
+                self.song_progress_bar.setValue(100)
+                self.current_song_label.setText("下载完成!")
                 InfoBar.success(
                     title="成功",
                     content="下载已完成!",
@@ -1313,6 +1386,7 @@ class FluentMainWindow(FluentWindow):
                     parent=self
                 )
             else:
+                self.current_song_label.setText("下载失败或取消")
                 InfoBar.error(
                     title="错误",
                     content="下载过程中发生错误，请查看日志!",

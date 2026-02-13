@@ -504,8 +504,16 @@ class Downloader:
             self.download_nm3u8dlre(path, stream_url, progress_callback)
 
     def download_ytdlp(self, path: Path, stream_url: str, progress_callback=None):
+        """
+        Download using yt-dlp.
+        
+        Args:
+            path: Output file path
+            stream_url: Stream URL to download
+            progress_callback: Optional callback function(percentage, downloaded, total)
+        """
         def progress_hook(d):
-            if progress_callback and d['status'] == 'downloading':
+            if progress_callback and d.get('status') == 'downloading':
                 downloaded = d.get('downloaded_bytes', 0)
                 total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
                 if total > 0:
@@ -528,9 +536,19 @@ class Downloader:
             ytdlp.download([stream_url])
 
     def download_nm3u8dlre(self, path: Path, stream_url: str, progress_callback=None):
-        # Note: N_m3u8DL-RE progress tracking is limited due to subprocess output redirection
-        # For now, just call the process without progress tracking
-        # Future enhancement: Parse stderr output for progress updates
+        """
+        Download using N_m3u8DL-RE.
+        
+        Args:
+            path: Output file path
+            stream_url: Stream URL to download
+            progress_callback: Optional callback function (currently not supported for nm3u8dlre)
+        
+        Note:
+            Progress callback is not currently supported for N_m3u8DL-RE downloads due to
+            subprocess output redirection limitations. The callback parameter is accepted
+            for API consistency but will not be invoked.
+        """
         subprocess.run(
             [
                 self.nm3u8dlre_path_full,

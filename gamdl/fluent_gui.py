@@ -341,14 +341,17 @@ class DownloadThread(QThread):
         download_match = re.search(r'Downloading "(.+?)"', log_line)
         if download_match and self.total_tracks > 0:
             song_name = download_match.group(1)
+            self.current_song_name = song_name  # 保存当前歌曲名
             # 发送歌曲进度信号 (初始进度为0)
             self.song_progress_signal.emit(song_name, self.current_track_index, self.total_tracks, 0)
         
-        # 检测下载完成的日志（例如 "Moving to" or "Applying tags"）
-        if any(keyword in log_line for keyword in ["Moving to", "Applying tags", "已完成", "完成"]):
-            if self.total_tracks > 0 and self.current_track_index > 0:
-                # 发送100%完成信号
-                self.song_progress_signal.emit("", self.current_track_index, self.total_tracks, 100)
+        # 检测下载完成的日志 - 更可靠的模式匹配
+        # 匹配类似 "Moving to" 或 "Applying tags" 或包含 "Done" 的行
+        if self.total_tracks > 0 and self.current_track_index > 0:
+            if re.search(r'Moving to|Applying tags|Done \(\d+ error', log_line):
+                # 使用保存的歌曲名发送100%完成信号
+                current_name = getattr(self, 'current_song_name', '')
+                self.song_progress_signal.emit(current_name, self.current_track_index, self.total_tracks, 100)
     
     def extract_downloaded_file_path(self, log_line):
         """
@@ -1352,7 +1355,12 @@ class FluentMainWindow(FluentWindow):
         """更新单曲下载进度"""
         try:
             self.song_progress_bar.setValue(percentage)
-            self.current_song_label.setText(f"正在下载: {song_name} ({current_track}/{total_tracks})")
+            # 只在有歌曲名时更新标签
+            if song_name:
+                self.current_song_label.setText(f"正在下载: {song_name} ({current_track}/{total_tracks})")
+            elif percentage == 100:
+                # 完成时显示完成信息
+                self.current_song_label.setText(f"已完成: {current_track}/{total_tracks}")
         except Exception as e:
             print(f"更新歌曲进度时出错: {e}")
         

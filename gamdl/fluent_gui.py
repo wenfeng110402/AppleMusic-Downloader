@@ -173,6 +173,9 @@ class DownloadThread(QThread):
                 if self.download_options.get('no_exceptions'):
                     args.append('--no-exceptions')
                 
+                if self.download_options.get('select_tracks'):
+                    args.append('--select-tracks')
+                
                 # 添加音频解码格式选项
                 if self.download_options.get('codec_song'):
                     args.extend(['--codec-song', self.download_options.get('codec_song')])
@@ -842,6 +845,8 @@ class FluentMainWindow(FluentWindow):
         self.no_synced_lyrics = CheckBox("不下载同步歌词")
         self.read_urls_as_txt = CheckBox("将URL作为TXT文件读取")
         self.no_exceptions = CheckBox("禁用例外处理")
+        self.select_tracks = CheckBox("选择要下载的歌曲（专辑/播放列表）")
+        self.select_tracks.setToolTip("启用后，下载专辑或播放列表时可以选择要下载的具体歌曲")
         
         checkboxes_layout.addWidget(self.overwrite, 0, 0)
         checkboxes_layout.addWidget(self.disable_music_video_skip, 0, 1)
@@ -850,6 +855,7 @@ class FluentMainWindow(FluentWindow):
         checkboxes_layout.addWidget(self.no_synced_lyrics, 2, 0)
         checkboxes_layout.addWidget(self.read_urls_as_txt, 2, 1)
         checkboxes_layout.addWidget(self.no_exceptions, 3, 0)
+        checkboxes_layout.addWidget(self.select_tracks, 3, 1)
         
         options_layout.addLayout(checkboxes_layout)
         
@@ -1282,6 +1288,7 @@ class FluentMainWindow(FluentWindow):
                 'no_synced_lyrics': self.no_synced_lyrics.isChecked(),
                 'read_urls_as_txt': self.read_urls_as_txt.isChecked(),
                 'no_exceptions': self.no_exceptions.isChecked(),
+                'select_tracks': self.select_tracks.isChecked(),
                 'codec_song': self.codec_song.currentText(),
                 'codec_music_video': self.codec_music_video.currentText(),
                 'quality_post': self.quality_post.currentText(),

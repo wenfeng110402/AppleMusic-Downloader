@@ -50,6 +50,20 @@ amdl --cookies-path /path/to/cookies.txt "https://music.apple.com/..."
 ### Mac?
 Try this [am-downloader-mac](https://github.com/aki4nvr/am-downloader-mac)
 
+## CI/CD Validation and Auto Build
+
+This repository now includes a GitHub Actions workflow: [.github/workflows/ci-build-windows.yml](.github/workflows/ci-build-windows.yml)
+
+- `validate`: installs dependencies on Ubuntu and runs `python -m compileall src/amdl` for baseline validation.
+- `build-windows`: downloads FFmpeg online on a Windows runner, extracts `ffmpeg.exe` into `tools/`, then builds with PyInstaller.
+- Build artifact: `AppleMusicDownloader-windows-exe` (contains `dist/AppleMusicDownloader.exe`).
+
+How to use:
+
+1. Open **Actions** in your GitHub repository.
+2. Select **CI and Windows Build**.
+3. Click **Run workflow** to trigger manually, or trigger it automatically via push/PR.
+
 ## Environmental requirements
 
 ### Required components

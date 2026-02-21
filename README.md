@@ -52,6 +52,20 @@ amdl --cookies-path /path/to/cookies.txt "https://music.apple.com/..."
 ### Mac?
 Try this [am-downloader-mac](https://github.com/aki4nvr/am-downloader-mac)
 
+## CI/CD 验证与自动打包
+
+仓库已内置 GitHub Actions 工作流：[.github/workflows/ci-build-windows.yml](.github/workflows/ci-build-windows.yml)
+
+- `validate`：在 Ubuntu 安装依赖并执行 `python -m compileall src/amdl` 做基础验证。
+- `build-windows`：在 Windows runner 联网下载 FFmpeg 压缩包，提取 `ffmpeg.exe` 到 `tools/` 后执行 PyInstaller 打包。
+- 打包产物：`AppleMusicDownloader-windows-exe`（包含 `dist/AppleMusicDownloader.exe`）。
+
+使用方式：
+
+1. 打开 GitHub 仓库的 **Actions**。
+2. 选择 **CI and Windows Build**。
+3. 点击 **Run workflow** 手动触发，或通过 push/PR 自动触发。
+
 
 ## 环境要求
 

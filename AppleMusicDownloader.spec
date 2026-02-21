@@ -6,7 +6,7 @@ import os
 project_root = os.getcwd()
 
 a = Analysis(
-    ['gamdl/fluent_gui.py'],
+    ['src/amdl/fluent_gui.py'],
     pathex=[],
     binaries=[],
     datas=[

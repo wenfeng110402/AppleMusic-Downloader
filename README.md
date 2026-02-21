@@ -33,6 +33,20 @@ This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](htt
 git clone https://github.com/wenfeng110402/AppleMusic-Downloader.git
 cd AppleMusic-Downloader
 pip install -r requirements.txt
+pip install -e .
+```
+
+本项目使用 `src` 布局；如果你不安装为可编辑包，也可以临时这样运行：
+
+```bash
+PYTHONPATH=src python -c "from amdl.cli import main; main(args=['--help'], standalone_mode=False)"
+```
+
+### 命令行快速使用
+
+```bash
+amdl --help
+amdl --cookies-path /path/to/cookies.txt "https://music.apple.com/..."
 ```
 
 ### Mac?

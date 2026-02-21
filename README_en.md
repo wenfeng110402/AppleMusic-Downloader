@@ -31,6 +31,20 @@ page download the latest version of the installer.
 git clone https://github.com/wenfeng110402/AppleMusic-Downloader.git
 cd AppleMusic-Downloader
 pip install -r requirements.txt
+pip install -e .
+```
+
+This project uses a `src` layout. If you don't install it as an editable package, run it with:
+
+```bash
+PYTHONPATH=src python -c "from amdl.cli import main; main(args=['--help'], standalone_mode=False)"
+```
+
+### Quick CLI usage
+
+```bash
+amdl --help
+amdl --cookies-path /path/to/cookies.txt "https://music.apple.com/..."
 ```
 
 ### Mac?

@@ -28,4 +28,7 @@ requires = ["flit_core"]
 build-backend = "flit_core.buildapi"
 
 [project.scripts]
-gamdl = "gamdl.cli:main"
+amdl = "amdl.cli:main"
+
+[tool.flit.module]
+name = "amdl"

@@ -7,7 +7,13 @@ import ctypes
 import subprocess
 from pathlib import Path
 
-import gamdl.cli
+import amdl.cli
+from amdl.gui_conversion import (
+    convert_audio_file as shared_convert_audio_file,
+    convert_downloaded_files as shared_convert_downloaded_files,
+    convert_video_file as shared_convert_video_file,
+    resolve_ffmpeg_executable,
+)
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -73,6 +79,7 @@ class DownloadThread(QThread):
         self.output_dir = output_dir
         self.download_options = download_options
         self.downloaded_files = []  # 跟踪下载的文件
+        self.ffmpeg_exe = resolve_ffmpeg_executable("ffmpeg")
         
     def run(self):
         """执行下载任务"""
@@ -174,7 +181,7 @@ class DownloadThread(QThread):
                     self.log_signal.emit(f"    传递给CLI的参数: {' '.join(args)}")
                     
                     # 调用CLI功能执行下载
-                    gamdl.cli.main(args, standalone_mode=False)
+                    amdl.cli.main(args, standalone_mode=False)
                     success_count += 1
                     self.log_signal.emit(f"    下载完成!")
                 except SystemExit as e:
@@ -312,84 +319,13 @@ class DownloadThread(QThread):
         :param audio_format: 目标音频格式
         :param video_format: 目标视频格式
         """
-        try:
-            # 获取输出目录
-            output_dir = self.output_dir if self.output_dir else "./"
-            self.log_signal.emit(f"在目录中查找最近下载的文件: {output_dir}")
-            
-            # 查找最近修改的媒体文件（假设在下载过程中创建的）
-            import time
-            current_time = time.time()
-            recently_modified_files = []
-            
-            # 查找最近10分钟内修改的媒体文件
-            for root, dirs, files in os.walk(output_dir):
-                for file in files:
-                    if file.endswith((".m4a", ".mp4", ".mov")):
-                        file_path = os.path.join(root, file)
-                        file_modified_time = os.path.getmtime(file_path)
-                        # 如果文件是最近10分钟内修改的，认为是刚刚下载的
-                        if current_time - file_modified_time < 600:  # 600秒 = 10分钟
-                            recently_modified_files.append(file_path)
-                            self.log_signal.emit(f"    检测到最近下载的文件: {file_path}")
-            
-            self.log_signal.emit(f"准备转换 {len(recently_modified_files)} 个最近下载的文件")
-            
-            # 查找需要转换的文件
-            converted_count = 0
-            
-            if audio_format and audio_format != "保持原格式":
-                # 处理音频文件
-                for file_path in recently_modified_files:
-                    if file_path.endswith((".m4a", ".mp4")):
-                        converted_path = os.path.splitext(file_path)[0] + f".{audio_format}"
-                        
-                        # 检查目标文件是否已存在
-                        if os.path.exists(converted_path):
-                            self.log_signal.emit(f"    跳过 {os.path.basename(file_path)} (目标文件已存在)")
-                            continue
-                        
-                        # 执行音频转换
-                        if self.convert_audio_file(file_path, converted_path, audio_format):
-                            converted_count += 1
-                            self.log_signal.emit(f"    成功转换 {os.path.basename(file_path)} 为 {audio_format}")
-                            # 转换成功后删除原文件
-                            try:
-                                os.remove(file_path)
-                                self.log_signal.emit(f"    已删除原文件 {os.path.basename(file_path)}")
-                            except Exception as e:
-                                self.log_signal.emit(f"    删除原文件失败 {os.path.basename(file_path)}: {str(e)}")
-                        else:
-                            self.log_signal.emit(f"    转换失败 {os.path.basename(file_path)}")
-            
-            if video_format and video_format != "保持原格式":
-                # 处理视频文件
-                for file_path in recently_modified_files:
-                    if file_path.endswith((".mov", ".mp4")):
-                        converted_path = os.path.splitext(file_path)[0] + f".{video_format}"
-                        
-                        # 检查目标文件是否已存在
-                        if os.path.exists(converted_path):
-                            self.log_signal.emit(f"    跳过 {os.path.basename(file_path)} (目标文件已存在)")
-                            continue
-                        
-                        # 执行视频转换
-                        if self.convert_video_file(file_path, converted_path, video_format):
-                            converted_count += 1
-                            self.log_signal.emit(f"    成功转换 {os.path.basename(file_path)} 为 {video_format}")
-                            # 转换成功后删除原文件
-                            try:
-                                os.remove(file_path)
-                                self.log_signal.emit(f"    已删除原文件 {os.path.basename(file_path)}")
-                            except Exception as e:
-                                self.log_signal.emit(f"    删除原文件失败 {os.path.basename(file_path)}: {str(e)}")
-                        else:
-                            self.log_signal.emit(f"    转换失败 {os.path.basename(file_path)}")
-            
-            self.log_signal.emit(f"格式转换完成，共转换 {converted_count} 个文件")
-        except Exception as e:
-            error_msg = f"格式转换过程中发生错误: {str(e)}\n{traceback.format_exc()}"
-            self.log_signal.emit(error_msg)
+        self.downloaded_files = shared_convert_downloaded_files(
+            self.downloaded_files,
+            audio_format,
+            video_format,
+            self.ffmpeg_exe,
+            self.log_signal.emit,
+        )
     
     def convert_audio_file(self, source_path, target_path, target_format):
         """
@@ -399,78 +335,13 @@ class DownloadThread(QThread):
         :param target_format: 目标格式
         :return: 转换是否成功
         """
-        try:
-            # 构建FFmpeg命令
-            if target_format == "mp3":
-                # MP3格式，使用320kbps比特率
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-ar", "44100", "-ac", "2", "-ab", "320k", "-f", "mp3",
-                    target_path
-                ]
-            elif target_format == "flac":
-                # FLAC无损格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-f", "flac",
-                    target_path
-                ]
-            elif target_format == "wav":
-                # WAV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-f", "wav",
-                    target_path
-                ]
-            elif target_format == "aac":
-                # AAC格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-c:a", "aac", "-b:a", "256k",
-                    target_path
-                ]
-            elif target_format == "m4a":
-                # M4A格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-c:a", "aac", "-b:a", "256k",
-                    target_path
-                ]
-            elif target_format == "ogg":
-                # OGG格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-c:a", "libvorbis", "-q:a", "5",
-                    target_path
-                ]
-            elif target_format == "wma":
-                # WMA格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-c:a", "wmav2", "-b:a", "192k",
-                    target_path
-                ]
-            else:
-                # 默认AAC格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-c:a", "aac", "-b:a", "256k",
-                    target_path
-                ]
-            
-            # 执行FFmpeg命令
-            self.log_signal.emit(f"    执行转换命令: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                self.log_signal.emit(f"    FFmpeg输出: {result.stdout}")
-                return True
-            else:
-                self.log_signal.emit(f"    FFmpeg错误: {result.stderr}")
-                return False
-        except Exception as e:
-            self.log_signal.emit(f"    执行音频转换时出错: {str(e)}")
-            return False
+        return shared_convert_audio_file(
+            source_path,
+            target_path,
+            target_format,
+            self.ffmpeg_exe,
+            self.log_signal.emit,
+        )
     
     def convert_video_file(self, source_path, target_path, target_format):
         """
@@ -480,67 +351,13 @@ class DownloadThread(QThread):
         :param target_format: 目标格式
         :return: 转换是否成功
         """
-        try:
-            # 构建FFmpeg命令，保留所有流（音频、视频、字幕等）
-            cmd = [
-                "ffmpeg", "-i", source_path,
-                "-c", "copy",  # 默认复制所有流
-                target_path
-            ]
-            
-            # 对于某些格式，可能需要重新编码
-            if target_format in ["mp4", "mov"]:
-                # 这些格式通常可以无损复制流
-                pass
-            elif target_format == "mkv":
-                # MKV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c", "copy",
-                    target_path
-                ]
-            elif target_format == "avi":
-                # AVI格式可能需要重新编码
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libx264", "-c:a", "aac",
-                    target_path
-                ]
-            elif target_format == "wmv":
-                # WMV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "wmv2", "-c:a", "wmav2",
-                    target_path
-                ]
-            elif target_format == "flv":
-                # FLV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "flv", "-c:a", "aac",
-                    target_path
-                ]
-            elif target_format == "webm":
-                # WebM格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libvpx-vp9", "-c:a", "libopus",
-                    target_path
-                ]
-            
-            # 执行FFmpeg命令
-            self.log_signal.emit(f"    执行转换命令: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                self.log_signal.emit(f"    FFmpeg输出: {result.stdout}")
-                return True
-            else:
-                self.log_signal.emit(f"    FFmpeg错误: {result.stderr}")
-                return False
-        except Exception as e:
-            self.log_signal.emit(f"    执行视频转换时出错: {str(e)}")
-            return False
+        return shared_convert_video_file(
+            source_path,
+            target_path,
+            target_format,
+            self.ffmpeg_exe,
+            self.log_signal.emit,
+        )
 
 
 class GamdlGUI(QMainWindow):

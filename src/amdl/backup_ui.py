@@ -7,7 +7,13 @@ import ctypes
 import subprocess
 from pathlib import Path
 
-import gamdl.cli
+import amdl.cli
+from amdl.gui_conversion import (
+    convert_audio_file as shared_convert_audio_file,
+    convert_downloaded_files as shared_convert_downloaded_files,
+    convert_video_file as shared_convert_video_file,
+    resolve_ffmpeg_executable,
+)
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -17,6 +23,144 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSettings, QTimer
 from PyQt6.QtGui import QFont, QColor, QPalette
+
+
+I18N = {
+    "zh_CN": {
+        "window_title": "Apple Music Downloader",
+        "main_title": "Apple Music Downloader",
+        "tab_download": "下载",
+        "tab_settings": "设置",
+        "group_urls": "下载链接",
+        "placeholder_urls": "在此输入Apple Music链接，每行一个...\n例如:\nhttps://music.apple.com/us/album/album-name/album-id\nhttps://music.apple.com/us/music-video/video-name/video-id",
+        "group_paths": "文件路径",
+        "label_cookie": "Cookie文件:",
+        "label_output": "输出目录:",
+        "placeholder_cookie": "选择您的Cookie文件",
+        "placeholder_output": "选择输出目录",
+        "btn_browse": "浏览...",
+        "group_options": "下载选项",
+        "opt_overwrite": "覆盖已存在文件",
+        "opt_disable_mv_skip": "禁用音乐视频跳过",
+        "opt_save_playlist": "保存播放列表",
+        "opt_synced_only": "仅下载同步歌词",
+        "opt_no_synced": "不下载同步歌词",
+        "opt_read_urls_txt": "将URL作为TXT文件读取",
+        "opt_no_exceptions": "禁用例外处理",
+        "label_audio_convert": "音频格式转换:",
+        "label_video_convert": "视频格式转换:",
+        "keep_original": "保持原格式",
+        "btn_start": "开始下载",
+        "btn_downloading": "下载中...",
+        "btn_clear_log": "清除日志",
+        "group_mode": "下载模式",
+        "label_download_mode": "下载模式:",
+        "label_remux_mode": "混流模式:",
+        "group_codec": "编码格式",
+        "label_codec_song": "音频编码格式:",
+        "label_codec_mv": "音乐视频编码格式:",
+        "group_cover": "封面和歌词",
+        "label_cover_format": "封面格式:",
+        "label_cover_size": "封面尺寸:",
+        "label_truncate": "截断长度:",
+        "group_path_settings": "路径设置",
+        "label_temp_path": "临时文件路径:",
+        "label_wvd_path": "WVD文件路径:",
+        "group_templates": "模板设置",
+        "label_tpl_album": "专辑文件夹模板:",
+        "label_tpl_comp": "合辑文件夹模板:",
+        "label_tpl_single": "单碟文件模板:",
+        "label_tpl_multi": "多碟文件模板:",
+        "group_quality": "视频质量",
+        "label_quality_post": "帖子视频质量:",
+        "group_language": "界面语言",
+        "label_language": "语言:",
+        "lang_zh": "简体中文",
+        "lang_en": "English",
+        "btn_save_settings": "保存设置",
+        "status_ready": "就绪",
+        "status_done": "下载完成",
+        "status_failed": "下载失败",
+        "warn": "警告",
+        "error": "错误",
+        "success": "成功",
+        "msg_need_url": "请输入至少一个下载链接",
+        "msg_invalid_url": "请输入有效的下载链接",
+        "msg_need_cookie": "请选择Cookie文件",
+        "msg_cookie_missing": "指定的Cookie文件不存在",
+        "msg_download_done": "下载已完成!",
+        "msg_download_failed": "下载过程中发生错误，请查看日志!",
+        "dialog_cookie": "选择Cookie文件",
+        "dialog_output": "选择输出目录",
+    },
+    "en_US": {
+        "window_title": "Apple Music Downloader",
+        "main_title": "Apple Music Downloader",
+        "tab_download": "Download",
+        "tab_settings": "Settings",
+        "group_urls": "URLs",
+        "placeholder_urls": "Enter Apple Music URLs here, one per line...\nExample:\nhttps://music.apple.com/us/album/album-name/album-id\nhttps://music.apple.com/us/music-video/video-name/video-id",
+        "group_paths": "Paths",
+        "label_cookie": "Cookie file:",
+        "label_output": "Output directory:",
+        "placeholder_cookie": "Select your cookie file",
+        "placeholder_output": "Select output directory",
+        "btn_browse": "Browse...",
+        "group_options": "Options",
+        "opt_overwrite": "Overwrite existing files",
+        "opt_disable_mv_skip": "Disable music video skip",
+        "opt_save_playlist": "Save playlist",
+        "opt_synced_only": "Synced lyrics only",
+        "opt_no_synced": "Do not download synced lyrics",
+        "opt_read_urls_txt": "Read URLs as TXT",
+        "opt_no_exceptions": "Disable exceptions",
+        "label_audio_convert": "Audio convert:",
+        "label_video_convert": "Video convert:",
+        "keep_original": "Keep original",
+        "btn_start": "Start Download",
+        "btn_downloading": "Downloading...",
+        "btn_clear_log": "Clear Log",
+        "group_mode": "Download Mode",
+        "label_download_mode": "Download mode:",
+        "label_remux_mode": "Remux mode:",
+        "group_codec": "Codecs",
+        "label_codec_song": "Song codec:",
+        "label_codec_mv": "Music video codec:",
+        "group_cover": "Cover & Lyrics",
+        "label_cover_format": "Cover format:",
+        "label_cover_size": "Cover size:",
+        "label_truncate": "Truncate length:",
+        "group_path_settings": "Path Settings",
+        "label_temp_path": "Temp path:",
+        "label_wvd_path": "WVD path:",
+        "group_templates": "Templates",
+        "label_tpl_album": "Album folder template:",
+        "label_tpl_comp": "Compilation folder template:",
+        "label_tpl_single": "Single-disc file template:",
+        "label_tpl_multi": "Multi-disc file template:",
+        "group_quality": "Video Quality",
+        "label_quality_post": "Post video quality:",
+        "group_language": "UI Language",
+        "label_language": "Language:",
+        "lang_zh": "简体中文",
+        "lang_en": "English",
+        "btn_save_settings": "Save Settings",
+        "status_ready": "Ready",
+        "status_done": "Download complete",
+        "status_failed": "Download failed",
+        "warn": "Warning",
+        "error": "Error",
+        "success": "Success",
+        "msg_need_url": "Please enter at least one URL",
+        "msg_invalid_url": "Please enter valid URL(s)",
+        "msg_need_cookie": "Please select a cookie file",
+        "msg_cookie_missing": "Selected cookie file does not exist",
+        "msg_download_done": "Download completed!",
+        "msg_download_failed": "Errors occurred during download, check logs.",
+        "dialog_cookie": "Select cookie file",
+        "dialog_output": "Select output directory",
+    },
+}
 
 
 def is_admin():
@@ -73,6 +217,7 @@ class DownloadThread(QThread):
         self.output_dir = output_dir
         self.download_options = download_options
         self.downloaded_files = []  # 跟踪下载的文件
+        self.ffmpeg_exe = resolve_ffmpeg_executable("ffmpeg")
         
     def run(self):
         """执行下载任务"""
@@ -174,7 +319,7 @@ class DownloadThread(QThread):
                     self.log_signal.emit(f"    传递给CLI的参数: {' '.join(args)}")
                     
                     # 调用CLI功能执行下载
-                    gamdl.cli.main(args, standalone_mode=False)
+                    amdl.cli.main(args, standalone_mode=False)
                     success_count += 1
                     self.log_signal.emit(f"    下载完成!")
                 except SystemExit as e:
@@ -312,84 +457,13 @@ class DownloadThread(QThread):
         :param audio_format: 目标音频格式
         :param video_format: 目标视频格式
         """
-        try:
-            # 获取输出目录
-            output_dir = self.output_dir if self.output_dir else "./"
-            self.log_signal.emit(f"在目录中查找最近下载的文件: {output_dir}")
-            
-            # 查找最近修改的媒体文件（假设在下载过程中创建的）
-            import time
-            current_time = time.time()
-            recently_modified_files = []
-            
-            # 查找最近10分钟内修改的媒体文件
-            for root, dirs, files in os.walk(output_dir):
-                for file in files:
-                    if file.endswith((".m4a", ".mp4", ".mov")):
-                        file_path = os.path.join(root, file)
-                        file_modified_time = os.path.getmtime(file_path)
-                        # 如果文件是最近10分钟内修改的，认为是刚刚下载的
-                        if current_time - file_modified_time < 600:  # 600秒 = 10分钟
-                            recently_modified_files.append(file_path)
-                            self.log_signal.emit(f"    检测到最近下载的文件: {file_path}")
-            
-            self.log_signal.emit(f"准备转换 {len(recently_modified_files)} 个最近下载的文件")
-            
-            # 查找需要转换的文件
-            converted_count = 0
-            
-            if audio_format and audio_format != "保持原格式":
-                # 处理音频文件
-                for file_path in recently_modified_files:
-                    if file_path.endswith((".m4a", ".mp4")):
-                        converted_path = os.path.splitext(file_path)[0] + f".{audio_format}"
-                        
-                        # 检查目标文件是否已存在
-                        if os.path.exists(converted_path):
-                            self.log_signal.emit(f"    跳过 {os.path.basename(file_path)} (目标文件已存在)")
-                            continue
-                        
-                        # 执行音频转换
-                        if self.convert_audio_file(file_path, converted_path, audio_format):
-                            converted_count += 1
-                            self.log_signal.emit(f"    成功转换 {os.path.basename(file_path)} 为 {audio_format}")
-                            # 转换成功后删除原文件
-                            try:
-                                os.remove(file_path)
-                                self.log_signal.emit(f"    已删除原文件 {os.path.basename(file_path)}")
-                            except Exception as e:
-                                self.log_signal.emit(f"    删除原文件失败 {os.path.basename(file_path)}: {str(e)}")
-                        else:
-                            self.log_signal.emit(f"    转换失败 {os.path.basename(file_path)}")
-            
-            if video_format and video_format != "保持原格式":
-                # 处理视频文件
-                for file_path in recently_modified_files:
-                    if file_path.endswith((".mov", ".mp4")):
-                        converted_path = os.path.splitext(file_path)[0] + f".{video_format}"
-                        
-                        # 检查目标文件是否已存在
-                        if os.path.exists(converted_path):
-                            self.log_signal.emit(f"    跳过 {os.path.basename(file_path)} (目标文件已存在)")
-                            continue
-                        
-                        # 执行视频转换
-                        if self.convert_video_file(file_path, converted_path, video_format):
-                            converted_count += 1
-                            self.log_signal.emit(f"    成功转换 {os.path.basename(file_path)} 为 {video_format}")
-                            # 转换成功后删除原文件
-                            try:
-                                os.remove(file_path)
-                                self.log_signal.emit(f"    已删除原文件 {os.path.basename(file_path)}")
-                            except Exception as e:
-                                self.log_signal.emit(f"    删除原文件失败 {os.path.basename(file_path)}: {str(e)}")
-                        else:
-                            self.log_signal.emit(f"    转换失败 {os.path.basename(file_path)}")
-            
-            self.log_signal.emit(f"格式转换完成，共转换 {converted_count} 个文件")
-        except Exception as e:
-            error_msg = f"格式转换过程中发生错误: {str(e)}\n{traceback.format_exc()}"
-            self.log_signal.emit(error_msg)
+        self.downloaded_files = shared_convert_downloaded_files(
+            self.downloaded_files,
+            audio_format,
+            video_format,
+            self.ffmpeg_exe,
+            self.log_signal.emit,
+        )
     
     def convert_audio_file(self, source_path, target_path, target_format):
         """
@@ -399,78 +473,13 @@ class DownloadThread(QThread):
         :param target_format: 目标格式
         :return: 转换是否成功
         """
-        try:
-            # 构建FFmpeg命令
-            if target_format == "mp3":
-                # MP3格式，使用320kbps比特率
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-ar", "44100", "-ac", "2", "-ab", "320k", "-f", "mp3",
-                    target_path
-                ]
-            elif target_format == "flac":
-                # FLAC无损格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-f", "flac",
-                    target_path
-                ]
-            elif target_format == "wav":
-                # WAV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-f", "wav",
-                    target_path
-                ]
-            elif target_format == "aac":
-                # AAC格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-c:a", "aac", "-b:a", "256k",
-                    target_path
-                ]
-            elif target_format == "m4a":
-                # M4A格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-c:a", "aac", "-b:a", "256k",
-                    target_path
-                ]
-            elif target_format == "ogg":
-                # OGG格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-c:a", "libvorbis", "-q:a", "5",
-                    target_path
-                ]
-            elif target_format == "wma":
-                # WMA格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-c:a", "wmav2", "-b:a", "192k",
-                    target_path
-                ]
-            else:
-                # 默认AAC格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-vn", "-c:a", "aac", "-b:a", "256k",
-                    target_path
-                ]
-            
-            # 执行FFmpeg命令
-            self.log_signal.emit(f"    执行转换命令: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                self.log_signal.emit(f"    FFmpeg输出: {result.stdout}")
-                return True
-            else:
-                self.log_signal.emit(f"    FFmpeg错误: {result.stderr}")
-                return False
-        except Exception as e:
-            self.log_signal.emit(f"    执行音频转换时出错: {str(e)}")
-            return False
+        return shared_convert_audio_file(
+            source_path,
+            target_path,
+            target_format,
+            self.ffmpeg_exe,
+            self.log_signal.emit,
+        )
     
     def convert_video_file(self, source_path, target_path, target_format):
         """
@@ -480,78 +489,28 @@ class DownloadThread(QThread):
         :param target_format: 目标格式
         :return: 转换是否成功
         """
-        try:
-            # 构建FFmpeg命令，保留所有流（音频、视频、字幕等）
-            cmd = [
-                "ffmpeg", "-i", source_path,
-                "-c", "copy",  # 默认复制所有流
-                target_path
-            ]
-            
-            # 对于某些格式，可能需要重新编码
-            if target_format in ["mp4", "mov"]:
-                # 这些格式通常可以无损复制流
-                pass
-            elif target_format == "mkv":
-                # MKV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c", "copy",
-                    target_path
-                ]
-            elif target_format == "avi":
-                # AVI格式可能需要重新编码
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libx264", "-c:a", "aac",
-                    target_path
-                ]
-            elif target_format == "wmv":
-                # WMV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "wmv2", "-c:a", "wmav2",
-                    target_path
-                ]
-            elif target_format == "flv":
-                # FLV格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "flv", "-c:a", "aac",
-                    target_path
-                ]
-            elif target_format == "webm":
-                # WebM格式
-                cmd = [
-                    "ffmpeg", "-i", source_path,
-                    "-c:v", "libvpx-vp9", "-c:a", "libopus",
-                    target_path
-                ]
-            
-            # 执行FFmpeg命令
-            self.log_signal.emit(f"    执行转换命令: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                self.log_signal.emit(f"    FFmpeg输出: {result.stdout}")
-                return True
-            else:
-                self.log_signal.emit(f"    FFmpeg错误: {result.stderr}")
-                return False
-        except Exception as e:
-            self.log_signal.emit(f"    执行视频转换时出错: {str(e)}")
-            return False
+        return shared_convert_video_file(
+            source_path,
+            target_path,
+            target_format,
+            self.ffmpeg_exe,
+            self.log_signal.emit,
+        )
 
 
 class GamdlGUI(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.current_language = "zh_CN"
         self.setWindowTitle("Apple Music Downloader")
         self.setGeometry(100, 100, 1200, 800)
         self.setMinimumSize(800, 600)
         
         # 创建设置对象用于保存和加载用户配置
         self.settings = QSettings("AppleMusicDownloader", "Config")
+        self.current_language = self.settings.value("ui_language", "zh_CN")
+        if self.current_language not in I18N:
+            self.current_language = "zh_CN"
         
         # 初始化UI
         self.init_ui()
@@ -572,10 +531,10 @@ class GamdlGUI(QMainWindow):
         main_layout.setSpacing(15)
         
         # 标题
-        title_label = QLabel("Apple Music Downloader")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("font-size: 24px; font-weight: bold; margin: 10px;")
-        main_layout.addWidget(title_label)
+        self.title_label = QLabel("Apple Music Downloader")
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_label.setStyleSheet("font-size: 24px; font-weight: bold; margin: 10px;")
+        main_layout.addWidget(self.title_label)
         
         # 创建标签页
         self.tab_widget = QTabWidget()
@@ -600,49 +559,116 @@ class GamdlGUI(QMainWindow):
         # 设置状态栏
         self.statusBar().showMessage("就绪")
 
+        self.apply_translations()
+
+    def tr_text(self, key: str) -> str:
+        return I18N.get(self.current_language, I18N["zh_CN"]).get(key, key)
+
+    def apply_translations(self):
+        self.setWindowTitle(self.tr_text("window_title"))
+        self.title_label.setText(self.tr_text("main_title"))
+        self.statusBar().showMessage(self.tr_text("status_ready"))
+
+        self.download_group.setTitle(self.tr_text("group_urls"))
+        self.url_input.setPlaceholderText(self.tr_text("placeholder_urls"))
+        self.path_group.setTitle(self.tr_text("group_paths"))
+        self.cookie_label.setText(self.tr_text("label_cookie"))
+        self.output_label.setText(self.tr_text("label_output"))
+        self.cookie_path.setPlaceholderText(self.tr_text("placeholder_cookie"))
+        self.output_path.setPlaceholderText(self.tr_text("placeholder_output"))
+        self.cookie_button.setText(self.tr_text("btn_browse"))
+        self.output_button.setText(self.tr_text("btn_browse"))
+        self.options_group.setTitle(self.tr_text("group_options"))
+        self.overwrite.setText(self.tr_text("opt_overwrite"))
+        self.disable_music_video_skip.setText(self.tr_text("opt_disable_mv_skip"))
+        self.save_playlist.setText(self.tr_text("opt_save_playlist"))
+        self.synced_lyrics_only.setText(self.tr_text("opt_synced_only"))
+        self.no_synced_lyrics.setText(self.tr_text("opt_no_synced"))
+        self.read_urls_as_txt.setText(self.tr_text("opt_read_urls_txt"))
+        self.no_exceptions.setText(self.tr_text("opt_no_exceptions"))
+        self.audio_convert_label.setText(self.tr_text("label_audio_convert"))
+        self.video_convert_label.setText(self.tr_text("label_video_convert"))
+        self.download_btn.setText(self.tr_text("btn_start"))
+        self.clear_log_btn.setText(self.tr_text("btn_clear_log"))
+
+        self.mode_group.setTitle(self.tr_text("group_mode"))
+        self.download_mode_label.setText(self.tr_text("label_download_mode"))
+        self.remux_mode_label.setText(self.tr_text("label_remux_mode"))
+        self.codec_group.setTitle(self.tr_text("group_codec"))
+        self.codec_song_label.setText(self.tr_text("label_codec_song"))
+        self.codec_music_video_label.setText(self.tr_text("label_codec_mv"))
+        self.cover_group.setTitle(self.tr_text("group_cover"))
+        self.cover_format_label.setText(self.tr_text("label_cover_format"))
+        self.cover_size_label.setText(self.tr_text("label_cover_size"))
+        self.truncate_label.setText(self.tr_text("label_truncate"))
+        self.path_settings_group.setTitle(self.tr_text("group_path_settings"))
+        self.temp_path_label.setText(self.tr_text("label_temp_path"))
+        self.wvd_path_label.setText(self.tr_text("label_wvd_path"))
+        self.template_group.setTitle(self.tr_text("group_templates"))
+        self.template_folder_album_label.setText(self.tr_text("label_tpl_album"))
+        self.template_folder_compilation_label.setText(self.tr_text("label_tpl_comp"))
+        self.template_file_single_disc_label.setText(self.tr_text("label_tpl_single"))
+        self.template_file_multi_disc_label.setText(self.tr_text("label_tpl_multi"))
+        self.quality_group.setTitle(self.tr_text("group_quality"))
+        self.quality_post_label.setText(self.tr_text("label_quality_post"))
+        self.language_group.setTitle(self.tr_text("group_language"))
+        self.language_label.setText(self.tr_text("label_language"))
+        self.save_settings_button.setText(self.tr_text("btn_save_settings"))
+
+        self.tab_widget.setTabText(0, self.tr_text("tab_download"))
+        self.tab_widget.setTabText(1, self.tr_text("tab_settings"))
+
+    def on_language_changed(self):
+        value = self.language_combo.currentData()
+        if value in I18N:
+            self.current_language = value
+            self.apply_translations()
+
     def create_download_tab(self):
         """创建下载标签页"""
         download_widget = QWidget()
         layout = QVBoxLayout(download_widget)
         
         # URL输入区域
-        url_group = QGroupBox("下载链接")
-        url_layout = QVBoxLayout(url_group)
+        self.download_group = QGroupBox("下载链接")
+        url_layout = QVBoxLayout(self.download_group)
         
         self.url_input = QTextEdit()
         self.url_input.setPlaceholderText("在此输入Apple Music链接，每行一个...\n例如:\nhttps://music.apple.com/us/album/album-name/album-id\nhttps://music.apple.com/us/music-video/video-name/video-id")
         self.url_input.setMaximumHeight(100)
         url_layout.addWidget(self.url_input)
         
-        layout.addWidget(url_group)
+        layout.addWidget(self.download_group)
         
         # 文件路径选择区域
-        path_group = QGroupBox("文件路径")
-        path_layout = QGridLayout(path_group)
+        self.path_group = QGroupBox("文件路径")
+        path_layout = QGridLayout(self.path_group)
         
         # Cookie文件选择
         self.cookie_path = QLineEdit()
         self.cookie_path.setPlaceholderText("选择您的Cookie文件")
-        cookie_button = QPushButton("浏览...")
-        cookie_button.clicked.connect(self.select_cookie_file)
-        path_layout.addWidget(QLabel("Cookie文件:"), 0, 0)
+        self.cookie_button = QPushButton("浏览...")
+        self.cookie_button.clicked.connect(self.select_cookie_file)
+        self.cookie_label = QLabel("Cookie文件:")
+        path_layout.addWidget(self.cookie_label, 0, 0)
         path_layout.addWidget(self.cookie_path, 0, 1)
-        path_layout.addWidget(cookie_button, 0, 2)
+        path_layout.addWidget(self.cookie_button, 0, 2)
         
         # 输出目录选择
         self.output_path = QLineEdit()
         self.output_path.setPlaceholderText("选择输出目录")
-        output_button = QPushButton("浏览...")
-        output_button.clicked.connect(self.select_output_directory)
-        path_layout.addWidget(QLabel("输出目录:"), 1, 0)
+        self.output_button = QPushButton("浏览...")
+        self.output_button.clicked.connect(self.select_output_directory)
+        self.output_label = QLabel("输出目录:")
+        path_layout.addWidget(self.output_label, 1, 0)
         path_layout.addWidget(self.output_path, 1, 1)
-        path_layout.addWidget(output_button, 1, 2)
+        path_layout.addWidget(self.output_button, 1, 2)
         
-        layout.addWidget(path_group)
+        layout.addWidget(self.path_group)
         
         # 下载选项区域
-        options_group = QGroupBox("下载选项")
-        options_layout = QVBoxLayout(options_group)
+        self.options_group = QGroupBox("下载选项")
+        options_layout = QVBoxLayout(self.options_group)
         
         # 复选框选项
         checkboxes_layout = QGridLayout()
@@ -667,25 +693,23 @@ class GamdlGUI(QMainWindow):
         
         # 格式转换选项
         format_layout = QHBoxLayout()
-        format_layout.addWidget(QLabel("音频格式转换:"))
+        self.audio_convert_label = QLabel("音频格式转换:")
+        format_layout.addWidget(self.audio_convert_label)
         
         self.audio_format = QComboBox()
-        self.audio_format.addItems([
-            "保持原格式", "mp3", "flac", "wav", "aac", "m4a", "ogg", "wma"
-        ])
+        self.audio_format.addItems(["保持原格式", "mp3", "flac", "wav", "aac", "m4a", "ogg", "wma"])
         format_layout.addWidget(self.audio_format)
         
-        format_layout.addWidget(QLabel("视频格式转换:"))
+        self.video_convert_label = QLabel("视频格式转换:")
+        format_layout.addWidget(self.video_convert_label)
         
         self.video_format = QComboBox()
-        self.video_format.addItems([
-            "保持原格式", "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"
-        ])
+        self.video_format.addItems(["保持原格式", "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"])
         format_layout.addWidget(self.video_format)
         
         options_layout.addLayout(format_layout)
         
-        layout.addWidget(options_group)
+        layout.addWidget(self.options_group)
         
         # 下载按钮
         self.download_btn = QPushButton("开始下载")
@@ -694,9 +718,9 @@ class GamdlGUI(QMainWindow):
         layout.addWidget(self.download_btn)
         
         # 清除日志按钮
-        clear_log_btn = QPushButton("清除日志")
-        clear_log_btn.clicked.connect(self.clear_log)
-        layout.addWidget(clear_log_btn)
+        self.clear_log_btn = QPushButton("清除日志")
+        self.clear_log_btn.clicked.connect(self.clear_log)
+        layout.addWidget(self.clear_log_btn)
         
         self.tab_widget.addTab(download_widget, "下载")
 
@@ -706,125 +730,151 @@ class GamdlGUI(QMainWindow):
         layout = QVBoxLayout(settings_widget)
         
         # 下载模式设置
-        mode_group = QGroupBox("下载模式")
-        mode_layout = QHBoxLayout(mode_group)
+        self.mode_group = QGroupBox("下载模式")
+        mode_layout = QHBoxLayout(self.mode_group)
         
-        mode_layout.addWidget(QLabel("下载模式:"))
+        self.download_mode_label = QLabel("下载模式:")
+        mode_layout.addWidget(self.download_mode_label)
         self.download_mode = QComboBox()
         self.download_mode.addItems(["ytdlp", "nm3u8dlre"])
         mode_layout.addWidget(self.download_mode)
         
-        mode_layout.addWidget(QLabel("混流模式:"))
+        self.remux_mode_label = QLabel("混流模式:")
+        mode_layout.addWidget(self.remux_mode_label)
         self.remux_mode = QComboBox()
         self.remux_mode.addItems(["ffmpeg", "mp4box"])
         mode_layout.addWidget(self.remux_mode)
         
-        layout.addWidget(mode_group)
+        layout.addWidget(self.mode_group)
         
         # 编码格式设置
-        codec_group = QGroupBox("编码格式")
-        codec_layout = QGridLayout(codec_group)
+        self.codec_group = QGroupBox("编码格式")
+        codec_layout = QGridLayout(self.codec_group)
         
-        codec_layout.addWidget(QLabel("音频编码格式:"), 0, 0)
+        self.codec_song_label = QLabel("音频编码格式:")
+        codec_layout.addWidget(self.codec_song_label, 0, 0)
         self.codec_song = QComboBox()
         self.codec_song.addItems(["aac-legacy", "aac", "alac"])
         codec_layout.addWidget(self.codec_song, 0, 1)
         
-        codec_layout.addWidget(QLabel("音乐视频编码格式:"), 1, 0)
+        self.codec_music_video_label = QLabel("音乐视频编码格式:")
+        codec_layout.addWidget(self.codec_music_video_label, 1, 0)
         self.codec_music_video = QComboBox()
         self.codec_music_video.addItems(["h264", "h265", "vp9"])
         codec_layout.addWidget(self.codec_music_video, 1, 1)
         
-        layout.addWidget(codec_group)
+        layout.addWidget(self.codec_group)
         
         # 封面和歌词设置
-        cover_group = QGroupBox("封面和歌词")
-        cover_layout = QGridLayout(cover_group)
+        self.cover_group = QGroupBox("封面和歌词")
+        cover_layout = QGridLayout(self.cover_group)
         
-        cover_layout.addWidget(QLabel("封面格式:"), 0, 0)
+        self.cover_format_label = QLabel("封面格式:")
+        cover_layout.addWidget(self.cover_format_label, 0, 0)
         self.cover_format = QComboBox()
         self.cover_format.addItems(["jpg", "png", "webp"])
         cover_layout.addWidget(self.cover_format, 0, 1)
         
-        cover_layout.addWidget(QLabel("封面尺寸:"), 1, 0)
+        self.cover_size_label = QLabel("封面尺寸:")
+        cover_layout.addWidget(self.cover_size_label, 1, 0)
         self.cover_size = QSpinBox()
         self.cover_size.setRange(90, 10000)
         self.cover_size.setValue(1200)
         cover_layout.addWidget(self.cover_size, 1, 1)
         
-        cover_layout.addWidget(QLabel("截断长度:"), 2, 0)
+        self.truncate_label = QLabel("截断长度:")
+        cover_layout.addWidget(self.truncate_label, 2, 0)
         self.truncate = QSpinBox()
         self.truncate.setRange(0, 1000)
         self.truncate.setValue(0)
         cover_layout.addWidget(self.truncate, 2, 1)
         
-        layout.addWidget(cover_group)
+        layout.addWidget(self.cover_group)
         
         # 路径设置
-        path_group = QGroupBox("路径设置")
-        path_layout = QGridLayout(path_group)
+        self.path_settings_group = QGroupBox("路径设置")
+        path_layout = QGridLayout(self.path_settings_group)
         
-        path_layout.addWidget(QLabel("临时文件路径:"), 0, 0)
+        self.temp_path_label = QLabel("临时文件路径:")
+        path_layout.addWidget(self.temp_path_label, 0, 0)
         self.temp_path = QLineEdit("./temp")
         path_layout.addWidget(self.temp_path, 0, 1)
         
-        path_layout.addWidget(QLabel("WVD文件路径:"), 1, 0)
+        self.wvd_path_label = QLabel("WVD文件路径:")
+        path_layout.addWidget(self.wvd_path_label, 1, 0)
         self.wvd_path = QLineEdit()
         path_layout.addWidget(self.wvd_path, 1, 1)
         
-        layout.addWidget(path_group)
+        layout.addWidget(self.path_settings_group)
         
         # 模板设置
-        template_group = QGroupBox("模板设置")
-        template_layout = QGridLayout(template_group)
+        self.template_group = QGroupBox("模板设置")
+        template_layout = QGridLayout(self.template_group)
         
-        template_layout.addWidget(QLabel("专辑文件夹模板:"), 0, 0)
+        self.template_folder_album_label = QLabel("专辑文件夹模板:")
+        template_layout.addWidget(self.template_folder_album_label, 0, 0)
         self.template_folder_album = QLineEdit("{album_artist}/{album}")
         template_layout.addWidget(self.template_folder_album, 0, 1)
         
-        template_layout.addWidget(QLabel("合辑文件夹模板:"), 1, 0)
+        self.template_folder_compilation_label = QLabel("合辑文件夹模板:")
+        template_layout.addWidget(self.template_folder_compilation_label, 1, 0)
         self.template_folder_compilation = QLineEdit("Compilations/{album}")
         template_layout.addWidget(self.template_folder_compilation, 1, 1)
         
-        template_layout.addWidget(QLabel("单碟文件模板:"), 2, 0)
+        self.template_file_single_disc_label = QLabel("单碟文件模板:")
+        template_layout.addWidget(self.template_file_single_disc_label, 2, 0)
         self.template_file_single_disc = QLineEdit("{track:02d} {title}")
         template_layout.addWidget(self.template_file_single_disc, 2, 1)
         
-        template_layout.addWidget(QLabel("多碟文件模板:"), 3, 0)
+        self.template_file_multi_disc_label = QLabel("多碟文件模板:")
+        template_layout.addWidget(self.template_file_multi_disc_label, 3, 0)
         self.template_file_multi_disc = QLineEdit("{disc}-{track:02d} {title}")
         template_layout.addWidget(self.template_file_multi_disc, 3, 1)
         
-        layout.addWidget(template_group)
+        layout.addWidget(self.template_group)
         
         # 视频质量设置
-        quality_group = QGroupBox("视频质量")
-        quality_layout = QHBoxLayout(quality_group)
+        self.quality_group = QGroupBox("视频质量")
+        quality_layout = QHBoxLayout(self.quality_group)
         
-        quality_layout.addWidget(QLabel("帖子视频质量:"))
+        self.quality_post_label = QLabel("帖子视频质量:")
+        quality_layout.addWidget(self.quality_post_label)
         self.quality_post = QComboBox()
         self.quality_post.addItems(["best", "1080p", "720p", "480p", "360p"])
         quality_layout.addWidget(self.quality_post)
         
-        layout.addWidget(quality_group)
+        layout.addWidget(self.quality_group)
+
+        self.language_group = QGroupBox("界面语言")
+        language_layout = QHBoxLayout(self.language_group)
+        self.language_label = QLabel("语言:")
+        self.language_combo = QComboBox()
+        self.language_combo.addItem("简体中文", "zh_CN")
+        self.language_combo.addItem("English", "en_US")
+        language_layout.addWidget(self.language_label)
+        language_layout.addWidget(self.language_combo)
+        layout.addWidget(self.language_group)
         
         # 保存设置按钮
-        save_settings_button = QPushButton("保存设置")
-        save_settings_button.clicked.connect(self.save_settings)
-        layout.addWidget(save_settings_button)
+        self.save_settings_button = QPushButton("保存设置")
+        self.save_settings_button.clicked.connect(self.save_settings)
+        layout.addWidget(self.save_settings_button)
+
+        self.language_combo.currentIndexChanged.connect(self.on_language_changed)
         
         self.tab_widget.addTab(settings_widget, "设置")
 
     def select_cookie_file(self):
         """选择Cookie文件"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "选择Cookie文件", "", "Text Files (*.txt);;All Files (*)"
+            self, self.tr_text("dialog_cookie"), "", "Text Files (*.txt);;All Files (*)"
         )
         if file_path:
             self.cookie_path.setText(file_path)
 
     def select_output_directory(self):
         """选择输出目录"""
-        directory = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        directory = QFileDialog.getExistingDirectory(self, self.tr_text("dialog_output"))
         if directory:
             self.output_path.setText(directory)
 
@@ -834,22 +884,22 @@ class GamdlGUI(QMainWindow):
             # 获取输入的URL列表
             urls_text = self.url_input.toPlainText().strip()
             if not urls_text:
-                QMessageBox.warning(self, "警告", "请输入至少一个下载链接")
+                QMessageBox.warning(self, self.tr_text("warn"), self.tr_text("msg_need_url"))
                 return
                 
             urls = [url.strip() for url in urls_text.split('\n') if url.strip()]
             if not urls:
-                QMessageBox.warning(self, "警告", "请输入有效的下载链接")
+                QMessageBox.warning(self, self.tr_text("warn"), self.tr_text("msg_invalid_url"))
                 return
             
             # 获取Cookie文件路径
             cookie_file = self.cookie_path.text().strip()
             if not cookie_file:
-                QMessageBox.warning(self, "警告", "请选择Cookie文件")
+                QMessageBox.warning(self, self.tr_text("warn"), self.tr_text("msg_need_cookie"))
                 return
                 
             if not os.path.exists(cookie_file):
-                QMessageBox.warning(self, "警告", "指定的Cookie文件不存在")
+                QMessageBox.warning(self, self.tr_text("warn"), self.tr_text("msg_cookie_missing"))
                 return
             
             # 获取输出目录
@@ -890,7 +940,7 @@ class GamdlGUI(QMainWindow):
             
             # 禁用下载按钮，防止重复点击
             self.download_btn.setEnabled(False)
-            self.download_btn.setText("下载中...")
+            self.download_btn.setText(self.tr_text("btn_downloading"))
             
             # 创建并启动下载线程
             self.download_thread = DownloadThread(urls, cookie_file, output_dir, download_options)
@@ -901,10 +951,10 @@ class GamdlGUI(QMainWindow):
         except Exception as e:
             error_msg = f"启动下载时发生错误: {str(e)}\n{traceback.format_exc()}"
             self.append_log(error_msg)
-            QMessageBox.critical(self, "错误", error_msg)
+            QMessageBox.critical(self, self.tr_text("error"), error_msg)
             # 恢复下载按钮
             self.download_btn.setEnabled(True)
-            self.download_btn.setText("开始下载")
+            self.download_btn.setText(self.tr_text("btn_start"))
         
     def append_log(self, message):
         """添加日志信息"""
@@ -925,14 +975,14 @@ class GamdlGUI(QMainWindow):
         try:
             # 恢复下载按钮
             self.download_btn.setEnabled(True)
-            self.download_btn.setText("开始下载")
+            self.download_btn.setText(self.tr_text("btn_start"))
             
             if success:
-                self.statusBar().showMessage("下载完成", 5000)
-                QMessageBox.information(self, "成功", "下载已完成!")
+                self.statusBar().showMessage(self.tr_text("status_done"), 5000)
+                QMessageBox.information(self, self.tr_text("success"), self.tr_text("msg_download_done"))
             else:
-                self.statusBar().showMessage("下载失败", 5000)
-                QMessageBox.critical(self, "错误", "下载过程中发生错误，请查看日志!")
+                self.statusBar().showMessage(self.tr_text("status_failed"), 5000)
+                QMessageBox.critical(self, self.tr_text("error"), self.tr_text("msg_download_failed"))
         except Exception as e:
             error_msg = f"处理下载完成时发生错误: {str(e)}\n{traceback.format_exc()}"
             self.append_log(error_msg)
@@ -982,6 +1032,7 @@ class GamdlGUI(QMainWindow):
             self.settings.setValue("template_file_multi_disc", self.template_file_multi_disc.text())
             self.settings.setValue("audio_format", self.audio_format.currentText())
             self.settings.setValue("video_format", self.video_format.currentText())
+            self.settings.setValue("ui_language", self.current_language)
         except Exception as e:
             print(f"保存设置时出错: {e}")
         
@@ -1013,6 +1064,13 @@ class GamdlGUI(QMainWindow):
             self.template_file_multi_disc.setText(self.settings.value("template_file_multi_disc", "{disc}-{track:02d} {title}"))
             self.audio_format.setCurrentText(self.settings.value("audio_format", "保持原格式"))
             self.video_format.setCurrentText(self.settings.value("video_format", "保持原格式"))
+            self.current_language = self.settings.value("ui_language", self.current_language)
+            index = self.language_combo.findData(self.current_language)
+            if index >= 0:
+                self.language_combo.blockSignals(True)
+                self.language_combo.setCurrentIndex(index)
+                self.language_combo.blockSignals(False)
+            self.apply_translations()
         except Exception as e:
             print(f"加载设置时出错: {e}")
 

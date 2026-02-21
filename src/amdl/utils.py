@@ -50,7 +50,7 @@ def resource_path(relative_path: str) -> str:
         if getattr(sys, "frozen", False):
             base = getattr(sys, "_MEIPASS", Path(sys.executable).parent)
         else:
-            # project root (gamdl is package dir, so go up one level)
+            # project root (amdl is package dir, so go up one level)
             base = Path(__file__).parent.parent
 
         return str(Path(base) / relative_path)

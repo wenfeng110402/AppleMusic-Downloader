@@ -6,8 +6,8 @@ import os
 project_root = os.getcwd()
 
 a = Analysis(
-    ['src/amdl/fluent_gui.py'],
-    pathex=[],
+    ['src/amdl/launcher.py'],
+    pathex=['src'],
     binaries=[],
     datas=[
         (os.path.join(project_root, 'tools'), 'tools'),
@@ -15,6 +15,20 @@ a = Analysis(
         (os.path.join(project_root, 'LICENSE'), '.')
     ],
     hiddenimports=[
+        'amdl',
+        'amdl.launcher',
+        'amdl.fluent_gui',
+        'amdl.download_worker',
+        'amdl.ui_builder',
+        'amdl.settings_store',
+        'amdl.i18n',
+        'amdl.cli',
+        'amdl.downloader',
+        'amdl.apple_music_api',
+        'amdl.itunes_api',
+        'amdl.enums',
+        'amdl.constants',
+        'amdl.utils',
         'qfluentwidgets', 
         'yt_dlp', 
         'mutagen', 

@@ -1,104 +1,79 @@
-import os
-import sys
-import traceback
+#!/usr/bin/env python
+"""应用启动器 - 处理管理员权限和GUI初始化"""
 
-from PyQt6.QtWidgets import QApplication
-from qfluentwidgets import Theme, setTheme
+import sys
+import os
+import traceback
+import ctypes
+
+# 确保能找到amdl模块
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 
 def is_admin() -> bool:
+    """检查是否为管理员"""
     try:
-        import ctypes
-
         return bool(ctypes.windll.shell32.IsUserAnAdmin())
     except Exception:
         return False
 
 
-def request_admin_privileges() -> bool:
-    """请求管理员权限并重新启动程序"""
-    try:
-        import ctypes
-        import subprocess
-
-        # 检查是否为PyInstaller打包的EXE
-        is_frozen = getattr(sys, "frozen", False)
-        
-        if is_frozen:
-            # PyInstaller EXE - 直接重启自身
-            try:
-                exe_path = sys.executable
-                ctypes.windll.shell32.ShellExecuteW(
-                    None,
-                    "runas",
-                    exe_path,
-                    None,
-                    None,
-                    1,
-                )
-                return True
-            except Exception as e:
-                print(f"PyInstaller模式下请求权限失败: {e}")
-                return False
-        else:
-            # 普通Python脚本
-            script_path = os.path.abspath(__file__)
-            
-            try:
-                # 首先尝试用ctypes（更稳定）
-                ctypes.windll.shell32.ShellExecuteW(
-                    None,
-                    "runas",
-                    sys.executable,
-                    f'"{script_path}"',
-                    None,
-                    1,
-                )
-                return True
-            except Exception:
-                # 备用方案：PowerShell
-                try:
-                    subprocess.Popen(
-                        f'powershell -Command "Start-Process python -ArgumentList \'{script_path}\' -Verb RunAs"',
-                        shell=True
-                    )
-                    return True
-                except Exception:
-                    return False
-        
-    except Exception as e:
-        print(f"请求管理员权限时出错: {e}")
-        return False
-
-
 def main():
+    """应用主入口"""
+    
+    # 检查管理员权限
     if not is_admin():
-        print("请求管理员权限...")
-        if request_admin_privileges():
-            sys.exit(0)
-        print("无法获取管理员权限，程序将退出")
-        input("按回车键退出...")
-        sys.exit(1)
-
-    try:
+        print("检测到程序未以管理员身份运行，请求提升权限...")
+        
+        script_path = os.path.abspath(__file__)
+        python_exe = sys.executable
+        
+        # 用PowerShell以管理员身份重启
         try:
-            from amdl.utils import prepend_tools_to_path
-
-            prepend_tools_to_path(["tools"])
-        except Exception:
-            pass
-
+            import subprocess
+            cmd = f'powershell -Command "Start-Process \'{python_exe}\' -ArgumentList \'{script_path}\' -Verb RunAs"'
+            subprocess.Popen(cmd, shell=True)
+            print("✓ 已发送权限提升请求，请在UAC对话框中选择'是'")
+            sys.exit(0)
+        except Exception as e:
+            print(f"权限提升失败: {e}")
+            print("将尝试以当前权限运行程序...")
+    
+    # 启动GUI
+    try:
+        print("✓ 以管理员身份运行")
+        print("✓ 启动GUI...")
+        
+        from PyQt6.QtWidgets import QApplication
+        from qfluentwidgets import Theme, setTheme
+        
+        print("✓ 导入GUI模块...")
         from amdl.fluent_gui import FluentMainWindow
-
+        
+        print("✓ 创建应用程序...")
         app = QApplication(sys.argv)
         setTheme(Theme.AUTO)
         app.setApplicationName("AppleMusic Downloader")
         app.setApplicationVersion("3.1.0")
-
+        
+        print("✓ 创建主窗口...")
         window = FluentMainWindow()
+        print("✓ 显示窗口...")
         window.show()
+        
+        print("✓ GUI已启动，进入事件循环")
         sys.exit(app.exec())
+        
     except Exception as e:
-        print(f"发生未捕获异常: {str(e)}")
+        print(f"❌ 错误: {str(e)}")
         traceback.print_exc()
-        input("按回车键退出...")
+        print("\n按回车键退出...")
+        input()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

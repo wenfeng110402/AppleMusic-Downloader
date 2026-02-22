@@ -79,7 +79,7 @@ class FluentMainWindow(FluentWindow):
     quality_post: Any
     status_text: Any
     clear_log_btn: Any
-    titlebar_language_combo: Any
+    language_combo: Any
     
     def __init__(self):
         super().__init__()
@@ -164,35 +164,6 @@ class FluentMainWindow(FluentWindow):
     def init_ui(self):
         """初始化用户界面"""
         build_main_ui(self)
-        self._setup_language_selector_in_titlebar()
-
-    def _setup_language_selector_in_titlebar(self):
-        """在标题栏右侧添加语言选择器"""
-        try:
-            # 创建语言选择combobox
-            self.titlebar_language_combo = ComboBox()
-            self.titlebar_language_combo.setMaximumWidth(120)
-            self.titlebar_language_combo.addItem("🇨🇳 中文")
-            self.titlebar_language_combo.addItem("🌍 English")
-            
-            if self.current_language == "en_US":
-                self.titlebar_language_combo.setCurrentIndex(1)
-            else:
-                self.titlebar_language_combo.setCurrentIndex(0)
-            
-            self.titlebar_language_combo.currentIndexChanged.connect(self.on_language_changed)
-            
-            # 尝试添加到titlebar layout
-            if hasattr(self, 'titleBar') and self.titleBar is not None:
-                bar_layout = self.titleBar.layout()
-                if bar_layout is not None:
-                    # 使用addStretch和addWidget来添加到right side
-                    from PyQt6.QtWidgets import QHBoxLayout
-                    if isinstance(bar_layout, QHBoxLayout):
-                        bar_layout.addStretch()
-                        bar_layout.addWidget(self.titlebar_language_combo)
-        except Exception as e:
-            print(f"语言选择器添加失败: {e}")
 
     def init_settings_interface(self):
         """初始化设置界面"""
@@ -451,6 +422,44 @@ class FluentMainWindow(FluentWindow):
         
         layout.addStretch(1)
 
+    def create_language_settings_page(self, parent):
+        """创建语言设置页面"""
+        layout = QVBoxLayout(parent)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        # 标题
+        title_label = SubtitleLabel(self.tr_text("settings_language"))
+        layout.addWidget(title_label)
+        
+        # 添加分割线
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(line)
+        
+        # 语言选择布局
+        lang_layout = QHBoxLayout()
+        lang_layout.setSpacing(15)
+        
+        lang_label = QLabel(self.tr_text("label_language"))
+        lang_layout.addWidget(lang_label)
+        
+        self.language_combo = ComboBox()
+        self.language_combo.addItem(self.tr_text("lang_zh"))
+        self.language_combo.addItem(self.tr_text("lang_en"))
+        if self.current_language == "en_US":
+            self.language_combo.setCurrentIndex(1)
+        else:
+            self.language_combo.setCurrentIndex(0)
+        self.language_combo.currentIndexChanged.connect(self.on_language_changed)
+        self.language_combo.setMaximumWidth(150)
+        lang_layout.addWidget(self.language_combo)
+        lang_layout.addStretch()
+        
+        layout.addLayout(lang_layout)
+        layout.addStretch(1)
+
     def create_log_settings_page(self, parent):
         """创建日志设置页面"""
         layout = QVBoxLayout(parent)
@@ -691,14 +700,14 @@ class FluentMainWindow(FluentWindow):
             )
         if hasattr(self, "clear_log_btn"):
             self.clear_log_btn.setText(self.tr_text("btn_clear_log"))
-        # 更新标题栏语言选择器
-        if hasattr(self, "titlebar_language_combo"):
-            current = self.titlebar_language_combo.currentIndex()
-            self.titlebar_language_combo.blockSignals(True)
-            self.titlebar_language_combo.setItemText(0, "🇨🇳 中文")
-            self.titlebar_language_combo.setItemText(1, "🌍 English")
-            self.titlebar_language_combo.setCurrentIndex(current)
-            self.titlebar_language_combo.blockSignals(False)
+        # 更新设置界面中的语言选择器
+        if hasattr(self, "language_combo"):
+            current = self.language_combo.currentIndex()
+            self.language_combo.blockSignals(True)
+            self.language_combo.setItemText(0, self.tr_text("lang_zh"))
+            self.language_combo.setItemText(1, self.tr_text("lang_en"))
+            self.language_combo.setCurrentIndex(current)
+            self.language_combo.blockSignals(False)
         
     def download_finished(self, success):
         """下载完成回调"""

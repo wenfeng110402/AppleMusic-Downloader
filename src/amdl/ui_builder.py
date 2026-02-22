@@ -50,6 +50,7 @@ def build_settings_ui(window):
     add_settings_sub_interface(window, "path_interface", "settings_path")
     add_settings_sub_interface(window, "template_interface", "settings_template")
     add_settings_sub_interface(window, "quality_interface", "settings_quality")
+    add_settings_sub_interface(window, "language_interface", "settings_language")
     add_settings_sub_interface(window, "log_interface", "settings_log")
 
     layout.addWidget(window.settings_pivot)
@@ -73,6 +74,8 @@ def add_settings_sub_interface(window, object_name, text_key):
         window.create_template_settings_page(widget)
     elif object_name == "quality_interface":
         window.create_quality_settings_page(widget)
+    elif object_name == "language_interface":
+        window.create_language_settings_page(widget)
     elif object_name == "log_interface":
         window.create_log_settings_page(widget)
 

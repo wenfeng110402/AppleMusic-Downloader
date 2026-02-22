@@ -16,25 +16,56 @@ def is_admin() -> bool:
 
 
 def request_admin_privileges() -> bool:
+    """请求管理员权限并重新启动程序"""
     try:
         import ctypes
+        import subprocess
 
-        if getattr(sys, "frozen", False):
-            executable = sys.executable
-            script_path = executable
+        # 检查是否为PyInstaller打包的EXE
+        is_frozen = getattr(sys, "frozen", False)
+        
+        if is_frozen:
+            # PyInstaller EXE - 直接重启自身
+            try:
+                exe_path = sys.executable
+                ctypes.windll.shell32.ShellExecuteW(
+                    None,
+                    "runas",
+                    exe_path,
+                    None,
+                    None,
+                    1,
+                )
+                return True
+            except Exception as e:
+                print(f"PyInstaller模式下请求权限失败: {e}")
+                return False
         else:
-            executable = sys.executable
+            # 普通Python脚本
             script_path = os.path.abspath(__file__)
-
-        ctypes.windll.shell32.ShellExecuteW(
-            None,
-            "runas",
-            executable,
-            f'"{script_path}"' if not getattr(sys, "frozen", False) else "",
-            None,
-            1,
-        )
-        return True
+            
+            try:
+                # 首先尝试用ctypes（更稳定）
+                ctypes.windll.shell32.ShellExecuteW(
+                    None,
+                    "runas",
+                    sys.executable,
+                    f'"{script_path}"',
+                    None,
+                    1,
+                )
+                return True
+            except Exception:
+                # 备用方案：PowerShell
+                try:
+                    subprocess.Popen(
+                        f'powershell -Command "Start-Process python -ArgumentList \'{script_path}\' -Verb RunAs"',
+                        shell=True
+                    )
+                    return True
+                except Exception:
+                    return False
+        
     except Exception as e:
         print(f"请求管理员权限时出错: {e}")
         return False
@@ -50,29 +81,22 @@ def main():
         sys.exit(1)
 
     try:
-        print("✓ 已获取管理员权限，启动GUI...")
         try:
-            from .utils import prepend_tools_to_path
+            from amdl.utils import prepend_tools_to_path
 
             prepend_tools_to_path(["tools"])
         except Exception:
             pass
 
-        print("✓ 导入GUI模块...")
-        from .fluent_gui import FluentMainWindow
+        from amdl.fluent_gui import FluentMainWindow
 
-        print("✓ 创建QApplication...")
         app = QApplication(sys.argv)
-        print("✓ 设置主题...")
         setTheme(Theme.AUTO)
         app.setApplicationName("AppleMusic Downloader")
         app.setApplicationVersion("3.1.0")
 
-        print("✓ 创建主窗口...")
         window = FluentMainWindow()
-        print("✓ 显示窗口...")
         window.show()
-        print("✓ 启动事件循环...")
         sys.exit(app.exec())
     except Exception as e:
         print(f"发生未捕获异常: {str(e)}")

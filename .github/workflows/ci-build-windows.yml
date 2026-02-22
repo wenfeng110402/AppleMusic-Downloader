@@ -1,0 +1,179 @@
+name: CI and Windows Build
+
+on:
+  push:
+    branches: [ master, eng_version ]
+  pull_request:
+    branches: [ master, eng_version ]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install -e .
+
+      - name: Compile check
+        run: |
+          python -m compileall src/amdl
+
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    needs: validate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Prepare tools directory
+        shell: pwsh
+        run: |
+          if (Test-Path tools) {
+            Remove-Item -Path tools -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path tools -Force | Out-Null
+
+      - name: Download N_m3u8DL-RE and mp4decrypt
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri 'https://cdn.hackclub.com/019c835e-1641-7e42-a227-395defef068c/N_m3u8DL-RE.exe' -OutFile 'tools/N_m3u8DL-RE.exe' -UseBasicParsing
+          Invoke-WebRequest -Uri 'https://cdn.hackclub.com/019c835e-522e-72f6-83ba-3583e9ec262e/mp4decrypt.exe' -OutFile 'tools/mp4decrypt.exe' -UseBasicParsing
+
+          if (-not (Test-Path 'tools/N_m3u8DL-RE.exe')) {
+            throw 'N_m3u8DL-RE.exe download failed.'
+          }
+          if (-not (Test-Path 'tools/mp4decrypt.exe')) {
+            throw 'mp4decrypt.exe download failed.'
+          }
+
+          Write-Host 'Downloaded fixed binaries:'
+          Get-ChildItem tools | Format-Table Name, Length
+
+      - name: Download ffmpeg.exe (online)
+        shell: pwsh
+        run: |
+          $urls = @(
+            'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip',
+            'https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.zip'
+          )
+
+          $downloaded = $false
+          foreach ($url in $urls) {
+            try {
+              Write-Host "Trying: $url"
+              Invoke-WebRequest -Uri $url -OutFile ffmpeg.zip -UseBasicParsing
+              $downloaded = $true
+              break
+            }
+            catch {
+              Write-Host "Failed: $url"
+            }
+          }
+
+          if (-not $downloaded) {
+            throw 'Failed to download FFmpeg from all candidate URLs.'
+          }
+
+          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg_unpacked -Force
+
+          $ffmpegExe = Get-ChildItem -Path ffmpeg_unpacked -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          if (-not $ffmpegExe) {
+            throw 'ffmpeg.exe not found after extracting archive.'
+          }
+
+          Copy-Item $ffmpegExe.FullName tools/ffmpeg.exe -Force
+          Write-Host "Using ffmpeg: $($ffmpegExe.FullName)"
+
+      - name: Validate tool files before build
+        shell: pwsh
+        run: |
+          $required = @(
+            'tools/ffmpeg.exe',
+            'tools/N_m3u8DL-RE.exe',
+            'tools/mp4decrypt.exe'
+          )
+
+          foreach ($item in $required) {
+            if (-not (Test-Path $item)) {
+              throw "Missing required tool: $item"
+            }
+          }
+
+          Get-ChildItem tools | Format-Table Name, Length
+
+      - name: Build with PyInstaller
+        shell: pwsh
+        run: |
+          pyinstaller AppleMusicDownloader.spec --clean --noconfirm
+
+      - name: Verify output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'dist/AppleMusicDownloader.exe')) {
+            throw 'Build output not found: dist/AppleMusicDownloader.exe'
+          }
+
+      - name: Verify bundled tools in EXE
+        shell: pwsh
+        run: |
+          pyi-archive_viewer -l dist/AppleMusicDownloader.exe > archive-list.txt
+
+          $patterns = @(
+            'tools/ffmpeg.exe',
+            'tools\\ffmpeg.exe',
+            'tools/N_m3u8DL-RE.exe',
+            'tools\\N_m3u8DL-RE.exe',
+            'tools/mp4decrypt.exe',
+            'tools\\mp4decrypt.exe'
+          )
+
+          $requiredMatches = @(
+            @('tools/ffmpeg.exe', 'tools\\ffmpeg.exe'),
+            @('tools/N_m3u8DL-RE.exe', 'tools\\N_m3u8DL-RE.exe'),
+            @('tools/mp4decrypt.exe', 'tools\\mp4decrypt.exe')
+          )
+
+          foreach ($group in $requiredMatches) {
+            $found = $false
+            foreach ($p in $group) {
+              if (Select-String -Path archive-list.txt -Pattern $p -SimpleMatch -Quiet) {
+                $found = $true
+                break
+              }
+            }
+            if (-not $found) {
+              throw "Bundled EXE missing expected entry: $($group[0])"
+            }
+          }
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppleMusicDownloader-windows-exe
+          path: dist/AppleMusicDownloader.exe
+          if-no-files-found: error

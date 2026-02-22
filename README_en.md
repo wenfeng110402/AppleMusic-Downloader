@@ -1,5 +1,9 @@
 # AppleMusic Downloader
 
+Quick links:
+- [中文 README](README.md)
+- [For Flavortown Reviewers](For_FlavortownReviewers.md)
+
 Donate (non-profit, no tax)
 [Here!](https://hcb.hackclub.com/donations/start/amdl)
 

@@ -1,3 +1,7 @@
+Quick links:
+- [中文 README](README.md)
+- [English README](README_en.md)
+
 Hi reviewer! :)
 To save your time, here are some important tips:
 

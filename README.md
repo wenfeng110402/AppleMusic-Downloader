@@ -1,5 +1,9 @@
 # Apple Music 下载器
 
+快速跳转：
+- [English README](README_en.md)
+- [For Flavortown Reviewers](For_FlavortownReviewers.md)
+
 Donate（non-porfit,no tax)
 [here！](https://hcb.hackclub.com/donations/start/amdl)
 

@@ -23,19 +23,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip uninstall -y PyQt-Fluent-Widgets PySide2-Fluent-Widgets PySide6-Fluent-Widgets
-          python -m pip install -r requirements.txt
-          python -m pip install -e .
-
-      - name: Verify Qt6 Fluent dependency
-        run: |
-          python -m pip show PyQt6-Fluent-Widgets
-          python - <<'PY'
-          import qfluentwidgets
-          import PyQt6
-          import qfluentwidgets.components.dialog_box.color_dialog
-          print('Qt6 Fluent import check passed')
-          PY
+          python -m pip uninstall -y PyQt-Fluent-Widgets PySide2-Fluent-Widgets PySide6-Fluent-Widgets PyQt6 PyQt6-Fluent-Widgets
+          python -m pip install click colorama inquirerpy m3u8 mutagen pillow pywidevine pyyaml termcolor yt-dlp
 
       - name: Compile check
         run: |

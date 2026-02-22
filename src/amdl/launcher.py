@@ -50,6 +50,7 @@ def main():
         sys.exit(1)
 
     try:
+        print("✓ 已获取管理员权限，启动GUI...")
         try:
             from .utils import prepend_tools_to_path
 
@@ -57,15 +58,21 @@ def main():
         except Exception:
             pass
 
+        print("✓ 导入GUI模块...")
         from .fluent_gui import FluentMainWindow
 
+        print("✓ 创建QApplication...")
         app = QApplication(sys.argv)
+        print("✓ 设置主题...")
         setTheme(Theme.AUTO)
         app.setApplicationName("AppleMusic Downloader")
         app.setApplicationVersion("3.1.0")
 
+        print("✓ 创建主窗口...")
         window = FluentMainWindow()
+        print("✓ 显示窗口...")
         window.show()
+        print("✓ 启动事件循环...")
         sys.exit(app.exec())
     except Exception as e:
         print(f"发生未捕获异常: {str(e)}")

@@ -42,6 +42,12 @@ pip install -e .
 PYTHONPATH=src python -c "from amdl.cli import main; main(args=['--help'], standalone_mode=False)"
 ```
 
+GUI 启动入口已统一为 `amdl.launcher`，源码运行可使用：
+
+```bash
+python -m amdl
+```
+
 ### 命令行快速使用
 
 ```bash

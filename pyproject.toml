@@ -15,6 +15,7 @@ dependencies = [
     "termcolor",
     "yt-dlp",
     "PyQt6",
+    "PyQt6-Fluent-Widgets",
 ]
 readme = "README.md"
 dynamic = ["version"]

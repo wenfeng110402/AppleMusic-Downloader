@@ -40,6 +40,12 @@ This project uses a `src` layout. If you don't install it as an editable package
 PYTHONPATH=src python -c "from amdl.cli import main; main(args=['--help'], standalone_mode=False)"
 ```
 
+The GUI entry is now unified under `amdl.launcher`. Run from source with:
+
+```bash
+python -m amdl
+```
+
 ### Quick CLI usage
 
 ```bash

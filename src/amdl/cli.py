@@ -55,6 +55,14 @@ def load_config_file(
 ) -> click.Context:
     if no_config_file:
         return ctx
+    legacy_config_path = Path.home() / ".gamdl" / "config.json"
+    if (
+        not ctx.params["config_path"].exists()
+        and legacy_config_path.exists()
+        and ctx.params["config_path"] != legacy_config_path
+    ):
+        ctx.params["config_path"].parent.mkdir(parents=True, exist_ok=True)
+        ctx.params["config_path"].write_text(legacy_config_path.read_text())
     if not ctx.params["config_path"].exists():
         write_default_config_file(ctx)
     config_file = dict(json.loads(ctx.params["config_path"].read_text()))
@@ -68,7 +76,7 @@ def load_config_file(
     return ctx
 
 
-@click.command()
+@click.command(name="amdl")
 @click.help_option("-h", "--help")
 @click.version_option(__version__, "-v", "--version")
 # CLI specific options
@@ -118,7 +126,7 @@ def load_config_file(
 @click.option(
     "--config-path",
     type=Path,
-    default=Path.home() / ".gamdl" / "config.json",
+    default=Path.home() / ".amdl" / "config.json",
     help="Path to config file.",
 )
 @click.option(
@@ -357,7 +365,7 @@ def main(
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(CustomFormatter())
     logger.addHandler(stream_handler)
-    logger.info("Starting Gamdl")
+    logger.info("Starting Amdl")
     while not cookies_path.exists():
         cookies_path_str = click.prompt(
             X_NOT_FOUND_STRING.format("Cookies file", cookies_path.absolute())

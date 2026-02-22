@@ -1,4 +1,4 @@
-from gamdl.enums import MusicVideoCodec, SongCodec, SyncedLyricsFormat
+from amdl.enums import MusicVideoCodec, SongCodec, SyncedLyricsFormat
 
 STOREFRONT_IDS = {
     "AE": "143481-2,32",

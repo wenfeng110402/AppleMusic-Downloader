@@ -1,7 +1,5 @@
 # Apple Music 下载器
 
-初中生写的一个功能强大的 Apple Music 下载工具，基于gamdl，增加了图形化界面
-
 Donate（non-porfit,no tax)
 [here！](https://hcb.hackclub.com/donations/start/amdl)
 
@@ -10,9 +8,9 @@ Donate（non-porfit,no tax)
 
 ## 致谢 / Acknowledgments
 
-本项目使用了 [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) 的代码。我们衷心感谢 [Glomatico](https://github.com/glomatico) 和所有 gamdl 的贡献者们为开源社区所做的杰出工作。
+本项目使用了[gamdl（Glomatico的Apple Music下载器）](https://github.com/glomatico/gamdl)和[yt-dlp](https://github.com/yt-dlp/yt-dlpa)的代码。我们衷心感谢gamdl和yt-dlp的所有贡献者，感谢他们在开源社区做出的杰出贡献。
 
-This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl). We sincerely thank [Glomatico](https://github.com/glomatico) and all contributors to gamdl for their outstanding work in the open-source community.
+This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) and [yt-dlp](https://github.com/yt-dlp/yt-dlpa). We sincerely thank all contributors to gamdl yt-dlp for their outstanding work in the open-source community.
 
 ## 功能特性
 
@@ -35,7 +33,45 @@ This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](htt
 git clone https://github.com/wenfeng110402/AppleMusic-Downloader.git
 cd AppleMusic-Downloader
 pip install -r requirements.txt
+pip install -e .
 ```
+
+本项目使用 `src` 布局；如果你不安装为可编辑包，也可以临时这样运行：
+
+```bash
+PYTHONPATH=src python -c "from amdl.cli import main; main(args=['--help'], standalone_mode=False)"
+```
+
+GUI 启动入口已统一为 `amdl.launcher`，源码运行可使用：
+
+```bash
+python -m amdl
+```
+
+### 命令行快速使用
+
+```bash
+amdl --help
+amdl --cookies-path /path/to/cookies.txt "https://music.apple.com/..."
+```
+
+### Mac?
+Try this [am-downloader-mac](https://github.com/aki4nvr/am-downloader-mac)
+
+## CI/CD 验证与自动打包
+
+仓库已内置 GitHub Actions 工作流：[.github/workflows/ci-build-windows.yml](.github/workflows/ci-build-windows.yml)
+
+- `validate`：在 Ubuntu 安装依赖并执行 `python -m compileall src/amdl` 做基础验证。
+- `build-windows`：在 Windows runner 联网下载 FFmpeg 压缩包，提取 `ffmpeg.exe` 到 `tools/` 后执行 PyInstaller 打包。
+- 打包产物：`AppleMusicDownloader-windows-exe`（包含 `dist/AppleMusicDownloader.exe`）。
+
+使用方式：
+
+1. 打开 GitHub 仓库的 **Actions**。
+2. 选择 **CI and Windows Build**。
+3. 点击 **Run workflow** 手动触发，或通过 push/PR 自动触发。
+
 
 ## 环境要求
 
@@ -79,8 +115,8 @@ This tool is for educational and research purposes only. Any use that violates l
 2. 本人不对用户如何使用本工具承担任何责任，因使用本工具产生的任何法律或版权争议，均由用户自行承担。  
    I (or the development team) assume no responsibility for how users use this tool. Any legal or copyright disputes arising from its use are the sole responsibility of the user.
 
-3. 本项目基于 [gamdl](https://github.com/glomatico/gamdl) 提供的代码实现，与原项目的作者无直接关联。如有任何异议，请联系本人以便协助处理。  
-   This project is implemented based on code from [gamdl](https://github.com/glomatico/gamdl) and is not directly affiliated with the original project's authors. If there are any objections, please contact me for assistance.
+3. 本项目基于 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 提供的代码实现，与原项目的作者无直接关联。如有任何异议，请联系本人以便协助处理。  
+   This project is implemented based on code from [yt-dlp](https://github.com/yt-dlp/yt-dlp) and is not directly affiliated with the original project's authors. If there are any objections, please contact me for assistance.
 
 4. 用户在使用本工具时，应自行确保符合当地相关法律法规。  
    Users must ensure compliance with local laws and regulations when using this tool.

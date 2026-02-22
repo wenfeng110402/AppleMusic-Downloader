@@ -6,8 +6,8 @@ import os
 project_root = os.getcwd()
 
 a = Analysis(
-    ['gamdl/fluent_gui.py'],
-    pathex=[],
+    ['src/amdl/launcher.py'],
+    pathex=['src'],
     binaries=[],
     datas=[
         (os.path.join(project_root, 'tools'), 'tools'),
@@ -15,6 +15,20 @@ a = Analysis(
         (os.path.join(project_root, 'LICENSE'), '.')
     ],
     hiddenimports=[
+        'amdl',
+        'amdl.launcher',
+        'amdl.fluent_gui',
+        'amdl.download_worker',
+        'amdl.ui_builder',
+        'amdl.settings_store',
+        'amdl.i18n',
+        'amdl.cli',
+        'amdl.downloader',
+        'amdl.apple_music_api',
+        'amdl.itunes_api',
+        'amdl.enums',
+        'amdl.constants',
+        'amdl.utils',
         'qfluentwidgets', 
         'yt_dlp', 
         'mutagen', 
@@ -40,7 +54,14 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        'PyQt5',
+        'PyQt5.QtCore',
+        'PyQt5.QtGui',
+        'PyQt5.QtWidgets',
+        'PySide2',
+        'PySide6',
+    ],
     noarchive=False,
     optimize=0,
 )

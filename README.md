@@ -12,9 +12,9 @@ Donate（non-porfit,no tax)
 
 ## 致谢 / Acknowledgments
 
-本项目使用了[gamdl（Glomatico的Apple Music下载器）](https://github.com/glomatico/gamdl)和[yt-dlp](https://github.com/yt-dlp/yt-dlpa)的代码。我们衷心感谢gamdl和yt-dlp的所有贡献者，感谢他们在开源社区做出的杰出贡献。
+本项目使用了[gamdl（Glomatico的Apple Music下载器）](https://github.com/glomatico/gamdl)和[yt-dlp](https://github.com/yt-dlp/yt-dlp)的代码。我们衷心感谢gamdl和yt-dlp的所有贡献者，感谢他们在开源社区做出的杰出贡献。
 
-This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) and [yt-dlp](https://github.com/yt-dlp/yt-dlpa). We sincerely thank all contributors to gamdl yt-dlp for their outstanding work in the open-source community.
+This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) and [yt-dlp](https://github.com/yt-dlp/yt-dlp). We sincerely thank all contributors to gamdl yt-dlp for their outstanding work in the open-source community.
 
 ## 功能特性
 

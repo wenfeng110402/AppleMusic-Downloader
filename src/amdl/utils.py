@@ -21,7 +21,6 @@ def raise_response_exception(response):
     }
     raise requests.HTTPError(
         json.dumps(error_details, ensure_ascii=False, indent=2),
-        request=response.request,
         response=response,
     )
     

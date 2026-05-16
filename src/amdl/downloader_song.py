@@ -338,7 +338,7 @@ class DownloaderSong:
                     file.seek(max(0, pos - 4096) + kid, 0)
                     file.write(bytes.fromhex(f"{count:032}"))
                     count += 1
-                    i = tenc + 4
+                    i = tenc + 1
                 file.seek(pos, 0)
 
     def decrypt(

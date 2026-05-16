@@ -6,6 +6,11 @@ on:
       - master
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional tag to use (e.g., v1.0.0). Include leading v if desired.'
+        required: false
 
 jobs:
   publish:
@@ -28,8 +33,12 @@ jobs:
 
       - name: Extract version from git tag
         id: version
+        env:
+          TAG: ${{ github.event.inputs.tag }}
         run: |
-          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+          if [ -n "$TAG" ]; then
+            VERSION=${TAG#v}
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
           else
             VERSION=$(git describe --tags --always 2>/dev/null || echo "0.0.0.dev$(git rev-parse --short HEAD)")
@@ -38,16 +47,20 @@ jobs:
           echo "Using version: $VERSION"
 
       - name: Update version in pyproject.toml
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          python -c "
-          import re
-          with open('pyproject.toml', 'r', encoding='utf-8') as f:
-              content = f.read()
-          # Update version dynamically
-          content = re.sub(r'dynamic = \[\"version\"\]', 'version = \"${{ steps.version.outputs.version }}\"', content)
-          with open('pyproject.toml', 'w', encoding='utf-8') as f:
-              f.write(content)
-          "
+          python - <<'PY'
+          import re, os
+          v = os.environ.get('VERSION', '')
+          p = 'pyproject.toml'
+          with open(p, 'r', encoding='utf-8') as f:
+              c = f.read()
+          c_new = re.sub(r'dynamic = \\\"version\\\"', f'version = "{v}"', c)
+          with open(p, 'w', encoding='utf-8') as f:
+              f.write(c_new)
+          print('pyproject.toml updated to version', v)
+          PY
 
       - name: Build package
         run: python -m build

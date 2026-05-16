@@ -7,6 +7,10 @@ Quick links:
 Donate (non-profit, no tax)
 [Here!](https://hcb.hackclub.com/donations/start/amdl)
 
+<h2 align="left">👤 Repo Visitors:</h2>
+
+![Visitor Count](https://count.getloli.com/@AMDL?name=AMDL&theme=3d-num&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
+
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/github/license/wenfeng110402/AppleMusic-Downloader)](LICENSE)
 

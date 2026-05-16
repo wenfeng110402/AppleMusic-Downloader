@@ -2,8 +2,6 @@ name: Publish to PyPI
 
 on:
   push:
-    branches:
-      - master
     tags:
       - 'v*'
 
@@ -25,29 +23,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install build flit_core
-
-      - name: Extract version from git tag
-        id: version
-        run: |
-          if [[ $GITHUB_REF == refs/tags/v* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-          else
-            VERSION=$(git describe --tags --always 2>/dev/null || echo "0.0.0.dev$(git rev-parse --short HEAD)")
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Using version: $VERSION"
-
-      - name: Update version in pyproject.toml
-        run: |
-          python -c "
-          import re
-          with open('pyproject.toml', 'r', encoding='utf-8') as f:
-              content = f.read()
-          # Update version dynamically
-          content = re.sub(r'dynamic = \[\"version\"\]', 'version = \"${{ steps.version.outputs.version }}\"', content)
-          with open('pyproject.toml', 'w', encoding='utf-8') as f:
-              f.write(content)
-          "
 
       - name: Build package
         run: python -m build

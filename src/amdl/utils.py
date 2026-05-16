@@ -19,7 +19,11 @@ def raise_response_exception(response):
         "request_headers": dict(response.request.headers),
         "response_headers": dict(response.headers)
     }
-    
+    raise requests.HTTPError(
+        json.dumps(error_details, ensure_ascii=False, indent=2),
+        request=response.request,
+        response=response,
+    )
     
 def get_subprocess_startupinfo():
     """
@@ -124,13 +128,21 @@ def prepend_tools_to_path(tool_dir_names: list[str] | None = None) -> None:
             candidates.append(p)
 
     # 将存在的目录按优先级加入 PATH 前端
+    current_path = os.environ.get("PATH", "")
+    normalized_path_entries = {
+        os.path.normcase(os.path.normpath(x))
+        for x in current_path.split(os.pathsep)
+        if x
+    }
     added = []
     for p in candidates:
         try:
             if p.exists() and p.is_dir():
                 p_str = str(p)
-                if p_str not in os.environ.get("PATH", ""):
+                normalized_candidate = os.path.normcase(os.path.normpath(p_str))
+                if normalized_candidate not in normalized_path_entries:
                     os.environ["PATH"] = p_str + os.pathsep + os.environ.get("PATH", "")
+                    normalized_path_entries.add(normalized_candidate)
                     added.append(p_str)
         except Exception:
             continue

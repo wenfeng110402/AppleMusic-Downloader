@@ -544,16 +544,12 @@ def main(
                     cover_url = downloader.get_cover_url(track_metadata)
                     cover_file_extesion = downloader.get_cover_file_extension(cover_url)
                     if cover_file_extesion:
-                        cover_path = downloader_music_video.get_cover_path(
+                        cover_path = downloader_song.get_cover_path(
                             final_path,
                             cover_file_extesion,
                         )
                     else:
                         cover_path = None
-                    cover_path = downloader_song.get_cover_path(
-                        final_path,
-                        cover_file_extesion,
-                    )
                     if synced_lyrics_only:
                         pass
                     elif final_path.exists() and not overwrite:
@@ -759,10 +755,6 @@ def main(
                         )
                     else:
                         cover_path = None
-                    cover_path = downloader_music_video.get_cover_path(
-                        final_path,
-                        cover_file_extesion,
-                    )
                     if final_path.exists() and not overwrite:
                         logger.warning(
                             f'({queue_progress}) Post video already exists at "{final_path}", skipping'

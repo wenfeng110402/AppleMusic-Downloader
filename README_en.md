@@ -7,10 +7,6 @@ Quick links:
 Donate (non-profit, no tax)
 [Here!](https://hcb.hackclub.com/donations/start/amdl)
 
-<h2 align="left">👤 Repo Visitors:</h2>
-
-![Visitor Count](https://count.getloli.com/@AMDL?name=AMDL&theme=3d-num&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
-
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/github/license/wenfeng110402/AppleMusic-Downloader)](LICENSE)
 
@@ -20,7 +16,7 @@ This project utilizes code from [gamdl (Glomatico&#39;s Apple Music Downloader)]
 
 ## Features
 
-- **High Quailty** - Supports AAC 256kbps and so on.
+- **High Quality** - Supports AAC 256kbps and so on.
 - **MV Download** - Up to 1080p
 - **Batch download of artist works** - Download via multiple links or album playlist links
 - **Customizable** - A wide range of configuration options to meet individual needs

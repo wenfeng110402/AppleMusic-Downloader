@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 temp/
 *.log
+.DS_Store
+debug_admin.py
+*.nsi
+test_launcher.py

@@ -2,8 +2,15 @@ name: Publish to PyPI
 
 on:
   push:
+    branches:
+      - master
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional tag to use (e.g., v1.0.0). Include leading v if desired.'
+        required: false
 
 jobs:
   publish:
@@ -23,6 +30,37 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install build flit_core
+
+      - name: Extract version from git tag
+        id: version
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [ -n "$TAG" ]; then
+            VERSION=${TAG#v}
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(git describe --tags --always 2>/dev/null || echo "0.0.0.dev$(git rev-parse --short HEAD)")
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
+
+      - name: Update version in pyproject.toml
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python - <<'PY'
+          import re, os
+          v = os.environ.get('VERSION', '')
+          p = 'pyproject.toml'
+          with open(p, 'r', encoding='utf-8') as f:
+              c = f.read()
+          c_new = re.sub(r'dynamic = \\\"version\\\"', f'version = "{v}"', c)
+          with open(p, 'w', encoding='utf-8') as f:
+              f.write(c_new)
+          print('pyproject.toml updated to version', v)
+          PY
 
       - name: Build package
         run: python -m build

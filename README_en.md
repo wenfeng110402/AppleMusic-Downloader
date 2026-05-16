@@ -1,8 +1,8 @@
 # AppleMusic Downloader
 
 Quick links:
+
 - [中文 README](README.md)
-- [For Flavortown Reviewers](For_FlavortownReviewers.md)
 
 Donate (non-profit, no tax)
 [Here!](https://hcb.hackclub.com/donations/start/amdl)
@@ -12,11 +12,11 @@ Donate (non-profit, no tax)
 
 ## Acknowledgments
 
-This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) and [yt-dlp](https://github.com/yt-dlp/yt-dlpa). We sincerely thank all contributors to gamdl yt-dlp for their outstanding work in the open-source community.
+This project utilizes code from [gamdl (Glomatico&#39;s Apple Music Downloader)](https://github.com/glomatico/gamdl) and [yt-dlp](https://github.com/yt-dlp/yt-dlpa). We sincerely thank all contributors to gamdl yt-dlp for their outstanding work in the open-source community.
 
 ## Features
 
-- **High Quailty** - Supports AAC 256kbps and so on.
+- **High Quality** - Supports AAC 256kbps and so on.
 - **MV Download** - Up to 1080p
 - **Batch download of artist works** - Download via multiple links or album playlist links
 - **Customizable** - A wide range of configuration options to meet individual needs
@@ -26,7 +26,7 @@ This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](htt
 ### Method 1: Use the installer (Recommended, Windows only)
 
 1. From [Releases](https://github.com/wenfeng110402/AppleMusic-Downloader/releases)
-page download the latest version of the installer.
+   page download the latest version of the installer.
 2. Run `AppleMusicDownloader.exe`
 
 ### Method 2: Run from Source Code
@@ -58,6 +58,7 @@ amdl --cookies-path /path/to/cookies.txt "https://music.apple.com/..."
 ```
 
 ### Mac?
+
 Try this [am-downloader-mac](https://github.com/aki4nvr/am-downloader-mac)
 
 ## CI/CD Validation and Auto Build
@@ -110,11 +111,8 @@ The following tools are required for specific functions:
 This tool is for educational and research purposes only. Any use that violates laws or infringes on the rights of others is strictly prohibited.
 
 1. This project does not directly provide or store any copyrighted content. Users must independently provide vaild credentials (e.g., a valid Apple Music subscription and cookie files) to use its features.
-
 2. I (or the development team) assume no responsibility for how users use this tool.Any legal or copyright disputes arising from its use are the sole responsibility of the user.
-
 3. This project is implemented based on code from [yt-dlp](https://github.com/yt-dlp/yt-dlp) and is not directly affiliated with the original project's authors. If there are any objections, please contact me for assistance.
-
 4. Users must ensure compliance with local laws and regulations when using this tool.
 
-By using this tool, you agree to comply with all applicable laws and assume full responsibility for your actions.  
+By using this tool, you agree to comply with all applicable laws and assume full responsibility for your actions.

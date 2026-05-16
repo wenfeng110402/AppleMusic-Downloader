@@ -7,6 +7,9 @@ on:
     branches: [ master, eng_version ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: Validate (Python)
@@ -68,8 +71,8 @@ jobs:
       - name: Download N_m3u8DL-RE and mp4decrypt
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri 'https://cdn.hackclub.com/019c835e-1641-7e42-a227-395defef068c/N_m3u8DL-RE.exe' -OutFile 'tools/N_m3u8DL-RE.exe' -UseBasicParsing
-          Invoke-WebRequest -Uri 'https://cdn.hackclub.com/019c835e-522e-72f6-83ba-3583e9ec262e/mp4decrypt.exe' -OutFile 'tools/mp4decrypt.exe' -UseBasicParsing
+          Invoke-WebRequest -Uri 'https://pub-e4955324bbd043d79465a5231bec51f6.r2.dev/N_m3u8DL-RE.exe' -OutFile 'tools/N_m3u8DL-RE.exe' -UseBasicParsing
+          Invoke-WebRequest -Uri 'https://pub-e4955324bbd043d79465a5231bec51f6.r2.dev/mp4decrypt.exe' -OutFile 'tools/mp4decrypt.exe' -UseBasicParsing
 
           if (-not (Test-Path 'tools/N_m3u8DL-RE.exe')) {
             throw 'N_m3u8DL-RE.exe download failed.'

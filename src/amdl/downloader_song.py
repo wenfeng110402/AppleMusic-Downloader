@@ -330,12 +330,15 @@ class DownloaderSong:
             while data := file.read(4096):
                 pos = file.tell()
                 i = 0
-                while tenc := max(0, data.find(b"tenc", i)):
+                while True:
+                    tenc = data.find(b"tenc", i)
+                    if tenc == -1:
+                        break
                     kid = tenc + 12
                     file.seek(max(0, pos - 4096) + kid, 0)
                     file.write(bytes.fromhex(f"{count:032}"))
                     count += 1
-                    i = kid + 1
+                    i = tenc + 1
                 file.seek(pos, 0)
 
     def decrypt(

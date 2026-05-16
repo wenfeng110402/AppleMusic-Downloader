@@ -1,7 +1,7 @@
 import io
 import os
-import re
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -61,6 +61,7 @@ class DownloadThread(QThread):
 
             for i, url in enumerate(self.urls, 1):
                 self.log_callback.emit(f"正在处理 ({i}/{total}): {url}")
+                url_start_time = time.time()
 
                 args = [
                     "--cookies-path",
@@ -122,19 +123,9 @@ class DownloadThread(QThread):
                     else:
                         self.log_callback.emit(f"    下载失败! 错误代码: {e.code}")
                         success = False
-                        log_output = log_stream.getvalue()
-                        if log_output:
-                            for line in log_output.splitlines():
-                                if line.strip():
-                                    self.log_callback.emit(line)
                 except Exception as e:
                     self.log_callback.emit(f"    下载失败! 异常: {str(e)}")
                     success = False
-                    log_output = log_stream.getvalue()
-                    if log_output:
-                        for line in log_output.splitlines():
-                            if line.strip():
-                                self.log_callback.emit(line)
                     self.log_callback.emit(f"    异常类型: {type(e).__name__}")
                     self.log_callback.emit(f"    堆栈跟踪: {traceback.format_exc()}")
                 finally:
@@ -146,19 +137,17 @@ class DownloadThread(QThread):
                         for line in log_output.splitlines():
                             if line.strip():
                                 self.log_callback.emit(line)
-                                self.extract_downloaded_file_path(line)
                     else:
                         self.log_callback.emit("    没有捕获到日志输出")
+
+                    if self.output_dir:
+                        self._collect_new_files(url_start_time)
 
                     progress = int((i / total) * 100)
                     self.progress_signal.emit(progress)
 
             audio_format = self.download_options.get("audio_format")
             video_format = self.download_options.get("video_format")
-
-            self.log_callback.emit(f"准备转换 {len(self.downloaded_files)} 个下载的文件")
-            for file_path in self.downloaded_files:
-                self.log_callback.emit(f"  待转换文件: {file_path}")
 
             if (audio_format and audio_format != "保持原格式") or (video_format and video_format != "保持原格式"):
                 self.log_callback.emit("开始执行格式转换...")
@@ -191,46 +180,21 @@ class DownloadThread(QThread):
             self.log_callback.emit(f"系统信息: {uname_info}")
             self.finished_signal.emit(False)
 
-    def extract_downloaded_file_path(self, log_line):
-        patterns = [
-            r"[Dd]ownload.*completed.*[:：]\s*(.+?\.(?:m4a|mp4|mov))",
-            r"(?:已保存到|保存到|Saved to).*[:：]\s*(.+?\.(?:m4a|mp4|mov))",
-            r"(?:已完成|完成).*[:：]\s*(.+?\.(?:m4a|mp4|mov))",
-            r"([A-Za-z]:[/\\][^\s]*?\.(?:m4a|mp4|mov))(?:\s|$)",
-        ]
-
-        file_path = None
-        for pat in patterns:
-            m = re.search(pat, log_line)
-            if not m:
-                continue
-            candidate = m.group(1).strip()
-            if pat == patterns[-1]:
-                if not ("saved" in log_line.lower() or "完成" in log_line or "success" in log_line.lower() or "Done" in log_line):
-                    continue
-            file_path = candidate
-            break
-
-        if file_path:
-            if not os.path.isabs(file_path):
-                file_path = os.path.abspath(file_path)
-            if file_path not in self.downloaded_files:
-                self.downloaded_files.append(file_path)
-                self.log_callback.emit(f"    检测到下载文件: {file_path}")
-
-        if "Done" in log_line and not self.downloaded_files and self.output_dir:
-            try:
-                media_files = []
-                for ext in [".m4a", ".mp4", ".mov"]:
-                    media_files.extend(Path(self.output_dir).rglob(f"*{ext}"))
-                if media_files:
-                    latest_file = max(media_files, key=lambda x: x.stat().st_mtime)
-                    file_path = str(latest_file)
-                    if file_path not in self.downloaded_files:
-                        self.downloaded_files.append(file_path)
-                        self.log_callback.emit(f"    检测到下载文件: {file_path}")
-            except Exception as e:
-                self.log_callback.emit(f"    检测下载文件时出错: {str(e)}")
+    def _collect_new_files(self, since: float):
+        """Collect all media files created/modified since the given timestamp."""
+        try:
+            for ext in (".m4a", ".mp4", ".mov"):
+                for media_file in Path(self.output_dir).rglob(f"*{ext}"):
+                    try:
+                        if media_file.stat().st_mtime >= since:
+                            file_path = str(media_file)
+                            if file_path not in self.downloaded_files:
+                                self.downloaded_files.append(file_path)
+                                self.log_callback.emit(f"    检测到下载文件: {file_path}")
+                    except OSError:
+                        pass
+        except Exception as e:
+            self.log_callback.emit(f"    检测下载文件时出错: {str(e)}")
 
     def convert_downloaded_files(self, audio_format, video_format):
         self.downloaded_files = shared_convert_downloaded_files(

@@ -805,7 +805,14 @@ class FluentMainWindow(FluentWindow):
             if target.hasFocus():
                 target.insert(token)
                 return
-        self.template_file_single_disc.insert(token)
+        InfoBar.warning(
+            title=self.tr_text("warn"),
+            content=self.tr_text("msg_tpl_focus_needed"),
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            parent=self,
+        )
         
     def load_settings(self):
         """加载设置"""

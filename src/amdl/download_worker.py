@@ -103,18 +103,24 @@ class DownloadThread(QThread):
                     args.extend(["--truncate", str(self.download_options.get("truncate"))])
                 if self.download_options.get("synced_lyrics_format"):
                     args.extend(["--synced-lyrics-format", self.download_options.get("synced_lyrics_format")])
-                if self.download_options.get("temp_path"):
-                    args.extend(["--temp-path", self.download_options.get("temp_path")])
-                if self.download_options.get("wvd_path"):
-                    args.extend(["--wvd-path", self.download_options.get("wvd_path")])
-                if self.download_options.get("template_folder_album"):
-                    args.extend(["--template-folder-album", self.download_options.get("template_folder_album")])
-                if self.download_options.get("template_folder_compilation"):
-                    args.extend(["--template-folder-compilation", self.download_options.get("template_folder_compilation")])
-                if self.download_options.get("template_file_single_disc"):
-                    args.extend(["--template-file-single-disc", self.download_options.get("template_file_single_disc")])
-                if self.download_options.get("template_file_multi_disc"):
-                    args.extend(["--template-file-multi-disc", self.download_options.get("template_file_multi_disc")])
+                temp_path = self.download_options.get("temp_path")
+                if temp_path:
+                    args.extend(["--temp-path", temp_path])
+                wvd_path = self.download_options.get("wvd_path")
+                if wvd_path:
+                    args.extend(["--wvd-path", wvd_path])
+                template_folder_album = self.download_options.get("template_folder_album")
+                if template_folder_album:
+                    args.extend(["--template-folder-album", template_folder_album])
+                template_folder_compilation = self.download_options.get("template_folder_compilation")
+                if template_folder_compilation:
+                    args.extend(["--template-folder-compilation", template_folder_compilation])
+                template_file_single_disc = self.download_options.get("template_file_single_disc")
+                if template_file_single_disc:
+                    args.extend(["--template-file-single-disc", template_file_single_disc])
+                template_file_multi_disc = self.download_options.get("template_file_multi_disc")
+                if template_file_multi_disc:
+                    args.extend(["--template-file-multi-disc", template_file_multi_disc])
 
                 log_stream = io.StringIO()
 

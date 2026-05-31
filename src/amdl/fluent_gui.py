@@ -76,6 +76,9 @@ class FluentMainWindow(FluentWindow):
     template_folder_compilation: Any
     template_file_single_disc: Any
     template_file_multi_disc: Any
+    template_param_label: Any
+    template_param_combo: Any
+    template_param_insert_btn: Any
     quality_post: Any
     status_text: Any
     clear_log_btn: Any
@@ -380,6 +383,29 @@ class FluentMainWindow(FluentWindow):
         template_layout.addWidget(self.template_file_multi_disc, 3, 1)
         
         layout.addLayout(template_layout)
+
+        param_layout = QHBoxLayout()
+        param_layout.setSpacing(10)
+        self.template_param_label = QLabel(self.tr_text("label_tpl_available_params"))
+        param_layout.addWidget(self.template_param_label)
+        self.template_param_combo = ComboBox()
+        self.template_param_combo.addItems(
+            [
+                "{album_artist}",
+                "{album}",
+                "{artist}",
+                "{title}",
+                "{track}",
+                "{track:02d}",
+                "{disc}",
+            ]
+        )
+        param_layout.addWidget(self.template_param_combo)
+        self.template_param_insert_btn = PushButton(self.tr_text("btn_tpl_insert_param"))
+        self.template_param_insert_btn.clicked.connect(self.insert_selected_template_param)
+        param_layout.addWidget(self.template_param_insert_btn)
+        param_layout.addStretch(1)
+        layout.addLayout(param_layout)
         
         # 保存设置按钮
         save_settings_button = PrimaryPushButton(self.tr_text("btn_save_settings"))
@@ -694,6 +720,10 @@ class FluentMainWindow(FluentWindow):
             self.audio_convert_label.setText(self.tr_text("label_audio_convert"))
         if hasattr(self, "video_convert_label"):
             self.video_convert_label.setText(self.tr_text("label_video_convert"))
+        if hasattr(self, "template_param_label"):
+            self.template_param_label.setText(self.tr_text("label_tpl_available_params"))
+        if hasattr(self, "template_param_insert_btn"):
+            self.template_param_insert_btn.setText(self.tr_text("btn_tpl_insert_param"))
         if hasattr(self, "download_btn"):
             self.download_btn.setText(
                 self.tr_text("btn_downloading") if not self.download_btn.isEnabled() else self.tr_text("btn_start")
@@ -763,6 +793,19 @@ class FluentMainWindow(FluentWindow):
             save_window_settings(self)
         except Exception as e:
             print(f"保存设置时出错: {e}")
+
+    def insert_selected_template_param(self):
+        token = self.template_param_combo.currentText()
+        for target in (
+            self.template_folder_album,
+            self.template_folder_compilation,
+            self.template_file_single_disc,
+            self.template_file_multi_disc,
+        ):
+            if target.hasFocus():
+                target.insert(token)
+                return
+        self.template_file_single_disc.insert(token)
         
     def load_settings(self):
         """加载设置"""

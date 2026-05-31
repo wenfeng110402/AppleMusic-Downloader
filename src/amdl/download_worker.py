@@ -103,6 +103,18 @@ class DownloadThread(QThread):
                     args.extend(["--truncate", str(self.download_options.get("truncate"))])
                 if self.download_options.get("synced_lyrics_format"):
                     args.extend(["--synced-lyrics-format", self.download_options.get("synced_lyrics_format")])
+                if self.download_options.get("temp_path"):
+                    args.extend(["--temp-path", self.download_options.get("temp_path")])
+                if self.download_options.get("wvd_path"):
+                    args.extend(["--wvd-path", self.download_options.get("wvd_path")])
+                if self.download_options.get("template_folder_album"):
+                    args.extend(["--template-folder-album", self.download_options.get("template_folder_album")])
+                if self.download_options.get("template_folder_compilation"):
+                    args.extend(["--template-folder-compilation", self.download_options.get("template_folder_compilation")])
+                if self.download_options.get("template_file_single_disc"):
+                    args.extend(["--template-file-single-disc", self.download_options.get("template_file_single_disc")])
+                if self.download_options.get("template_file_multi_disc"):
+                    args.extend(["--template-file-multi-disc", self.download_options.get("template_file_multi_disc")])
 
                 log_stream = io.StringIO()
 

@@ -6,7 +6,7 @@
 Donate（non-porfit,no tax)
 [here！](https://hcb.hackclub.com/donations/start/amdl)
 
-<h2 align="left">👤 Repo Visitors:</h2>
+<h2 align="left">👤 Repo VisitorsAdded on April 5, 2026):</h2>
 
 ![Visitor Count](https://count.getloli.com/@AMDL?name=AMDL&theme=3d-num&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
 

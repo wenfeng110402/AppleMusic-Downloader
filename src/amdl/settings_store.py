@@ -42,7 +42,7 @@ def load_window_settings(window):
     window.no_synced_lyrics.setChecked(settings.value("no_synced_lyrics", False, type=bool))
     window.read_urls_as_txt.setChecked(settings.value("read_urls_as_txt", False, type=bool))
     window.no_exceptions.setChecked(settings.value("no_exceptions", False, type=bool))
-    window.codec_song.setCurrentText(settings.value("codec_song", "aac"))
+    window.codec_song.setCurrentText(settings.value("codec_song", "aac-legacy"))
     window.codec_music_video.setCurrentText(settings.value("codec_music_video", "h264"))
     window.quality_post.setCurrentText(settings.value("quality_post", "best"))
     window.download_mode.setCurrentText(settings.value("download_mode", "ytdlp"))
@@ -56,8 +56,8 @@ def load_window_settings(window):
     window.template_folder_compilation.setText(settings.value("template_folder_compilation", "Compilations/{album}"))
     window.template_file_single_disc.setText(settings.value("template_file_single_disc", "{track:02d} {title}"))
     window.template_file_multi_disc.setText(settings.value("template_file_multi_disc", "{disc}-{track:02d} {title}"))
-    window.audio_format.setCurrentText(settings.value("audio_format", "保持原格式"))
-    window.video_format.setCurrentText(settings.value("video_format", "保持原格式"))
+    window.audio_format.setCurrentText(settings.value("audio_format", "keep original"))
+    window.video_format.setCurrentText(settings.value("video_format", "keep original"))
 
     window.current_language = settings.value("ui_language", window.current_language)
     if window.current_language not in I18N:

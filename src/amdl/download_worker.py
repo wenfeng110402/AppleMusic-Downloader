@@ -180,7 +180,7 @@ class DownloadThread(QThread):
             audio_format = self.download_options.get("audio_format")
             video_format = self.download_options.get("video_format")
 
-            if (audio_format and audio_format != "保持原格式") or (video_format and video_format != "保持原格式"):
+            if (audio_format and audio_format != "keep original") or (video_format and video_format != "keep original"):
                 self.log_callback.emit("开始执行格式转换...")
                 self.convert_downloaded_files(audio_format, video_format)
 

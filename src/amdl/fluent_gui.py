@@ -8,7 +8,6 @@ from typing import Any
 from amdl.download_worker import DownloadThread
 from amdl.i18n import I18N
 from amdl.ui_builder import (
-    add_settings_sub_interface,
     build_download_ui,
     build_main_ui,
     build_settings_ui,
@@ -18,8 +17,7 @@ from amdl.settings_store import load_window_settings, save_window_settings
 # PyQt6 imports for Fluent UI
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QFileDialog, 
-    QFrame, QStackedWidget
+    QLabel, QFileDialog,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSettings
 from PyQt6.QtGui import QIcon
@@ -29,7 +27,7 @@ from qfluentwidgets import (
     FluentWindow, NavigationItemPosition, InfoBar, InfoBarPosition,
     PushButton, CheckBox, ComboBox, SpinBox, LineEdit, TextEdit,
     ProgressBar, FluentIcon, SubtitleLabel, PrimaryPushButton,
-    Pivot
+    Pivot,
 )
 
 
@@ -168,96 +166,12 @@ class FluentMainWindow(FluentWindow):
         """初始化用户界面"""
         build_main_ui(self)
 
-    def init_settings_interface(self):
-        """初始化设置界面"""
-        build_settings_ui(self)
-
-    def add_sub_interface(self, object_name, text_key):
-        """添加设置子界面"""
-        add_settings_sub_interface(self, object_name, text_key)
-
-    def init_download_interface(self):
-        """初始化下载界面"""
-        build_download_ui(self)
-        
     def stop_download(self):
         """Stop the current download after the current track finishes."""
         if self.download_thread and self.download_thread.isRunning():
             self.download_thread.stop()
             self.stop_btn.setEnabled(False)
             self.append_log("正在停止下载... (等待当前曲目完成)")
-
-    def create_template_settings_page(self, parent):
-        """创建模板设置页面"""
-        layout = QVBoxLayout(parent)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
-        # 标题
-        title_label = SubtitleLabel(self.tr_text("page_template_title"))
-        layout.addWidget(title_label)
-        
-        # 添加分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(line)
-        
-        # 模板设置
-        template_layout = QGridLayout()
-        template_layout.setSpacing(10)
-        
-        template_layout.addWidget(QLabel(self.tr_text("label_tpl_album")), 0, 0)
-        self.template_folder_album = LineEdit()
-        self.template_folder_album.setText("{album_artist}/{album}")
-        template_layout.addWidget(self.template_folder_album, 0, 1)
-        
-        template_layout.addWidget(QLabel(self.tr_text("label_tpl_comp")), 1, 0)
-        self.template_folder_compilation = LineEdit()
-        self.template_folder_compilation.setText("Compilations/{album}")
-        template_layout.addWidget(self.template_folder_compilation, 1, 1)
-        
-        template_layout.addWidget(QLabel(self.tr_text("label_tpl_single")), 2, 0)
-        self.template_file_single_disc = LineEdit()
-        self.template_file_single_disc.setText("{track:02d} {title}")
-        template_layout.addWidget(self.template_file_single_disc, 2, 1)
-        
-        template_layout.addWidget(QLabel(self.tr_text("label_tpl_multi")), 3, 0)
-        self.template_file_multi_disc = LineEdit()
-        self.template_file_multi_disc.setText("{disc}-{track:02d} {title}")
-        template_layout.addWidget(self.template_file_multi_disc, 3, 1)
-        
-        layout.addLayout(template_layout)
-
-        param_layout = QHBoxLayout()
-        param_layout.setSpacing(10)
-        self.template_param_label = QLabel(self.tr_text("label_tpl_available_params"))
-        param_layout.addWidget(self.template_param_label)
-        self.template_param_combo = ComboBox()
-        self.template_param_combo.addItems(
-            [
-                "{album_artist}",
-                "{album}",
-                "{artist}",
-                "{title}",
-                "{track}",
-                "{track:02d}",
-                "{disc}",
-            ]
-        )
-        param_layout.addWidget(self.template_param_combo)
-        self.template_param_insert_btn = PushButton(self.tr_text("btn_tpl_insert_param"))
-        self.template_param_insert_btn.clicked.connect(self.insert_selected_template_param)
-        param_layout.addWidget(self.template_param_insert_btn)
-        param_layout.addStretch(1)
-        layout.addLayout(param_layout)
-        
-        # 保存设置按钮
-        save_settings_button = PrimaryPushButton(self.tr_text("btn_save_settings"))
-        save_settings_button.clicked.connect(self.save_settings)
-        layout.addWidget(save_settings_button)
-        
-        layout.addStretch(1)
 
     def select_cookie_file(self):
         """选择Cookie文件"""
@@ -422,61 +336,19 @@ class FluentMainWindow(FluentWindow):
     def apply_runtime_translations(self):
         self.setWindowTitle(self.tr_text("window_title"))
 
-        if hasattr(self, "url_title"):
-            self.url_title.setText(self.tr_text("download_urls"))
-        if hasattr(self, "path_title"):
-            self.path_title.setText(self.tr_text("download_paths"))
-        if hasattr(self, "options_title"):
-            self.options_title.setText(self.tr_text("download_options"))
-        if hasattr(self, "url_input"):
-            self.url_input.setPlaceholderText(self.tr_text("placeholder_urls"))
-        if hasattr(self, "cookie_label_widget"):
-            self.cookie_label_widget.setText(self.tr_text("label_cookie"))
-        if hasattr(self, "output_label_widget"):
-            self.output_label_widget.setText(self.tr_text("label_output"))
-        if hasattr(self, "cookie_path"):
-            self.cookie_path.setPlaceholderText(self.tr_text("placeholder_cookie"))
-        if hasattr(self, "output_path"):
-            self.output_path.setPlaceholderText(self.tr_text("placeholder_output"))
-        if hasattr(self, "cookie_button"):
-            self.cookie_button.setText(self.tr_text("btn_browse"))
-        if hasattr(self, "output_button"):
-            self.output_button.setText(self.tr_text("btn_browse"))
-        if hasattr(self, "overwrite"):
-            self.overwrite.setText(self.tr_text("opt_overwrite"))
-        if hasattr(self, "disable_music_video_skip"):
-            self.disable_music_video_skip.setText(self.tr_text("opt_disable_mv_skip"))
-        if hasattr(self, "save_playlist"):
-            self.save_playlist.setText(self.tr_text("opt_save_playlist"))
-        if hasattr(self, "synced_lyrics_only"):
-            self.synced_lyrics_only.setText(self.tr_text("opt_synced_only"))
-        if hasattr(self, "no_synced_lyrics"):
-            self.no_synced_lyrics.setText(self.tr_text("opt_no_synced"))
-        if hasattr(self, "read_urls_as_txt"):
-            self.read_urls_as_txt.setText(self.tr_text("opt_read_urls_txt"))
-        if hasattr(self, "no_exceptions"):
-            self.no_exceptions.setText(self.tr_text("opt_no_exceptions"))
-        if hasattr(self, "audio_convert_label"):
-            self.audio_convert_label.setText(self.tr_text("label_audio_convert"))
-        if hasattr(self, "video_convert_label"):
-            self.video_convert_label.setText(self.tr_text("label_video_convert"))
-        if hasattr(self, "template_param_label"):
-            self.template_param_label.setText(self.tr_text("label_tpl_available_params"))
-        if hasattr(self, "template_param_insert_btn"):
-            self.template_param_insert_btn.setText(self.tr_text("btn_tpl_insert_param"))
         if hasattr(self, "download_btn"):
             self.download_btn.setText(
                 self.tr_text("btn_downloading") if not self.download_btn.isEnabled() else self.tr_text("btn_start")
             )
         if hasattr(self, "stop_btn"):
             self.stop_btn.setText(self.tr_text("btn_stop"))
-        # 更新设置界面中的语言选择器
+        # language_combo is on the settings → codec tab; update its items
         if hasattr(self, "language_combo"):
-            current = self.language_combo.currentIndex()
+            cur = self.language_combo.currentIndex()
             self.language_combo.blockSignals(True)
-            self.language_combo.setItemText(0, self.tr_text("lang_zh"))
-            self.language_combo.setItemText(1, self.tr_text("lang_en"))
-            self.language_combo.setCurrentIndex(current)
+            self.language_combo.setItemText(0, "简体中文")
+            self.language_combo.setItemText(1, "English")
+            self.language_combo.setCurrentIndex(cur)
             self.language_combo.blockSignals(False)
         
     def download_finished(self, success):

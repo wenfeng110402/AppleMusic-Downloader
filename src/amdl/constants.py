@@ -185,15 +185,8 @@ MP4_TAGS_MAP = {
 }
 
 SONG_CODEC_REGEX_MAP = {
-    SongCodec.AAC: r"audio-stereo-\d+",
-    SongCodec.AAC_HE: r"audio-HE-stereo-\d+",
-    SongCodec.AAC_BINAURAL: r"audio-stereo-\d+-binaural",
-    SongCodec.AAC_DOWNMIX: r"audio-stereo-\d+-downmix",
-    SongCodec.AAC_HE_BINAURAL: r"audio-HE-stereo-\d+-binaural",
-    SongCodec.AAC_HE_DOWNMIX: r"audio-HE-stereo-\d+-downmix",
+    SongCodec.AAC_LEGACY: r"audio-stereo-\d+",
     SongCodec.ATMOS: r"audio-atmos-.*",
-    SongCodec.AC3: r"audio-ac3-.*",
-    SongCodec.ALAC: r"audio-alac-.*",
 }
 
 MUSIC_VIDEO_CODEC_MAP = {

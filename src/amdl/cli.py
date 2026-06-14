@@ -541,7 +541,7 @@ def main(
                     else:
                         logger.debug("Getting stream info")
                         stream_info = downloader_song.get_stream_info(
-                            track_metadata
+                            track_metadata, webplayback
                         )
                         if (
                             not stream_info.stream_url

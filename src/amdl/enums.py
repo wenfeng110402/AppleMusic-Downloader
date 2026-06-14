@@ -12,16 +12,8 @@ class RemuxMode(Enum):
 
 
 class SongCodec(Enum):
-    AAC = "aac"
-    AAC_HE = "aac-he"
-    AAC_BINAURAL = "aac-binaural"
-    AAC_DOWNMIX = "aac-downmix"
-    AAC_HE_BINAURAL = "aac-he-binaural"
-    AAC_HE_DOWNMIX = "aac-he-downmix"
+    AAC_LEGACY = "aac-legacy"
     ATMOS = "atmos"
-    AC3 = "ac3"
-    ALAC = "alac"
-    ASK = "ask"
 
 
 class SyncedLyricsFormat(Enum):

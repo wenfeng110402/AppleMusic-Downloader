@@ -66,7 +66,10 @@ def main():
     except Exception as e:
         print(f"Error: {e}")
         traceback.print_exc()
-        input("Press Enter to exit...")
+        try:
+            input("Press Enter to exit...")
+        except (EOFError, RuntimeError):
+            pass  # no stdin available (e.g. frozen exe)
         sys.exit(1)
 
 

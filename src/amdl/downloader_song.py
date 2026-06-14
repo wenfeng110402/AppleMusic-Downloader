@@ -26,7 +26,7 @@ class DownloaderSong:
     def __init__(
         self,
         downloader: Downloader,
-        codec: SongCodec = SongCodec.AAC,
+        codec: SongCodec = SongCodec.AAC_LEGACY,
         synced_lyrics_format: SyncedLyricsFormat = SyncedLyricsFormat.LRC,
     ):
         self.downloader = downloader
@@ -128,11 +128,38 @@ class DownloaderSong:
             "com.apple.streamingkeydelivery",
         )
 
-    def get_stream_info(self, track_metadata: dict) -> StreamInfo:
+    def get_stream_info(self, track_metadata: dict, webplayback: dict = None) -> StreamInfo:
         m3u8_url = track_metadata["attributes"]["extendedAssetUrls"].get("enhancedHls")
-        if not m3u8_url:
-            return StreamInfo()
-        return self._get_stream_info(m3u8_url)
+        if m3u8_url:
+            result = self._get_stream_info(m3u8_url)
+            if result.stream_url:
+                return result
+
+        # Fallback: use webplayback-based stream (legacy codec path)
+        if webplayback:
+            return self._get_stream_info_from_webplayback(webplayback)
+        return StreamInfo()
+
+    def _get_stream_info_from_webplayback(self, webplayback: dict) -> StreamInfo:
+        stream_info = StreamInfo()
+        try:
+            assets = webplayback.get("assets", [])
+            if not assets:
+                return stream_info
+            stream_url = assets[0].get("URL")
+            if not stream_url:
+                return stream_info
+            stream_info.stream_url = stream_url
+            m3u8_obj = m3u8.load(stream_url)
+            m3u8_data = m3u8_obj.data
+            for key in m3u8_data.get("keys", []):
+                if key.get("keyformat") == "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed":
+                    stream_info.widevine_pssh = key.get("uri")
+                    break
+            stream_info.codec = assets[0].get("codec") or "aac"
+        except Exception:
+            pass
+        return stream_info
 
     def _get_stream_info(self, m3u8_url: str) -> StreamInfo:
         stream_info = StreamInfo()
@@ -142,10 +169,7 @@ class DownloaderSong:
         if not drm_infos:
             return stream_info
         asset_infos = self.get_asset_infos(m3u8_data)
-        if self.codec == SongCodec.ASK:
-            playlist = self.get_playlist_from_user(m3u8_data)
-        else:
-            playlist = self.get_playlist_from_codec(m3u8_data)
+        playlist = self.get_playlist_from_codec(m3u8_data)
         if playlist is None:
             return stream_info
         stream_info.stream_url = m3u8_obj.base_uri + playlist["uri"]
@@ -303,26 +327,6 @@ class DownloaderSong:
 
     def get_remuxed_path(self, track_id: str) -> Path:
         return self.downloader.temp_path / f"{track_id}_remuxed.m4a"
-
-    def get_decryption_key(self, song_id: str) -> str:
-        if self.codec == SongCodec.ALAC:
-            # ALAC格式使用默认密钥，不需要从API获取
-            return self.DEFAULT_DECRYPTION_KEY
-            
-        track_uri = self.downloader.apple_music_api.get_webplayback(song_id)["assets"][
-            0
-        ]["URL"]
-        key_info = self.downloader.apple_music_api.get_widevine_license(
-            song_id,
-            track_uri,
-            base64.b64encode(
-                self.downloader.widevine_client.get_challenge(
-                    self.downloader.remux_mode == RemuxMode.FFMPEG
-                )
-            ).decode("utf-8"),
-        )
-        self.downloader.widevine_client.provide_license(key_info)
-        return self.downloader.widevine_client.get_key()
 
     def fix_key_id(self, encrypted_path: Path):
         count = 0

@@ -8,6 +8,7 @@ Donate (non-profit, no tax)
 [Here!](https://hcb.hackclub.com/donations/start/amdl)
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/wenfeng110402/AppleMusic-Downloader)
 [![License](https://img.shields.io/github/license/wenfeng110402/AppleMusic-Downloader)](LICENSE)
 
 ## Acknowledgments
@@ -16,20 +17,21 @@ This project utilizes code from [gamdl (Glomatico&#39;s Apple Music Downloader)]
 
 ## Features
 
-- **High Quality** - Supports AAC 256kbps and so on.
+- **High Quality** - Supports AAC 256kbps, ALAC, Atmos and more
 - **MV Download** - Up to 1080p
-- **Batch download of artist works** - Download via multiple links or album playlist links
+- **Batch download of artist works** - Download via multiple links or album/playlist links
+- **GUI & CLI** - Beautiful Fluent Design GUI + powerful command-line interface
+- **Cross-Platform** - Windows, macOS, Linux
 - **Customizable** - A wide range of configuration options to meet individual needs
 
 ## Installation
 
-### Method 1: Use the installer (Recommended, Windows only)
+### Prerequisites
 
-1. From [Releases](https://github.com/wenfeng110402/AppleMusic-Downloader/releases)
-   page download the latest version of the installer.
-2. Run `AppleMusicDownloader.exe`
+- **Python 3.9+**
+- **pip** (Python package manager)
 
-### Method 2: Run from Source Code
+### Run from Source Code
 
 ```bash
 git clone https://github.com/wenfeng110402/AppleMusic-Downloader.git
@@ -38,13 +40,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-This project uses a `src` layout. If you don't install it as an editable package, run it with:
-
-```bash
-PYTHONPATH=src python -c "from amdl.cli import main; main(args=['--help'], standalone_mode=False)"
-```
-
-The GUI entry is now unified under `amdl.launcher`. Run from source with:
+### Launch GUI
 
 ```bash
 python -m amdl
@@ -57,45 +53,27 @@ amdl --help
 amdl --cookies-path /path/to/cookies.txt "https://music.apple.com/..."
 ```
 
-### Mac?
-
-Try this [am-downloader-mac](https://github.com/aki4nvr/am-downloader-mac)
-
-## CI/CD Validation and Auto Build
-
-This repository now includes a GitHub Actions workflow: [.github/workflows/ci-build-windows.yml](.github/workflows/ci-build-windows.yml)
-
-- `validate`: installs dependencies on Ubuntu and runs `python -m compileall src/amdl` for baseline validation.
-- `build-windows`: downloads FFmpeg online on a Windows runner, extracts `ffmpeg.exe` into `tools/`, then builds with PyInstaller.
-- Build artifact: `AppleMusicDownloader-windows-exe` (contains `dist/AppleMusicDownloader.exe`).
-
-How to use:
-
-1. Open **Actions** in your GitHub repository.
-2. Select **CI and Windows Build**.
-3. Click **Run workflow** to trigger manually, or trigger it automatically via push/PR.
-
 ## Environmental requirements
 
-### Required components
+### Required
 
-- **Python 3.9 or Higher**
 - **Valid Apple Music subscription**
 - **Netscape format cookies file**
-- **FFmpeg**
+- **FFmpeg** — install via your package manager:
+  - macOS: `brew install ffmpeg`
+  - Linux: `apt install ffmpeg` / `pacman -S ffmpeg`
+  - Windows: download from [ffmpeg.org](https://ffmpeg.org/)
 
 Get Cookies Files:
 
-- **FireFox User**: Use [Export Cookies](https://addons.mozilla.org/firefox/addon/export-cookies-txt/) Extension
+- **Firefox User**: Use [Export Cookies](https://addons.mozilla.org/firefox/addon/export-cookies-txt/) Extension
 - **Chromium User**: Use [Open Cookies.txt](https://github.com/wenfeng110402/AppleMusic-Downloader/releases/download/v2.3.2/OpenCookies.txt.crx) Extension
 
 ### Optional dependencies
 
-The following tools are required for specific functions:
-
-- [mp4decrypt](https://www.bento4.com/downloads/):Used for music and video downloads and experimental audio encoding.
-- [MP4Box](https://gpac.io/downloads/gpac-nightly-builds/):Alternative Mixed Flow Mode
-- [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE/releases/latest):Alternative Mixed Flow Mode
+- [mp4decrypt](https://www.bento4.com/downloads/): required for non-legacy song codecs and music videos
+- [MP4Box](https://gpac.io/downloads/gpac-nightly-builds/): alternative remux mode
+- [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE/releases/latest): alternative download mode
 
 ## Supported Link Types
 

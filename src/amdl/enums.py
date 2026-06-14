@@ -12,8 +12,6 @@ class RemuxMode(Enum):
 
 
 class SongCodec(Enum):
-    AAC_LEGACY = "aac-legacy"
-    AAC_HE_LEGACY = "aac-he-legacy"
     AAC = "aac"
     AAC_HE = "aac-he"
     AAC_BINAURAL = "aac-binaural"

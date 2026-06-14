@@ -17,7 +17,6 @@ from .downloader import Downloader
 from .downloader_music_video import DownloaderMusicVideo
 from .downloader_post import DownloaderPost
 from .downloader_song import DownloaderSong
-from .downloader_song_legacy import DownloaderSongLegacy
 from .enums import CoverFormat, DownloadMode, MusicVideoCodec, PostQuality, RemuxMode
 from .itunes_api import ItunesApi
 from .utils import color_text
@@ -412,10 +411,6 @@ def main(
         codec_song,
         synced_lyrics_format,
     )
-    downloader_song_legacy = DownloaderSongLegacy(
-        downloader,
-        codec_song,
-    )
     downloader_music_video = DownloaderMusicVideo(
         downloader,
         codec_music_video,
@@ -438,15 +433,7 @@ def main(
         if not downloader.mp4box_path_full and remux_mode == RemuxMode.MP4BOX:
             logger.critical(X_NOT_FOUND_STRING.format("MP4Box", mp4box_path))
             return
-        if (
-            not downloader.mp4decrypt_path_full
-            and codec_song
-            not in (
-                SongCodec.AAC_LEGACY,
-                SongCodec.AAC_HE_LEGACY,
-            )
-            or (remux_mode == RemuxMode.MP4BOX and not downloader.mp4decrypt_path_full)
-        ):
+        if not downloader.mp4decrypt_path_full:
             logger.critical(X_NOT_FOUND_STRING.format("mp4decrypt", mp4decrypt_path))
             return
         if (
@@ -463,11 +450,6 @@ def main(
             skip_mv = True
         else:
             skip_mv = False
-        if codec_song not in LEGACY_CODECS:
-            logger.warning(
-                "You have chosen an experimental codec. "
-                "They're not guaranteed to work due to API limitations."
-            )
     error_count = 0
     if read_urls_as_txt:
         _urls = []
@@ -558,31 +540,22 @@ def main(
                         )
                     else:
                         logger.debug("Getting stream info")
-                        if codec_song in LEGACY_CODECS:
-                            stream_info = downloader_song_legacy.get_stream_info(
-                                webplayback
+                        stream_info = downloader_song.get_stream_info(
+                            track_metadata
+                        )
+                        if (
+                            not stream_info.stream_url
+                            or not stream_info.widevine_pssh
+                        ):
+                            logger.warning(
+                                f"({queue_progress}) Song is not downloadable or is not"
+                                " available in the chosen codec, skipping"
                             )
-                            logger.debug("Getting decryption key")
-                            decryption_key = downloader_song_legacy.get_decryption_key(
-                                stream_info.widevine_pssh, track_metadata["id"]
-                            )
-                        else:
-                            stream_info = downloader_song.get_stream_info(
-                                track_metadata
-                            )
-                            if (
-                                not stream_info.stream_url
-                                or not stream_info.widevine_pssh
-                            ):
-                                logger.warning(
-                                    f"({queue_progress}) Song is not downloadable or is not"
-                                    " available in the chosen codec, skipping"
-                                )
-                                continue
-                            logger.debug("Getting decryption key")
-                            decryption_key = downloader.get_decryption_key(
-                                stream_info.widevine_pssh, track_metadata["id"]
-                            )
+                            continue
+                        logger.debug("Getting decryption key")
+                        decryption_key = downloader.get_decryption_key(
+                            stream_info.widevine_pssh, track_metadata["id"]
+                        )
                         encrypted_path = downloader_song.get_encrypted_path(
                             track_metadata["id"]
                         )
@@ -594,27 +567,16 @@ def main(
                         )
                         logger.debug(f'Downloading to "{encrypted_path}"')
                         downloader.download(encrypted_path, stream_info.stream_url)
-                        if codec_song in LEGACY_CODECS:
-                            logger.debug(
-                                f'Decrypting/Remuxing to "{decrypted_path}"/"{remuxed_path}"'
-                            )
-                            downloader_song_legacy.remux(
-                                encrypted_path,
-                                decrypted_path,
-                                remuxed_path,
-                                decryption_key,
-                            )
-                        else:
-                            logger.debug(f'Decrypting to "{decrypted_path}"')
-                            downloader_song.decrypt(
-                                encrypted_path, decrypted_path, decryption_key
-                            )
-                            logger.debug(f'Remuxing to "{final_path}"')
-                            downloader_song.remux(
-                                decrypted_path,
-                                remuxed_path,
-                                stream_info.codec,
-                            )
+                        logger.debug(f'Decrypting to "{decrypted_path}"')
+                        downloader_song.decrypt(
+                            encrypted_path, decrypted_path, decryption_key
+                        )
+                        logger.debug(f'Remuxing to "{final_path}"')
+                        downloader_song.remux(
+                            decrypted_path,
+                            remuxed_path,
+                            stream_info.codec,
+                        )
                     if no_synced_lyrics or not lyrics.synced:
                         pass
                     elif lyrics_synced_path.exists() and not overwrite:

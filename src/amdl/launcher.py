@@ -1,77 +1,75 @@
 #!/usr/bin/env python
-"""应用启动器 - 处理管理员权限和GUI初始化"""
+"""Cross-platform application launcher for AppleMusic Downloader GUI."""
 
-import sys
 import os
+import sys
 import traceback
-import ctypes
 
-# 确保能找到amdl模块
+
+# Ensure amdl is importable
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 
-def is_admin() -> bool:
-    """检查是否为管理员"""
+# ---- Windows admin elevation (no-op on macOS/Linux) ----
+def _ensure_admin_windows():
+    """On Windows: request admin elevation if not already running as admin.
+    Returns True if we should proceed with GUI, False if we relaunched."""
+    if sys.platform != "win32":
+        return True  # not Windows, nothing to do
+
     try:
-        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+        import ctypes
+        if ctypes.windll.shell32.IsUserAnAdmin():
+            return True  # already admin
     except Exception:
-        return False
+        return True  # can't check, proceed anyway
+
+    # Not admin — relaunch self with runas verb
+    try:
+        ctypes.windll.shell32.ShellExecuteW(
+            None,                     # hwnd
+            "runas",                  # operation
+            sys.executable,           # file
+            " ".join(f'"{a}"' for a in sys.argv),  # parameters
+            None,                     # directory
+            1,                        # SW_SHOWNORMAL
+        )
+    except Exception:
+        pass
+    return False  # original process exits
 
 
 def main():
-    """应用主入口"""
-    
-    # 检查管理员权限
-    if not is_admin():
-        print("检测到程序未以管理员身份运行，请求提升权限...")
-        
-        script_path = os.path.abspath(__file__)
-        python_exe = sys.executable
-        
-        # 用PowerShell以管理员身份重启
-        try:
-            import subprocess
-            cmd = f'powershell -Command "Start-Process \'{python_exe}\' -ArgumentList \'{script_path}\' -Verb RunAs"'
-            subprocess.Popen(cmd, shell=True)
-            print("✓ 已发送权限提升请求，请在UAC对话框中选择'是'")
-            sys.exit(0)
-        except Exception as e:
-            print(f"权限提升失败: {e}")
-            print("将尝试以当前权限运行程序...")
-    
-    # 启动GUI
+    """Launch the GUI application (with admin elevation on Windows)."""
+    if not _ensure_admin_windows():
+        sys.exit(0)
+
     try:
-        print("✓ 以管理员身份运行")
-        print("✓ 启动GUI...")
-        
         from PyQt6.QtWidgets import QApplication
         from qfluentwidgets import Theme, setTheme
-        
-        print("✓ 导入GUI模块...")
+
         from amdl.fluent_gui import FluentMainWindow
-        
-        print("✓ 创建应用程序...")
+
         app = QApplication(sys.argv)
         setTheme(Theme.AUTO)
         app.setApplicationName("AppleMusic Downloader")
-        app.setApplicationVersion("3.1.0")
-        
-        print("✓ 创建主窗口...")
+        app.setApplicationVersion("2.4.2")
+
         window = FluentMainWindow()
-        print("✓ 显示窗口...")
         window.show()
-        
-        print("✓ GUI已启动，进入事件循环")
+
         sys.exit(app.exec())
-        
+
     except Exception as e:
-        print(f"❌ 错误: {str(e)}")
+        print(f"Error: {e}")
         traceback.print_exc()
-        print("\n按回车键退出...")
-        input()
+        try:
+            input("Press Enter to exit...")
+        except (EOFError, RuntimeError):
+            pass  # no stdin available (e.g. frozen exe)
         sys.exit(1)
 
 

@@ -8,7 +8,6 @@ from typing import Any
 from amdl.download_worker import DownloadThread
 from amdl.i18n import I18N
 from amdl.ui_builder import (
-    add_settings_sub_interface,
     build_download_ui,
     build_main_ui,
     build_settings_ui,
@@ -18,8 +17,7 @@ from amdl.settings_store import load_window_settings, save_window_settings
 # PyQt6 imports for Fluent UI
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QFileDialog, 
-    QFrame, QStackedWidget
+    QLabel, QFileDialog,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSettings
 from PyQt6.QtGui import QIcon
@@ -29,7 +27,7 @@ from qfluentwidgets import (
     FluentWindow, NavigationItemPosition, InfoBar, InfoBarPosition,
     PushButton, CheckBox, ComboBox, SpinBox, LineEdit, TextEdit,
     ProgressBar, FluentIcon, SubtitleLabel, PrimaryPushButton,
-    Pivot
+    Pivot,
 )
 
 
@@ -62,6 +60,7 @@ class FluentMainWindow(FluentWindow):
     video_convert_label: Any
     video_format: Any
     download_btn: Any
+    stop_btn: Any
     progress_bar: Any
     download_mode: Any
     remux_mode: Any
@@ -76,9 +75,11 @@ class FluentMainWindow(FluentWindow):
     template_folder_compilation: Any
     template_file_single_disc: Any
     template_file_multi_disc: Any
+    template_param_label: Any
+    template_param_combo: Any
+    template_param_insert_btn: Any
     quality_post: Any
     status_text: Any
-    clear_log_btn: Any
     language_combo: Any
     
     def __init__(self):
@@ -165,335 +166,12 @@ class FluentMainWindow(FluentWindow):
         """初始化用户界面"""
         build_main_ui(self)
 
-    def init_settings_interface(self):
-        """初始化设置界面"""
-        build_settings_ui(self)
-
-    def add_sub_interface(self, object_name, text_key):
-        """添加设置子界面"""
-        add_settings_sub_interface(self, object_name, text_key)
-
-    def init_download_interface(self):
-        """初始化下载界面"""
-        build_download_ui(self)
-        
-    def create_mode_settings_page(self, parent):
-        """创建下载模式设置页面"""
-        layout = QVBoxLayout(parent)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
-        # 标题
-        title_label = SubtitleLabel(self.tr_text("page_mode_title"))
-        layout.addWidget(title_label)
-        
-        # 添加分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(line)
-        
-        # 下载模式设置
-        mode_layout = QHBoxLayout()
-        mode_layout.setSpacing(10)
-        
-        mode_layout.addWidget(QLabel(self.tr_text("label_download_mode")))
-        self.download_mode = ComboBox()
-        self.download_mode.addItems(["ytdlp", "nm3u8dlre"])
-        mode_layout.addWidget(self.download_mode)
-        
-        mode_layout.addWidget(QLabel(self.tr_text("label_remux_mode")))
-        self.remux_mode = ComboBox()
-        self.remux_mode.addItems(["ffmpeg", "mp4box"])
-        mode_layout.addWidget(self.remux_mode)
-        
-        layout.addLayout(mode_layout)
-        
-        # 保存设置按钮
-        save_settings_button = PrimaryPushButton(self.tr_text("btn_save_settings"))
-        save_settings_button.clicked.connect(self.save_settings)
-        layout.addWidget(save_settings_button)
-        
-        layout.addStretch(1)
-
-    def create_codec_settings_page(self, parent):
-        """创建编码格式设置页面"""
-        layout = QVBoxLayout(parent)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
-        # 标题
-        title_label = SubtitleLabel(self.tr_text("page_codec_title"))
-        layout.addWidget(title_label)
-        
-        # 添加分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(line)
-        
-        # 编码格式设置
-        codec_layout = QGridLayout()
-        codec_layout.setSpacing(10)
-        
-        codec_layout.addWidget(QLabel(self.tr_text("label_codec_song")), 0, 0)
-        self.codec_song = ComboBox()
-        self.codec_song.addItems(["aac-legacy", "aac", "atmos"])
-        codec_layout.addWidget(self.codec_song, 0, 1)
-        
-        codec_layout.addWidget(QLabel(self.tr_text("label_codec_mv")), 1, 0)
-        self.codec_music_video = ComboBox()
-        self.codec_music_video.addItems(["h264", "h265", "vp9"])
-        codec_layout.addWidget(self.codec_music_video, 1, 1)
-        
-        layout.addLayout(codec_layout)
-        
-        # 保存设置按钮
-        save_settings_button = PrimaryPushButton(self.tr_text("btn_save_settings"))
-        save_settings_button.clicked.connect(self.save_settings)
-        layout.addWidget(save_settings_button)
-        
-        layout.addStretch(1)
-
-    def create_cover_settings_page(self, parent):
-        """创建封面和歌词设置页面"""
-        layout = QVBoxLayout(parent)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
-        # 标题
-        title_label = SubtitleLabel(self.tr_text("page_cover_title"))
-        layout.addWidget(title_label)
-        
-        # 添加分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(line)
-        
-        # 封面和歌词设置
-        cover_layout = QGridLayout()
-        cover_layout.setSpacing(10)
-        
-        cover_layout.addWidget(QLabel(self.tr_text("label_cover_format")), 0, 0)
-        self.cover_format = ComboBox()
-        self.cover_format.addItems(["jpg", "png", "webp"])
-        cover_layout.addWidget(self.cover_format, 0, 1)
-        
-        cover_layout.addWidget(QLabel(self.tr_text("label_cover_size")), 1, 0)
-        self.cover_size = SpinBox()
-        self.cover_size.setRange(90, 10000)
-        self.cover_size.setValue(1200)
-        cover_layout.addWidget(self.cover_size, 1, 1)
-        
-        cover_layout.addWidget(QLabel(self.tr_text("label_truncate")), 2, 0)
-        self.truncate = SpinBox()
-        self.truncate.setRange(0, 1000)
-        self.truncate.setValue(0)
-        cover_layout.addWidget(self.truncate, 2, 1)
-        
-        layout.addLayout(cover_layout)
-        
-        # 保存设置按钮
-        save_settings_button = PrimaryPushButton(self.tr_text("btn_save_settings"))
-        save_settings_button.clicked.connect(self.save_settings)
-        layout.addWidget(save_settings_button)
-        
-        layout.addStretch(1)
-
-    def create_path_settings_page(self, parent):
-        """创建路径设置页面"""
-        layout = QVBoxLayout(parent)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
-        # 标题
-        title_label = SubtitleLabel(self.tr_text("page_path_title"))
-        layout.addWidget(title_label)
-        
-        # 添加分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(line)
-        
-        # 路径设置
-        path_layout = QGridLayout()
-        path_layout.setSpacing(10)
-        
-        path_layout.addWidget(QLabel(self.tr_text("label_temp_path")), 0, 0)
-        self.temp_path = LineEdit()
-        self.temp_path.setText("./temp")
-        path_layout.addWidget(self.temp_path, 0, 1)
-        
-        path_layout.addWidget(QLabel(self.tr_text("label_wvd_path")), 1, 0)
-        self.wvd_path = LineEdit()
-        path_layout.addWidget(self.wvd_path, 1, 1)
-        
-        layout.addLayout(path_layout)
-        
-        # 保存设置按钮
-        save_settings_button = PrimaryPushButton(self.tr_text("btn_save_settings"))
-        save_settings_button.clicked.connect(self.save_settings)
-        layout.addWidget(save_settings_button)
-        
-        layout.addStretch(1)
-
-    def create_template_settings_page(self, parent):
-        """创建模板设置页面"""
-        layout = QVBoxLayout(parent)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
-        # 标题
-        title_label = SubtitleLabel(self.tr_text("page_template_title"))
-        layout.addWidget(title_label)
-        
-        # 添加分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(line)
-        
-        # 模板设置
-        template_layout = QGridLayout()
-        template_layout.setSpacing(10)
-        
-        template_layout.addWidget(QLabel(self.tr_text("label_tpl_album")), 0, 0)
-        self.template_folder_album = LineEdit()
-        self.template_folder_album.setText("{album_artist}/{album}")
-        template_layout.addWidget(self.template_folder_album, 0, 1)
-        
-        template_layout.addWidget(QLabel(self.tr_text("label_tpl_comp")), 1, 0)
-        self.template_folder_compilation = LineEdit()
-        self.template_folder_compilation.setText("Compilations/{album}")
-        template_layout.addWidget(self.template_folder_compilation, 1, 1)
-        
-        template_layout.addWidget(QLabel(self.tr_text("label_tpl_single")), 2, 0)
-        self.template_file_single_disc = LineEdit()
-        self.template_file_single_disc.setText("{track:02d} {title}")
-        template_layout.addWidget(self.template_file_single_disc, 2, 1)
-        
-        template_layout.addWidget(QLabel(self.tr_text("label_tpl_multi")), 3, 0)
-        self.template_file_multi_disc = LineEdit()
-        self.template_file_multi_disc.setText("{disc}-{track:02d} {title}")
-        template_layout.addWidget(self.template_file_multi_disc, 3, 1)
-        
-        layout.addLayout(template_layout)
-        
-        # 保存设置按钮
-        save_settings_button = PrimaryPushButton(self.tr_text("btn_save_settings"))
-        save_settings_button.clicked.connect(self.save_settings)
-        layout.addWidget(save_settings_button)
-        
-        layout.addStretch(1)
-
-    def create_quality_settings_page(self, parent):
-        """创建视频质量设置页面"""
-        layout = QVBoxLayout(parent)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
-        # 标题
-        title_label = SubtitleLabel(self.tr_text("page_quality_title"))
-        layout.addWidget(title_label)
-        
-        # 添加分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(line)
-        
-        # 视频质量设置
-        quality_layout = QHBoxLayout()
-        quality_layout.setSpacing(10)
-        
-        quality_layout.addWidget(QLabel(self.tr_text("label_quality_post")))
-        self.quality_post = ComboBox()
-        self.quality_post.addItems(["best", "1080p", "720p", "480p", "360p"])
-        quality_layout.addWidget(self.quality_post)
-        
-        layout.addLayout(quality_layout)
-        
-        # 保存设置按钮
-        save_settings_button = PrimaryPushButton(self.tr_text("btn_save_settings"))
-        save_settings_button.clicked.connect(self.save_settings)
-        layout.addWidget(save_settings_button)
-        
-        layout.addStretch(1)
-
-    def create_language_settings_page(self, parent):
-        """创建语言设置页面"""
-        layout = QVBoxLayout(parent)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
-        # 标题
-        title_label = SubtitleLabel(self.tr_text("settings_language"))
-        layout.addWidget(title_label)
-        
-        # 添加分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(line)
-        
-        # 语言选择布局
-        lang_layout = QHBoxLayout()
-        lang_layout.setSpacing(15)
-        
-        lang_label = QLabel(self.tr_text("label_language"))
-        lang_layout.addWidget(lang_label)
-        
-        self.language_combo = ComboBox()
-        self.language_combo.addItem(self.tr_text("lang_zh"))
-        self.language_combo.addItem(self.tr_text("lang_en"))
-        if self.current_language == "en_US":
-            self.language_combo.setCurrentIndex(1)
-        else:
-            self.language_combo.setCurrentIndex(0)
-        self.language_combo.currentIndexChanged.connect(self.on_language_changed)
-        self.language_combo.setMaximumWidth(150)
-        lang_layout.addWidget(self.language_combo)
-        lang_layout.addStretch()
-        
-        layout.addLayout(lang_layout)
-        layout.addStretch(1)
-
-    def create_log_settings_page(self, parent):
-        """创建日志设置页面"""
-        layout = QVBoxLayout(parent)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
-        # 标题
-        title_label = SubtitleLabel(self.tr_text("page_log_title"))
-        layout.addWidget(title_label)
-        
-        # 添加分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(line)
-        
-        # 日志文本区域
-        self.status_text = TextEdit()
-        self.status_text.setMinimumHeight(300)
-        self.status_text.setReadOnly(True)
-        layout.addWidget(self.status_text)
-        
-        # 按钮布局
-        button_layout = QHBoxLayout()
-        
-        # 清除日志按钮
-        self.clear_log_btn = PushButton(self.tr_text("btn_clear_log"))
-        self.clear_log_btn.clicked.connect(self.clear_log)
-        button_layout.addWidget(self.clear_log_btn)
-        
-        button_layout.addStretch()
-        layout.addLayout(button_layout)
-        
-        layout.addStretch(1)
+    def stop_download(self):
+        """Stop the current download after the current track finishes."""
+        if self.download_thread and self.download_thread.isRunning():
+            self.download_thread.stop()
+            self.stop_btn.setEnabled(False)
+            self.append_log("正在停止下载... (等待当前曲目完成)")
 
     def select_cookie_file(self):
         """选择Cookie文件"""
@@ -597,10 +275,11 @@ class FluentMainWindow(FluentWindow):
                 'video_format': self.video_format.currentText()
             }
             
-            # 禁用下载按钮，防止重复点击
+            # 禁用下载按钮，显示停止按钮
             self.download_btn.setEnabled(False)
             self.download_btn.setText(self.tr_text("btn_downloading"))
-            
+            self.stop_btn.setEnabled(True)
+
             # 创建并启动下载线程
             self.download_thread = DownloadThread(urls, cookie_file, output_dir, download_options, self.append_log_signal)
             self.download_thread.progress_signal.connect(self.update_progress)
@@ -621,6 +300,7 @@ class FluentMainWindow(FluentWindow):
             # 恢复下载按钮
             self.download_btn.setEnabled(True)
             self.download_btn.setText(self.tr_text("btn_start"))
+            self.stop_btn.setEnabled(False)
         
     def append_log(self, message):
         """添加日志信息"""
@@ -656,66 +336,33 @@ class FluentMainWindow(FluentWindow):
     def apply_runtime_translations(self):
         self.setWindowTitle(self.tr_text("window_title"))
 
-        if hasattr(self, "url_title"):
-            self.url_title.setText(self.tr_text("download_urls"))
-        if hasattr(self, "path_title"):
-            self.path_title.setText(self.tr_text("download_paths"))
-        if hasattr(self, "options_title"):
-            self.options_title.setText(self.tr_text("download_options"))
-        if hasattr(self, "url_input"):
-            self.url_input.setPlaceholderText(self.tr_text("placeholder_urls"))
-        if hasattr(self, "cookie_label_widget"):
-            self.cookie_label_widget.setText(self.tr_text("label_cookie"))
-        if hasattr(self, "output_label_widget"):
-            self.output_label_widget.setText(self.tr_text("label_output"))
-        if hasattr(self, "cookie_path"):
-            self.cookie_path.setPlaceholderText(self.tr_text("placeholder_cookie"))
-        if hasattr(self, "output_path"):
-            self.output_path.setPlaceholderText(self.tr_text("placeholder_output"))
-        if hasattr(self, "cookie_button"):
-            self.cookie_button.setText(self.tr_text("btn_browse"))
-        if hasattr(self, "output_button"):
-            self.output_button.setText(self.tr_text("btn_browse"))
-        if hasattr(self, "overwrite"):
-            self.overwrite.setText(self.tr_text("opt_overwrite"))
-        if hasattr(self, "disable_music_video_skip"):
-            self.disable_music_video_skip.setText(self.tr_text("opt_disable_mv_skip"))
-        if hasattr(self, "save_playlist"):
-            self.save_playlist.setText(self.tr_text("opt_save_playlist"))
-        if hasattr(self, "synced_lyrics_only"):
-            self.synced_lyrics_only.setText(self.tr_text("opt_synced_only"))
-        if hasattr(self, "no_synced_lyrics"):
-            self.no_synced_lyrics.setText(self.tr_text("opt_no_synced"))
-        if hasattr(self, "read_urls_as_txt"):
-            self.read_urls_as_txt.setText(self.tr_text("opt_read_urls_txt"))
-        if hasattr(self, "no_exceptions"):
-            self.no_exceptions.setText(self.tr_text("opt_no_exceptions"))
-        if hasattr(self, "audio_convert_label"):
-            self.audio_convert_label.setText(self.tr_text("label_audio_convert"))
-        if hasattr(self, "video_convert_label"):
-            self.video_convert_label.setText(self.tr_text("label_video_convert"))
         if hasattr(self, "download_btn"):
             self.download_btn.setText(
                 self.tr_text("btn_downloading") if not self.download_btn.isEnabled() else self.tr_text("btn_start")
             )
-        if hasattr(self, "clear_log_btn"):
-            self.clear_log_btn.setText(self.tr_text("btn_clear_log"))
-        # 更新设置界面中的语言选择器
+        if hasattr(self, "stop_btn"):
+            self.stop_btn.setText(self.tr_text("btn_stop"))
+        # language_combo is on the settings → codec tab; update its items
         if hasattr(self, "language_combo"):
-            current = self.language_combo.currentIndex()
+            cur = self.language_combo.currentIndex()
             self.language_combo.blockSignals(True)
-            self.language_combo.setItemText(0, self.tr_text("lang_zh"))
-            self.language_combo.setItemText(1, self.tr_text("lang_en"))
-            self.language_combo.setCurrentIndex(current)
+            self.language_combo.setItemText(0, "简体中文")
+            self.language_combo.setItemText(1, "English")
+            self.language_combo.setCurrentIndex(cur)
             self.language_combo.blockSignals(False)
         
     def download_finished(self, success):
         """下载完成回调"""
         try:
-            # 恢复下载按钮
+            # 确保进度条到 100%
+            self.progress_bar.setValue(100)
+
+            # 恢复下载按钮，隐藏停止按钮
             self.download_btn.setEnabled(True)
             self.download_btn.setText(self.tr_text("btn_start"))
-            
+            self.download_btn.repaint()
+            self.stop_btn.setEnabled(False)
+
             if success:
                 InfoBar.success(
                     title=self.tr_text("success"),
@@ -736,6 +383,9 @@ class FluentMainWindow(FluentWindow):
                     duration=-1,
                     parent=self
                 )
+
+            # 清除下载线程引用
+            self.download_thread = None
         except Exception as e:
             error_msg = f"处理下载完成时发生错误: {str(e)}\n{traceback.format_exc()}"
             self.append_log(error_msg)
@@ -763,6 +413,26 @@ class FluentMainWindow(FluentWindow):
             save_window_settings(self)
         except Exception as e:
             print(f"保存设置时出错: {e}")
+
+    def insert_selected_template_param(self):
+        token = self.template_param_combo.currentText()
+        for target in (
+            self.template_folder_album,
+            self.template_folder_compilation,
+            self.template_file_single_disc,
+            self.template_file_multi_disc,
+        ):
+            if target.hasFocus():
+                target.insert(token)
+                return
+        InfoBar.warning(
+            title=self.tr_text("warn"),
+            content=self.tr_text("msg_tpl_focus_needed"),
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            parent=self,
+        )
         
     def load_settings(self):
         """加载设置"""

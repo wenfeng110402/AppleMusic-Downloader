@@ -77,6 +77,7 @@ class AppleMusicApi:
 
         # 有时主页中 index js 的命名会变化，使用多个候选正则按优先级查找
         index_patterns = [
+            r"/(assets/index[~-][^/\"]+\.js)",
             r"/(assets/index(?:-legacy)?[^/\'\"]+\.js)",
             r"/(assets/[^/\'\"]+index[^/\'\"]+\.js)",
         ]
@@ -108,7 +109,7 @@ class AppleMusicApi:
                     raise e
                     
         # token 有时以 eyJh 开头（Base64 JWT），使用更宽松的匹配并进行空值检查
-        token_match = re.search(r"(eyJh[^\"\'\s]+)", index_js_page)
+        token_match = re.search(r'"(eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)"', index_js_page)
         if not token_match:
             # 若未匹配到 token，抛出包含 JS 片段的异常以便调试
             snippet = index_js_page[:1000] if index_js_page else ""

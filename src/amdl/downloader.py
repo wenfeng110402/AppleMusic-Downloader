@@ -94,104 +94,55 @@ class Downloader:
         import sys
         from pathlib import Path
 
-        def find_binary(binary_name, search_paths):
-            """在给定的路径列表中查找二进制文件"""
-            for path in search_paths:
-                binary_path = path / binary_name
-                if binary_path.exists():
-                    return str(binary_path)
-            return binary_name  # 如果找不到，返回原始名称
-
-        # 确定程序根目录
+        # Determine search paths
         if getattr(sys, 'frozen', False):
-            # 如果是打包后的exe
-            base_dir = Path(sys._MEIPASS)
+            base_dir = Path(getattr(sys, '_MEIPASS', Path(sys.executable).parent))
             app_dir = Path(sys.executable).parent
         else:
-            # 如果是开发环境
             base_dir = Path(__file__).parent.parent
             app_dir = base_dir
 
-        # 设置搜索路径
-        search_paths = [
-            base_dir,                     # 程序根目录
-            base_dir / 'tools',           # tools子目录
-            app_dir,                      # 应用程序目录
-            app_dir / 'tools',            # 应用程序tools目录
-            Path.cwd(),                   # 当前工作目录
-            Path.cwd() / 'tools',         # 当前工作目录的tools子目录
+        search_dirs = [
+            base_dir,
+            base_dir / 'tools',
+            app_dir,
+            app_dir / 'tools',
+            Path.cwd(),
+            Path.cwd() / 'tools',
         ]
 
-        # 统一的 tools 路径列表（确保为 Path 类型），并保存到实例以便后续使用
-        tools_paths = [p if isinstance(p, Path) else Path(p) for p in search_paths]
-        self.tools_paths = tools_paths
+        def find_binary(name):
+            """Find binary: first try PATH, then search directories (cross-platform)."""
+            # Try shutil.which first (searches PATH)
+            found = shutil.which(name)
+            if found:
+                return found
+            # Try with common platform suffixes
+            for suffix in ('', '.exe', '.bin'):
+                candidate = name + suffix
+                found = shutil.which(candidate)
+                if found:
+                    return found
+                for d in search_dirs:
+                    p = d / candidate
+                    if p.exists():
+                        return str(p)
+            return None
 
-        # 设置工具路径
-        self.ffmpeg_path_full = find_binary('ffmpeg.exe', search_paths)
-        self.mp4box_path_full = find_binary('mp4box.exe', search_paths)
-        self.mp4decrypt_path_full = find_binary('mp4decrypt.exe', search_paths)
-        self.nm3u8dlre_path_full = find_binary('N_m3u8DL-RE.exe', search_paths)
-        
-        # Handle nm3u8dlre path
-        self.nm3u8dlre_path_full = shutil.which(self.nm3u8dlre_path)
-        if not self.nm3u8dlre_path_full:
-            for tools_path in tools_paths:
-                nm3u8dlre_path = tools_path / "N_m3u8DL-RE.exe"
-                if nm3u8dlre_path.exists():
-                    self.nm3u8dlre_path_full = str(nm3u8dlre_path)
-                    break
-        
-        # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
-        if not self.nm3u8dlre_path_full and not self.nm3u8dlre_path.endswith('.exe'):
-            self.nm3u8dlre_path_full = shutil.which(self.nm3u8dlre_path + '.exe')
-        
-        # Handle ffmpeg path
-        self.ffmpeg_path_full = shutil.which(self.ffmpeg_path)
-        if not self.ffmpeg_path_full:
-            for tools_path in self.tools_paths:
-                ffmpeg_path = tools_path / "ffmpeg.exe"
-                if ffmpeg_path.exists():
-                    self.ffmpeg_path_full = str(ffmpeg_path)
-                    break
-        
-        # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
-        if not self.ffmpeg_path_full and not self.ffmpeg_path.endswith('.exe'):
-            self.ffmpeg_path_full = shutil.which(self.ffmpeg_path + '.exe')
-        
-        # Handle mp4box path
-        self.mp4box_path_full = shutil.which(self.mp4box_path)
-        if not self.mp4box_path_full:
-            for tools_path in self.tools_paths:  # 使用 self.tools_paths
-                mp4box_path = tools_path / "MP4Box.exe"
-                if mp4box_path.exists():
-                    self.mp4box_path_full = str(mp4box_path)
-                    break
-        
-        # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
-        if not self.mp4box_path_full and not self.mp4box_path.endswith('.exe'):
-            self.mp4box_path_full = shutil.which(self.mp4box_path + '.exe')
-        
-        # Handle mp4decrypt path
-        self.mp4decrypt_path_full = shutil.which(self.mp4decrypt_path)
-        if not self.mp4decrypt_path_full:
-            for tools_path in self.tools_paths:
-                mp4decrypt_path = tools_path / "mp4decrypt.exe"
-                if mp4decrypt_path.exists():
-                    self.mp4decrypt_path_full = str(mp4decrypt_path)
-                    break
-        
-        # 如果在系统PATH中没找到，尝试添加.exe扩展名再查找
-        if not self.mp4decrypt_path_full and not self.mp4decrypt_path.endswith('.exe'):
-            self.mp4decrypt_path_full = shutil.which(self.mp4decrypt_path + '.exe')
+        # Use user-provided paths first, fall back to auto-detection
+        for attr, name in [
+            ('ffmpeg_path_full', self.ffmpeg_path),
+            ('mp4box_path_full', self.mp4box_path),
+            ('mp4decrypt_path_full', self.mp4decrypt_path),
+            ('nm3u8dlre_path_full', self.nm3u8dlre_path),
+        ]:
+            # If user provided an explicit path that exists, use it
+            if os.path.exists(name):
+                setattr(self, attr, name)
+            else:
+                resolved = find_binary(name)
+                setattr(self, attr, resolved or name)
     
-    def _find_binary_in_tools(self, tools_paths, bin_path):
-        """在tools路径中查找指定的二进制文件"""
-        for tools_path in tools_paths:
-            bin_full_path = tools_path / bin_path
-            if bin_full_path.exists():
-                return str(bin_full_path)
-        return None
-
     def _set_exclude_tags_list(self):
         self.exclude_tags_list = (
             [i.lower() for i in self.exclude_tags.split(",")]

@@ -1,5 +1,6 @@
 import io
 import os
+import shutil
 import sys
 import time
 import traceback
@@ -27,28 +28,36 @@ class DownloadThread(QThread):
         self.download_options = download_options
         self.downloaded_files = []
         self.log_callback = log_callback
+        self._stop_requested = False
 
+        # Resolve ffmpeg path (cross-platform)
+        self.ffmpeg_exe = "ffmpeg"
         meipass_dir = getattr(sys, "_MEIPASS", None)
         if getattr(sys, "frozen", False):
-            if meipass_dir:
-                self.ffmpeg_exe = os.path.join(meipass_dir, "tools", "ffmpeg.exe")
-            else:
-                self.ffmpeg_exe = os.path.join(os.path.dirname(sys.executable), "tools", "ffmpeg.exe")
-        else:
-            self.ffmpeg_exe = "ffmpeg"
+            self.ffmpeg_exe = os.path.join(
+                meipass_dir or os.path.dirname(sys.executable),
+                "tools", "ffmpeg"
+            )
 
-        fallback_paths = None
-        if getattr(sys, "frozen", False):
-            fallback_paths = [
-                os.path.join(os.path.dirname(sys.executable), "tools", "ffmpeg.exe"),
-                os.path.join(os.path.dirname(sys.executable), "ffmpeg.exe"),
-                "ffmpeg",
-                "ffmpeg.exe",
-            ]
+        fallback_paths = [
+            shutil.which("ffmpeg"),
+            shutil.which("ffmpeg.exe"),
+        ]
+        # Search bundled tools/ directories
+        base_dirs = [
+            getattr(sys, "_MEIPASS", None) or "",
+            os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.getcwd(),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."),
+        ]
+        for bd in base_dirs:
+            for name in ("ffmpeg", "ffmpeg.exe"):
+                p = os.path.join(bd, "tools", name)
+                if os.path.exists(p):
+                    fallback_paths.append(p)
+
         self.ffmpeg_exe = resolve_ffmpeg_executable(self.ffmpeg_exe, fallback_paths)
-
         if not self.ffmpeg_exe:
-            self.log_callback.emit(f"    警告: FFmpeg不可用: {self.ffmpeg_exe}")
+            self.log_callback.emit("    警告: FFmpeg不可用")
 
     def run(self):
         try:
@@ -60,6 +69,10 @@ class DownloadThread(QThread):
             self.downloaded_files = []
 
             for i, url in enumerate(self.urls, 1):
+                if self._stop_requested:
+                    self.log_callback.emit("下载已被用户停止")
+                    break
+
                 self.log_callback.emit(f"正在处理 ({i}/{total}): {url}")
                 url_start_time = time.time()
 
@@ -103,6 +116,24 @@ class DownloadThread(QThread):
                     args.extend(["--truncate", str(self.download_options.get("truncate"))])
                 if self.download_options.get("synced_lyrics_format"):
                     args.extend(["--synced-lyrics-format", self.download_options.get("synced_lyrics_format")])
+                temp_path = self.download_options.get("temp_path")
+                if temp_path:
+                    args.extend(["--temp-path", temp_path])
+                wvd_path = self.download_options.get("wvd_path")
+                if wvd_path:
+                    args.extend(["--wvd-path", wvd_path])
+                template_folder_album = self.download_options.get("template_folder_album")
+                if template_folder_album:
+                    args.extend(["--template-folder-album", template_folder_album])
+                template_folder_compilation = self.download_options.get("template_folder_compilation")
+                if template_folder_compilation:
+                    args.extend(["--template-folder-compilation", template_folder_compilation])
+                template_file_single_disc = self.download_options.get("template_file_single_disc")
+                if template_file_single_disc:
+                    args.extend(["--template-file-single-disc", template_file_single_disc])
+                template_file_multi_disc = self.download_options.get("template_file_multi_disc")
+                if template_file_multi_disc:
+                    args.extend(["--template-file-multi-disc", template_file_multi_disc])
 
                 log_stream = io.StringIO()
 
@@ -149,7 +180,7 @@ class DownloadThread(QThread):
             audio_format = self.download_options.get("audio_format")
             video_format = self.download_options.get("video_format")
 
-            if (audio_format and audio_format != "保持原格式") or (video_format and video_format != "保持原格式"):
+            if (audio_format and audio_format != "keep original") or (video_format and video_format != "keep original"):
                 self.log_callback.emit("开始执行格式转换...")
                 self.convert_downloaded_files(audio_format, video_format)
 
@@ -204,3 +235,7 @@ class DownloadThread(QThread):
             self.ffmpeg_exe,
             self.log_callback.emit,
         )
+
+    def stop(self):
+        """Request the download thread to stop after current track."""
+        self._stop_requested = True

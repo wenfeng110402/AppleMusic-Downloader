@@ -141,17 +141,8 @@ class Downloader:
                 setattr(self, attr, name)
             else:
                 resolved = find_binary(name)
-                if resolved:
-                    setattr(self, attr, resolved)
+                setattr(self, attr, resolved or name)
     
-    def _find_binary_in_tools(self, tools_paths, bin_path):
-        """在tools路径中查找指定的二进制文件"""
-        for tools_path in tools_paths:
-            bin_full_path = tools_path / bin_path
-            if bin_full_path.exists():
-                return str(bin_full_path)
-        return None
-
     def _set_exclude_tags_list(self):
         self.exclude_tags_list = (
             [i.lower() for i in self.exclude_tags.split(",")]

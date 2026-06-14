@@ -71,7 +71,7 @@ Get Cookies Files:
 
 ### Optional dependencies
 
-- [mp4decrypt](https://www.bento4.com/downloads/): required for non-legacy song codecs and music videos
+- [mp4decrypt](https://www.bento4.com/downloads/): required for song codecs and music videos
 - [MP4Box](https://gpac.io/downloads/gpac-nightly-builds/): alternative remux mode
 - [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE/releases/latest): alternative download mode
 

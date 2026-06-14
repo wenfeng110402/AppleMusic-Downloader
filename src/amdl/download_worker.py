@@ -1,5 +1,6 @@
 import io
 import os
+import shutil
 import sys
 import time
 import traceback
@@ -27,28 +28,36 @@ class DownloadThread(QThread):
         self.download_options = download_options
         self.downloaded_files = []
         self.log_callback = log_callback
+        self._stop_requested = False
 
+        # Resolve ffmpeg path (cross-platform)
+        self.ffmpeg_exe = "ffmpeg"
         meipass_dir = getattr(sys, "_MEIPASS", None)
         if getattr(sys, "frozen", False):
-            if meipass_dir:
-                self.ffmpeg_exe = os.path.join(meipass_dir, "tools", "ffmpeg.exe")
-            else:
-                self.ffmpeg_exe = os.path.join(os.path.dirname(sys.executable), "tools", "ffmpeg.exe")
-        else:
-            self.ffmpeg_exe = "ffmpeg"
+            self.ffmpeg_exe = os.path.join(
+                meipass_dir or os.path.dirname(sys.executable),
+                "tools", "ffmpeg"
+            )
 
-        fallback_paths = None
-        if getattr(sys, "frozen", False):
-            fallback_paths = [
-                os.path.join(os.path.dirname(sys.executable), "tools", "ffmpeg.exe"),
-                os.path.join(os.path.dirname(sys.executable), "ffmpeg.exe"),
-                "ffmpeg",
-                "ffmpeg.exe",
-            ]
+        fallback_paths = [
+            shutil.which("ffmpeg"),
+            shutil.which("ffmpeg.exe"),
+        ]
+        # Search bundled tools/ directories
+        base_dirs = [
+            getattr(sys, "_MEIPASS", None) or "",
+            os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.getcwd(),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."),
+        ]
+        for bd in base_dirs:
+            for name in ("ffmpeg", "ffmpeg.exe"):
+                p = os.path.join(bd, "tools", name)
+                if os.path.exists(p):
+                    fallback_paths.append(p)
+
         self.ffmpeg_exe = resolve_ffmpeg_executable(self.ffmpeg_exe, fallback_paths)
-
         if not self.ffmpeg_exe:
-            self.log_callback.emit(f"    警告: FFmpeg不可用: {self.ffmpeg_exe}")
+            self.log_callback.emit("    警告: FFmpeg不可用")
 
     def run(self):
         try:
@@ -60,6 +69,10 @@ class DownloadThread(QThread):
             self.downloaded_files = []
 
             for i, url in enumerate(self.urls, 1):
+                if self._stop_requested:
+                    self.log_callback.emit("下载已被用户停止")
+                    break
+
                 self.log_callback.emit(f"正在处理 ({i}/{total}): {url}")
                 url_start_time = time.time()
 
@@ -222,3 +235,7 @@ class DownloadThread(QThread):
             self.ffmpeg_exe,
             self.log_callback.emit,
         )
+
+    def stop(self):
+        """Request the download thread to stop after current track."""
+        self._stop_requested = True

@@ -17,7 +17,7 @@ from .downloader import Downloader
 from .downloader_music_video import DownloaderMusicVideo
 from .downloader_post import DownloaderPost
 from .downloader_song import DownloaderSong
-from .enums import CoverFormat, DownloadMode, MusicVideoCodec, PostQuality, RemuxMode
+from .enums import CoverFormat, DownloadMode, MusicVideoCodec, PostQuality, RemuxMode, SongCodec, SyncedLyricsFormat
 from .itunes_api import ItunesApi
 from .utils import color_text
 
@@ -425,24 +425,24 @@ def main(
             return
         logger.debug("Setting up CDM")
         downloader.set_cdm()
-        if not downloader.ffmpeg_path_full and (
+        if not downloader.ffmpeg_path and (
             remux_mode == RemuxMode.FFMPEG or download_mode == DownloadMode.NM3U8DLRE
         ):
             logger.critical(X_NOT_FOUND_STRING.format("ffmpeg", ffmpeg_path))
             return
-        if not downloader.mp4box_path_full and remux_mode == RemuxMode.MP4BOX:
+        if not downloader.mp4box_path and remux_mode == RemuxMode.MP4BOX:
             logger.critical(X_NOT_FOUND_STRING.format("MP4Box", mp4box_path))
             return
-        if not downloader.mp4decrypt_path_full:
+        if not downloader.mp4decrypt_path:
             logger.critical(X_NOT_FOUND_STRING.format("mp4decrypt", mp4decrypt_path))
             return
         if (
             download_mode == DownloadMode.NM3U8DLRE
-            and not downloader.nm3u8dlre_path_full
+            and not downloader.nm3u8dlre_path
         ):
             logger.critical(X_NOT_FOUND_STRING.format("N_m3u8DL-RE", nm3u8dlre_path))
             return
-        if not downloader.mp4decrypt_path_full:
+        if not downloader.mp4decrypt_path:
             logger.warning(
                 X_NOT_FOUND_STRING.format("mp4decrypt", mp4decrypt_path)
                 + ", music videos will not be downloaded"

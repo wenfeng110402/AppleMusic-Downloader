@@ -26,7 +26,7 @@ class DownloaderSong:
     def __init__(
         self,
         downloader: Downloader,
-        codec: SongCodec = SongCodec.AAC_LEGACY,
+        codec: SongCodec = SongCodec.AAC,
         synced_lyrics_format: SyncedLyricsFormat = SyncedLyricsFormat.LRC,
     ):
         self.downloader = downloader

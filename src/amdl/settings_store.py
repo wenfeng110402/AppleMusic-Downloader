@@ -42,7 +42,7 @@ def load_window_settings(window):
     window.no_synced_lyrics.setChecked(settings.value("no_synced_lyrics", False, type=bool))
     window.read_urls_as_txt.setChecked(settings.value("read_urls_as_txt", False, type=bool))
     window.no_exceptions.setChecked(settings.value("no_exceptions", False, type=bool))
-    window.codec_song.setCurrentText(settings.value("codec_song", "aac-legacy"))
+    window.codec_song.setCurrentText(settings.value("codec_song", "aac"))
     window.codec_music_video.setCurrentText(settings.value("codec_music_video", "h264"))
     window.quality_post.setCurrentText(settings.value("quality_post", "best"))
     window.download_mode.setCurrentText(settings.value("download_mode", "ytdlp"))

@@ -291,14 +291,14 @@ def download_urls(
                         )
                         enc_path = downloader_song.get_encrypted_path(track_metadata["id"])
                         dec_path = downloader_song.get_decrypted_path(track_metadata["id"])
-                        remux_path = downloader_song.get_remuxed_path(track_metadata["id"])
+                        remuxed_path = downloader_song.get_remuxed_path(track_metadata["id"])
 
                         logger.debug(f'Downloading to "{enc_path}"')
                         downloader.download(enc_path, stream_info.stream_url)
                         logger.debug(f'Decrypting to "{dec_path}"')
                         downloader_song.decrypt(enc_path, dec_path, decryption_key)
                         logger.debug(f'Remuxing to "{final_path}"')
-                        downloader_song.remux(dec_path, remux_path, stream_info.codec)
+                        downloader_song.remux(dec_path, remuxed_path, stream_info.codec)
 
                     # synced lyrics
                     if no_synced_lyrics or not lyrics.synced:

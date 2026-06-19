@@ -19,8 +19,6 @@ from .downloader_post import DownloaderPost
 from .downloader_song import DownloaderSong
 from .enums import CoverFormat, DownloadMode, MusicVideoCodec, PostQuality, RemuxMode, SongCodec, SyncedLyricsFormat
 from .itunes_api import ItunesApi
-from .utils import color_text
-
 apple_music_api_sig = inspect.signature(AppleMusicApi.__init__)
 downloader_sig = inspect.signature(Downloader.__init__)
 downloader_song_sig = inspect.signature(DownloaderSong.__init__)
@@ -33,8 +31,10 @@ def get_param_string(param: click.Parameter) -> str:
         return param.default.value
     elif isinstance(param.default, Path):
         return str(param.default)
+    elif param.default is None:
+        return ""
     else:
-        return param.default
+        return str(param.default)
 
 
 def write_default_config_file(ctx: click.Context):
@@ -365,6 +365,8 @@ def main(
     stream_handler.setFormatter(CustomFormatter())
     logger.addHandler(stream_handler)
     logger.info("Starting Amdl")
+
+    # cookies prompt (terminal-specific, keep here)
     while not cookies_path.exists():
         cookies_path_str = click.prompt(
             X_NOT_FOUND_STRING.format("Cookies file", cookies_path.absolute())
@@ -373,392 +375,47 @@ def main(
             show_default=False,
         )
         cookies_path = Path(cookies_path_str.strip('"'))
-    apple_music_api = AppleMusicApi(
-        cookies_path,
+
+    # delegate all real work to the core module
+    from .core_downloader import download_urls as _core_download
+
+    _core_download(
+        urls=urls,
+        cookies_path=cookies_path,
+        output_path=output_path,
+        temp_path=temp_path,
+        wvd_path=wvd_path,
+        nm3u8dlre_path=nm3u8dlre_path,
+        mp4decrypt_path=mp4decrypt_path,
+        ffmpeg_path=ffmpeg_path,
+        mp4box_path=mp4box_path,
+        download_mode=download_mode,
+        remux_mode=remux_mode,
+        codec_song=codec_song,
+        codec_music_video=codec_music_video,
+        quality_post=quality_post,
+        synced_lyrics_format=synced_lyrics_format,
+        cover_format=cover_format,
+        cover_size=cover_size,
+        truncate=truncate,
+        template_folder_album=template_folder_album,
+        template_folder_compilation=template_folder_compilation,
+        template_file_single_disc=template_file_single_disc,
+        template_file_multi_disc=template_file_multi_disc,
+        template_folder_no_album=template_folder_no_album,
+        template_file_no_album=template_file_no_album,
+        template_file_playlist=template_file_playlist,
+        template_date=template_date,
+        exclude_tags=exclude_tags,
+        overwrite=overwrite,
+        save_cover=save_cover,
+        save_playlist=save_playlist,
+        synced_lyrics_only=synced_lyrics_only,
+        no_synced_lyrics=no_synced_lyrics,
+        disable_music_video_skip=disable_music_video_skip,
+        read_urls_as_txt=read_urls_as_txt,
+        no_exceptions=no_exceptions,
         language=language,
+        log_callback=lambda msg: logger.info(msg),
+        log_level=log_level,
     )
-    itunes_api = ItunesApi(
-        apple_music_api.storefront,
-        apple_music_api.language,
-    )
-    downloader = Downloader(
-        apple_music_api,
-        itunes_api,
-        output_path,
-        temp_path,
-        wvd_path,
-        nm3u8dlre_path,
-        mp4decrypt_path,
-        ffmpeg_path,
-        mp4box_path,
-        download_mode,
-        remux_mode,
-        cover_format,
-        template_folder_album,
-        template_folder_compilation,
-        template_file_single_disc,
-        template_file_multi_disc,
-        template_folder_no_album,
-        template_file_no_album,
-        template_file_playlist,
-        template_date,
-        exclude_tags,
-        cover_size,
-        truncate,
-    )
-    downloader_song = DownloaderSong(
-        downloader,
-        codec_song,
-        synced_lyrics_format,
-    )
-    downloader_music_video = DownloaderMusicVideo(
-        downloader,
-        codec_music_video,
-    )
-    downloader_post = DownloaderPost(
-        downloader,
-        quality_post,
-    )
-    if not synced_lyrics_only:
-        if wvd_path and not wvd_path.exists():
-            logger.critical(X_NOT_FOUND_STRING.format(".wvd file", wvd_path))
-            return
-        logger.debug("Setting up CDM")
-        downloader.set_cdm()
-        if not downloader.ffmpeg_path and (
-            remux_mode == RemuxMode.FFMPEG or download_mode == DownloadMode.NM3U8DLRE
-        ):
-            logger.critical(X_NOT_FOUND_STRING.format("ffmpeg", ffmpeg_path))
-            return
-        if not downloader.mp4box_path and remux_mode == RemuxMode.MP4BOX:
-            logger.critical(X_NOT_FOUND_STRING.format("MP4Box", mp4box_path))
-            return
-        if not downloader.mp4decrypt_path:
-            logger.critical(X_NOT_FOUND_STRING.format("mp4decrypt", mp4decrypt_path))
-            return
-        if (
-            download_mode == DownloadMode.NM3U8DLRE
-            and not downloader.nm3u8dlre_path
-        ):
-            logger.critical(X_NOT_FOUND_STRING.format("N_m3u8DL-RE", nm3u8dlre_path))
-            return
-        if not downloader.mp4decrypt_path:
-            logger.warning(
-                X_NOT_FOUND_STRING.format("mp4decrypt", mp4decrypt_path)
-                + ", music videos will not be downloaded"
-            )
-            skip_mv = True
-        else:
-            skip_mv = False
-    error_count = 0
-    if read_urls_as_txt:
-        _urls = []
-        for url in urls:
-            if Path(url).exists():
-                _urls.extend(Path(url).read_text(encoding="utf-8").splitlines())
-        urls = _urls
-    for url_index, url in enumerate(urls, start=1):
-        url_progress = color_text(f"URL {url_index}/{len(urls)}", colorama.Style.DIM)
-        try:
-            logger.info(f'({url_progress}) Checking "{url}"')
-            url_info = downloader.get_url_info(url)
-            download_queue = downloader.get_download_queue(url_info)
-            download_queue_tracks_metadata = download_queue.tracks_metadata
-        except Exception as e:
-            error_count += 1
-            logger.error(
-                f'({url_progress}) Failed to check "{url}"',
-                exc_info=not no_exceptions,
-            )
-            continue
-        for download_index, track_metadata in enumerate(
-            download_queue_tracks_metadata, start=1
-        ):
-            queue_progress = color_text(
-                f"Track {download_index}/{len(download_queue_tracks_metadata)} from URL {url_index}/{len(urls)}",
-                colorama.Style.DIM,
-            )
-            try:
-                remuxed_path = None
-                if download_queue.playlist_attributes:
-                    playlist_track = download_index
-                else:
-                    playlist_track = None
-                logger.info(
-                    f'({queue_progress}) Downloading "{track_metadata["attributes"]["name"]}"'
-                )
-                if not track_metadata["attributes"].get("playParams"):
-                    logger.warning(
-                        f"({queue_progress}) Track is not streamable, skipping"
-                    )
-                    continue
-                if (
-                    (synced_lyrics_only and track_metadata["type"] != "songs")
-                    or (track_metadata["type"] == "music-videos" and skip_mv)
-                    or (
-                        track_metadata["type"] == "music-videos"
-                        and url_info.type == "album"
-                        and not disable_music_video_skip
-                    )
-                ):
-                    logger.warning(
-                        f"({queue_progress}) Track is not downloadable with current configuration, skipping"
-                    )
-                    continue
-                elif track_metadata["type"] == "songs":
-                    logger.debug("Getting lyrics")
-                    lyrics = downloader_song.get_lyrics(track_metadata)
-                    logger.debug("Getting webplayback")
-                    webplayback = apple_music_api.get_webplayback(track_metadata["id"])
-                    tags = downloader_song.get_tags(webplayback, lyrics.unsynced)
-                    if playlist_track:
-                        tags = {
-                            **tags,
-                            **downloader.get_playlist_tags(
-                                download_queue.playlist_attributes,
-                                playlist_track,
-                            ),
-                        }
-                    final_path = downloader.get_final_path(tags, ".m4a")
-                    lyrics_synced_path = downloader_song.get_lyrics_synced_path(
-                        final_path
-                    )
-                    cover_url = downloader.get_cover_url(track_metadata)
-                    cover_file_extesion = downloader.get_cover_file_extension(cover_url)
-                    if cover_file_extesion:
-                        cover_path = downloader_song.get_cover_path(
-                            final_path,
-                            cover_file_extesion,
-                        )
-                    else:
-                        cover_path = None
-                    if synced_lyrics_only:
-                        pass
-                    elif final_path.exists() and not overwrite:
-                        logger.warning(
-                            f'({queue_progress}) Song already exists at "{final_path}", skipping'
-                        )
-                    else:
-                        logger.debug("Getting stream info")
-                        stream_info = downloader_song.get_stream_info(
-                            track_metadata, webplayback
-                        )
-                        if (
-                            not stream_info.stream_url
-                            or not stream_info.widevine_pssh
-                        ):
-                            logger.warning(
-                                f"({queue_progress}) Song is not downloadable or is not"
-                                " available in the chosen codec, skipping"
-                            )
-                            continue
-                        logger.debug("Getting decryption key")
-                        decryption_key = downloader.get_decryption_key(
-                            stream_info.widevine_pssh, track_metadata["id"]
-                        )
-                        encrypted_path = downloader_song.get_encrypted_path(
-                            track_metadata["id"]
-                        )
-                        decrypted_path = downloader_song.get_decrypted_path(
-                            track_metadata["id"]
-                        )
-                        remuxed_path = downloader_song.get_remuxed_path(
-                            track_metadata["id"]
-                        )
-                        logger.debug(f'Downloading to "{encrypted_path}"')
-                        downloader.download(encrypted_path, stream_info.stream_url)
-                        logger.debug(f'Decrypting to "{decrypted_path}"')
-                        downloader_song.decrypt(
-                            encrypted_path, decrypted_path, decryption_key
-                        )
-                        logger.debug(f'Remuxing to "{final_path}"')
-                        downloader_song.remux(
-                            decrypted_path,
-                            remuxed_path,
-                            stream_info.codec,
-                        )
-                    if no_synced_lyrics or not lyrics.synced:
-                        pass
-                    elif lyrics_synced_path.exists() and not overwrite:
-                        logger.debug(
-                            f'Synced lyrics already exists at "{lyrics_synced_path}", skipping'
-                        )
-                    else:
-                        logger.debug(f'Saving synced lyrics to "{lyrics_synced_path}"')
-                        downloader_song.save_lyrics_synced(
-                            lyrics_synced_path, lyrics.synced
-                        )
-                elif track_metadata["type"] == "music-videos":
-                    music_video_id_alt = downloader_music_video.get_music_video_id_alt(
-                        track_metadata
-                    )
-                    logger.debug("Getting iTunes page")
-                    itunes_page = itunes_api.get_itunes_page(
-                        "music-video", music_video_id_alt
-                    )
-                    if music_video_id_alt == track_metadata["id"]:
-                        stream_url = (
-                            downloader_music_video.get_stream_url_from_itunes_page(
-                                itunes_page
-                            )
-                        )
-                    else:
-                        logger.debug("Getting webplayback")
-                        webplayback = apple_music_api.get_webplayback(
-                            track_metadata["id"]
-                        )
-                        stream_url = (
-                            downloader_music_video.get_stream_url_from_webplayback(
-                                webplayback
-                            )
-                        )
-                    logger.debug("Getting M3U8 data")
-                    m3u8_data = downloader_music_video.get_m3u8_master_data(stream_url)
-                    tags = downloader_music_video.get_tags(
-                        music_video_id_alt,
-                        itunes_page,
-                        track_metadata,
-                    )
-                    if playlist_track:
-                        tags = {
-                            **tags,
-                            **downloader.get_playlist_tags(
-                                download_queue.playlist_attributes,
-                                playlist_track,
-                            ),
-                        }
-                    final_path = downloader.get_final_path(tags, ".m4v")
-                    cover_url = downloader.get_cover_url(track_metadata)
-                    cover_file_extesion = downloader.get_cover_file_extension(cover_url)
-                    if cover_file_extesion:
-                        cover_path = downloader_music_video.get_cover_path(
-                            final_path,
-                            cover_file_extesion,
-                        )
-                    else:
-                        cover_path = None
-                    if final_path.exists() and not overwrite:
-                        logger.warning(
-                            f'({queue_progress}) Music video already exists at "{final_path}", skipping'
-                        )
-                    else:
-                        logger.debug("Getting stream info")
-                        stream_info_video, stream_info_audio = (
-                            downloader_music_video.get_stream_info_video(m3u8_data),
-                            downloader_music_video.get_stream_info_audio(m3u8_data),
-                        )
-                        decryption_key_video = downloader.get_decryption_key(
-                            stream_info_video.widevine_pssh, track_metadata["id"]
-                        )
-                        decryption_key_audio = downloader.get_decryption_key(
-                            stream_info_audio.widevine_pssh, track_metadata["id"]
-                        )
-                        encrypted_path_video = (
-                            downloader_music_video.get_encrypted_path_video(
-                                track_metadata["id"]
-                            )
-                        )
-                        encrypted_path_audio = (
-                            downloader_music_video.get_encrypted_path_audio(
-                                track_metadata["id"]
-                            )
-                        )
-                        decrypted_path_video = (
-                            downloader_music_video.get_decrypted_path_video(
-                                track_metadata["id"]
-                            )
-                        )
-                        decrypted_path_audio = (
-                            downloader_music_video.get_decrypted_path_audio(
-                                track_metadata["id"]
-                            )
-                        )
-                        remuxed_path = downloader_music_video.get_remuxed_path(
-                            track_metadata["id"]
-                        )
-                        logger.debug(f'Downloading video to "{encrypted_path_video}"')
-                        downloader.download(
-                            encrypted_path_video, stream_info_video.stream_url
-                        )
-                        logger.debug(f'Downloading audio to "{encrypted_path_audio}"')
-                        downloader.download(
-                            encrypted_path_audio, stream_info_audio.stream_url
-                        )
-                        logger.debug(f'Decrypting video to "{decrypted_path_video}"')
-                        downloader_music_video.decrypt(
-                            encrypted_path_video,
-                            decryption_key_video,
-                            decrypted_path_video,
-                        )
-                        logger.debug(f'Decrypting audio to "{decrypted_path_audio}"')
-                        downloader_music_video.decrypt(
-                            encrypted_path_audio,
-                            decryption_key_audio,
-                            decrypted_path_audio,
-                        )
-                        logger.debug(f'Remuxing to "{remuxed_path}"')
-                        downloader_music_video.remux(
-                            decrypted_path_video,
-                            decrypted_path_audio,
-                            remuxed_path,
-                            stream_info_video.codec,
-                            stream_info_audio.codec,
-                        )
-                elif track_metadata["type"] == "uploaded-videos":
-                    stream_url = downloader_post.get_stream_url(track_metadata)
-                    tags = downloader_post.get_tags(track_metadata)
-                    final_path = downloader.get_final_path(tags, ".m4v")
-                    cover_url = downloader.get_cover_url(track_metadata)
-                    cover_file_extesion = downloader.get_cover_file_extension(cover_url)
-                    if cover_file_extesion:
-                        cover_path = downloader_music_video.get_cover_path(
-                            final_path,
-                            cover_file_extesion,
-                        )
-                    else:
-                        cover_path = None
-                    if final_path.exists() and not overwrite:
-                        logger.warning(
-                            f'({queue_progress}) Post video already exists at "{final_path}", skipping'
-                        )
-                    else:
-                        remuxed_path = downloader_post.get_post_temp_path(
-                            track_metadata["id"]
-                        )
-                        logger.debug(f'Downloading to "{remuxed_path}"')
-                        downloader.download_ytdlp(remuxed_path, stream_url)
-                if synced_lyrics_only or not save_cover or cover_path is None:
-                    pass
-                elif cover_path.exists() and not overwrite:
-                    logger.debug(f'Cover already exists at "{cover_path}", skipping')
-                else:
-                    logger.debug(f'Saving cover to "{cover_path}"')
-                    downloader.save_cover(cover_path, cover_url)
-                if remuxed_path:
-                    logger.debug("Applying tags")
-                    downloader.apply_tags(remuxed_path, tags, cover_url)
-                    logger.debug(f'Moving to "{final_path}"')
-                    downloader.move_to_output_path(remuxed_path, final_path)
-                if (
-                    not synced_lyrics_only
-                    and save_playlist
-                    and download_queue.playlist_attributes
-                ):
-                    playlist_file_path = downloader.get_playlist_file_path(tags)
-                    logger.debug(f'Updating M3U8 playlist from "{playlist_file_path}"')
-                    downloader.update_playlist_file(
-                        playlist_file_path,
-                        final_path,
-                        playlist_track,
-                    )
-            except Exception as e:
-                error_count += 1
-                logger.error(
-                    f'({queue_progress}) Failed to download "{track_metadata["attributes"]["name"]}"',
-                    exc_info=not no_exceptions,
-                )
-            finally:
-                if temp_path.exists():
-                    logger.debug(f'Cleaning up "{temp_path}"')
-                    downloader.cleanup_temp_path()
-    logger.info(f"Done ({error_count} error(s))")

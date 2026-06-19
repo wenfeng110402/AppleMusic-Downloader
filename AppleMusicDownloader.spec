@@ -5,6 +5,11 @@ import os
 # 获取当前工作目录（项目根目录）
 project_root = os.getcwd()
 
+# Windows manifest — embed requireAdministrator
+manifest_path = os.path.join(project_root, 'AppleMusicDownloader.exe.manifest')
+if not os.path.exists(manifest_path):
+    manifest_path = None
+
 a = Analysis(
     ['src/amdl/launcher.py'],
     pathex=['src'],
@@ -23,19 +28,22 @@ a = Analysis(
         'amdl.settings_store',
         'amdl.i18n',
         'amdl.cli',
+        'amdl.core_downloader',
         'amdl.downloader',
         'amdl.apple_music_api',
         'amdl.itunes_api',
         'amdl.enums',
         'amdl.constants',
         'amdl.utils',
-        'qfluentwidgets', 
-        'yt_dlp', 
-        'mutagen', 
-        'm3u8', 
-        'PIL', 
-        'pywidevine', 
-        'InquirerPy', 
+        'amdl.hardcoded_wvd',
+        'amdl.gui_conversion',
+        'qfluentwidgets',
+        'yt_dlp',
+        'mutagen',
+        'm3u8',
+        'PIL',
+        'pywidevine',
+        'InquirerPy',
         'colorama',
         'click',
         'requests',
@@ -62,6 +70,7 @@ a = Analysis(
         'PySide2',
         'PySide6',
     ],
+    manifest=manifest_path,
     noarchive=False,
     optimize=0,
 )

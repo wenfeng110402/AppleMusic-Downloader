@@ -129,7 +129,7 @@ class DownloaderSong:
         )
 
     def get_stream_info(self, track_metadata: dict, webplayback: dict = None) -> StreamInfo:
-        m3u8_url = track_metadata["attributes"]["extendedAssetUrls"].get("enhancedHls")
+        m3u8_url = track_metadata["attributes"].get("extendedAssetUrls", {}).get("enhancedHls")
         if m3u8_url:
             result = self._get_stream_info(m3u8_url)
             if result.stream_url:

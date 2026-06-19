@@ -1,21 +1,70 @@
-import io
+"""Download worker — calls core_downloader directly, no Click dependency."""
+
 import os
+import platform
 import shutil
 import sys
 import time
 import traceback
 from pathlib import Path
 
-import amdl.cli
-import platform
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from amdl.core_downloader import download_urls as core_download_urls
+from amdl.enums import (
+    CoverFormat,
+    DownloadMode,
+    MusicVideoCodec,
+    PostQuality,
+    RemuxMode,
+    SongCodec,
+    SyncedLyricsFormat,
+)
 from amdl.gui_conversion import (
     convert_downloaded_files as shared_convert_downloaded_files,
     resolve_ffmpeg_executable,
 )
 
+# ── GUI-string → Enum mapping ───────────────────────────────
+_SONG_CODEC_MAP = {
+    "aac-legacy": SongCodec.AAC_LEGACY,
+    "atmos": SongCodec.ATMOS,
+}
+_MV_CODEC_MAP = {
+    "h264": MusicVideoCodec.H264,
+    "h265": MusicVideoCodec.H265,
+}
+_QUALITY_MAP = {
+    "best": PostQuality.BEST,
+    "ask": PostQuality.ASK,
+}
+_DL_MODE_MAP = {
+    "ytdlp": DownloadMode.YTDLP,
+    "nm3u8dlre": DownloadMode.NM3U8DLRE,
+}
+_REMUX_MAP = {
+    "ffmpeg": RemuxMode.FFMPEG,
+    "mp4box": RemuxMode.MP4BOX,
+}
+_COVER_MAP = {
+    "jpg": CoverFormat.JPG,
+    "png": CoverFormat.PNG,
+}
+_SYNCED_LYRICS_MAP = {
+    "lrc": SyncedLyricsFormat.LRC,
+    "srt": SyncedLyricsFormat.SRT,
+    "ttml": SyncedLyricsFormat.TTML,
+}
 
+
+def _safe_enum(val: str | None, mapping: dict, default):
+    """Convert a GUI string to an Enum, falling back to *default*."""
+    if not val:
+        return default
+    return mapping.get(val, default)
+
+
+# ── thread ──────────────────────────────────────────────────
 class DownloadThread(QThread):
     progress_signal = pyqtSignal(int)
     finished_signal = pyqtSignal(bool)
@@ -36,17 +85,19 @@ class DownloadThread(QThread):
         if getattr(sys, "frozen", False):
             self.ffmpeg_exe = os.path.join(
                 meipass_dir or os.path.dirname(sys.executable),
-                "tools", "ffmpeg"
+                "tools",
+                "ffmpeg",
             )
 
         fallback_paths = [
             shutil.which("ffmpeg"),
             shutil.which("ffmpeg.exe"),
         ]
-        # Search bundled tools/ directories
         base_dirs = [
             getattr(sys, "_MEIPASS", None) or "",
-            os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.getcwd(),
+            os.path.dirname(sys.executable)
+            if getattr(sys, "frozen", False)
+            else os.getcwd(),
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."),
         ]
         for bd in base_dirs:
@@ -61,130 +112,94 @@ class DownloadThread(QThread):
 
     def run(self):
         try:
-            success = True
-            success_count = 0
             total = len(self.urls)
-
             self.log_callback.emit(f"开始下载 {total} 个项目...")
             self.downloaded_files = []
 
-            for i, url in enumerate(self.urls, 1):
-                if self._stop_requested:
-                    self.log_callback.emit("下载已被用户停止")
-                    break
+            if self._stop_requested:
+                self.log_callback.emit("下载已被用户停止")
+                self.finished_signal.emit(False)
+                return
 
-                self.log_callback.emit(f"正在处理 ({i}/{total}): {url}")
-                url_start_time = time.time()
+            # ── build kwargs for core_downloader ──────────────
+            opts = self.download_options
+            cookies_path = Path(self.cookie_file)
+            output_path = Path(self.output_dir) if self.output_dir else Path.cwd()
 
-                args = [
-                    "--cookies-path",
-                    self.cookie_file,
-                    url,
-                ]
+            # Map GUI strings to proper enums
+            codec_song = _safe_enum(opts.get("codec_song"), _SONG_CODEC_MAP, SongCodec.AAC_LEGACY)
+            codec_mv = _safe_enum(opts.get("codec_music_video"), _MV_CODEC_MAP, MusicVideoCodec.H264)
+            quality = _safe_enum(opts.get("quality_post"), _QUALITY_MAP, PostQuality.BEST)
+            dl_mode = _safe_enum(opts.get("download_mode"), _DL_MODE_MAP, DownloadMode.YTDLP)
+            remux = _safe_enum(opts.get("remux_mode"), _REMUX_MAP, RemuxMode.FFMPEG)
+            cover_fmt = _safe_enum(opts.get("cover_format"), _COVER_MAP, CoverFormat.JPG)
+            synced_fmt = _safe_enum(
+                opts.get("synced_lyrics_format"), _SYNCED_LYRICS_MAP, SyncedLyricsFormat.LRC
+            )
 
-                if self.output_dir:
-                    args.extend(["--output-path", self.output_dir])
-                if self.download_options.get("overwrite"):
-                    args.append("--overwrite")
-                if self.download_options.get("disable_music_video_skip"):
-                    args.append("--disable-music-video-skip")
-                if self.download_options.get("save_playlist"):
-                    args.append("--save-playlist")
-                if self.download_options.get("synced_lyrics_only"):
-                    args.append("--synced-lyrics-only")
-                if self.download_options.get("no_synced_lyrics"):
-                    args.append("--no-synced-lyrics")
-                if self.download_options.get("read_urls_as_txt"):
-                    args.append("--read-urls-as-txt")
-                if self.download_options.get("no_exceptions"):
-                    args.append("--no-exceptions")
-                if self.download_options.get("codec_song"):
-                    args.extend(["--codec-song", self.download_options.get("codec_song")])
-                if self.download_options.get("codec_music_video"):
-                    args.extend(["--codec-music-video", self.download_options.get("codec_music_video")])
-                if self.download_options.get("quality_post"):
-                    args.extend(["--quality-post", self.download_options.get("quality_post")])
-                if self.download_options.get("download_mode"):
-                    args.extend(["--download-mode", self.download_options.get("download_mode")])
-                if self.download_options.get("remux_mode"):
-                    args.extend(["--remux-mode", self.download_options.get("remux_mode")])
-                if self.download_options.get("cover_format"):
-                    args.extend(["--cover-format", self.download_options.get("cover_format")])
-                if self.download_options.get("cover_size"):
-                    args.extend(["--cover-size", str(self.download_options.get("cover_size"))])
-                if self.download_options.get("truncate"):
-                    args.extend(["--truncate", str(self.download_options.get("truncate"))])
-                if self.download_options.get("synced_lyrics_format"):
-                    args.extend(["--synced-lyrics-format", self.download_options.get("synced_lyrics_format")])
-                temp_path = self.download_options.get("temp_path")
-                if temp_path:
-                    args.extend(["--temp-path", temp_path])
-                wvd_path = self.download_options.get("wvd_path")
-                if wvd_path:
-                    args.extend(["--wvd-path", wvd_path])
-                template_folder_album = self.download_options.get("template_folder_album")
-                if template_folder_album:
-                    args.extend(["--template-folder-album", template_folder_album])
-                template_folder_compilation = self.download_options.get("template_folder_compilation")
-                if template_folder_compilation:
-                    args.extend(["--template-folder-compilation", template_folder_compilation])
-                template_file_single_disc = self.download_options.get("template_file_single_disc")
-                if template_file_single_disc:
-                    args.extend(["--template-file-single-disc", template_file_single_disc])
-                template_file_multi_disc = self.download_options.get("template_file_multi_disc")
-                if template_file_multi_disc:
-                    args.extend(["--template-file-multi-disc", template_file_multi_disc])
+            cover_size = opts.get("cover_size", 1200)
+            truncate = opts.get("truncate")
+            temp_path = opts.get("temp_path") or "./temp"
+            wvd_path = opts.get("wvd_path") or None
 
-                log_stream = io.StringIO()
+            kwargs = dict(
+                urls=self.urls,
+                cookies_path=cookies_path,
+                output_path=output_path,
+                temp_path=temp_path,
+                wvd_path=Path(wvd_path) if wvd_path else None,
+                codec_song=codec_song,
+                codec_music_video=codec_mv,
+                quality_post=quality,
+                synced_lyrics_format=synced_fmt,
+                download_mode=dl_mode,
+                remux_mode=remux,
+                cover_format=cover_fmt,
+                cover_size=cover_size,
+                truncate=truncate if truncate and truncate > 0 else None,
+                overwrite=opts.get("overwrite", False),
+                save_cover=opts.get("save_cover", False),
+                save_playlist=opts.get("save_playlist", False),
+                synced_lyrics_only=opts.get("synced_lyrics_only", False),
+                no_synced_lyrics=opts.get("no_synced_lyrics", False),
+                disable_music_video_skip=opts.get("disable_music_video_skip", False),
+                read_urls_as_txt=opts.get("read_urls_as_txt", False),
+                no_exceptions=opts.get("no_exceptions", True),
+                log_callback=self.log_callback.emit,
+                log_level="DEBUG",
+                progress_callback=self._on_progress,
+            )
 
-                try:
-                    old_stdout = sys.stdout
-                    old_stderr = sys.stderr
-                    sys.stdout = log_stream
-                    sys.stderr = log_stream
+            # template overrides (only if non-empty)
+            for gui_key, core_key in [
+                ("template_folder_album", "template_folder_album"),
+                ("template_folder_compilation", "template_folder_compilation"),
+                ("template_file_single_disc", "template_file_single_disc"),
+                ("template_file_multi_disc", "template_file_multi_disc"),
+            ]:
+                val = opts.get(gui_key)
+                if val:
+                    kwargs[core_key] = val
 
-                    self.log_callback.emit(f"    传递给CLI的参数: {' '.join(args)}")
-                    amdl.cli.main(args, standalone_mode=False)
-                    success_count += 1
-                    self.log_callback.emit("    下载完成!")
-                except SystemExit as e:
-                    if e.code == 0:
-                        success_count += 1
-                        self.log_callback.emit("    下载完成!")
-                    else:
-                        self.log_callback.emit(f"    下载失败! 错误代码: {e.code}")
-                        success = False
-                except Exception as e:
-                    self.log_callback.emit(f"    下载失败! 异常: {str(e)}")
-                    success = False
-                    self.log_callback.emit(f"    异常类型: {type(e).__name__}")
-                    self.log_callback.emit(f"    堆栈跟踪: {traceback.format_exc()}")
-                finally:
-                    sys.stdout = old_stdout
-                    sys.stderr = old_stderr
+            # ── run core downloader (no Click, no terminal I/O) ──
+            error_count = core_download_urls(**kwargs)
 
-                    log_output = log_stream.getvalue()
-                    if log_output:
-                        for line in log_output.splitlines():
-                            if line.strip():
-                                self.log_callback.emit(line)
-                    else:
-                        self.log_callback.emit("    没有捕获到日志输出")
+            # ── collect files for conversion ──────────────────
+            if self.output_dir:
+                self._collect_new_files(time.time())
 
-                    if self.output_dir:
-                        self._collect_new_files(url_start_time)
-
-                    progress = int((i / total) * 100)
-                    self.progress_signal.emit(progress)
-
-            audio_format = self.download_options.get("audio_format")
-            video_format = self.download_options.get("video_format")
-
-            if (audio_format and audio_format != "keep original") or (video_format and video_format != "keep original"):
+            # ── format conversion (post-processing) ───────────
+            audio_format = opts.get("audio_format")
+            video_format = opts.get("video_format")
+            if (audio_format and audio_format != "keep original") or (
+                video_format and video_format != "keep original"
+            ):
                 self.log_callback.emit("开始执行格式转换...")
                 self.convert_downloaded_files(audio_format, video_format)
 
-            self.finished_signal.emit(success and success_count > 0)
+            self.progress_signal.emit(100)
+            self.finished_signal.emit(error_count == 0)
+
         except MemoryError:
             self.log_callback.emit("内存不足错误: 下载过程中发生内存不足")
             self.log_callback.emit("请尝试以下解决方案:")
@@ -211,6 +226,12 @@ class DownloadThread(QThread):
             self.log_callback.emit(f"系统信息: {uname_info}")
             self.finished_signal.emit(False)
 
+    def _on_progress(self, current: int, total: int):
+        """Called by core_downloader for each completed track."""
+        if total > 0:
+            pct = int((current / total) * 100)
+            self.progress_signal.emit(pct)
+
     def _collect_new_files(self, since: float):
         """Collect all media files created/modified since the given timestamp."""
         try:
@@ -218,10 +239,10 @@ class DownloadThread(QThread):
                 for media_file in Path(self.output_dir).rglob(f"*{ext}"):
                     try:
                         if media_file.stat().st_mtime >= since:
-                            file_path = str(media_file)
-                            if file_path not in self.downloaded_files:
-                                self.downloaded_files.append(file_path)
-                                self.log_callback.emit(f"    检测到下载文件: {file_path}")
+                            fp = str(media_file)
+                            if fp not in self.downloaded_files:
+                                self.downloaded_files.append(fp)
+                                self.log_callback.emit(f"    检测到下载文件: {fp}")
                     except OSError:
                         pass
         except Exception as e:

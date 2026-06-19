@@ -7,6 +7,7 @@ Can be called from:
 
 from __future__ import annotations
 
+import base64
 import logging
 import re
 import sys
@@ -292,6 +293,7 @@ def download_urls(
                             )
                             continue
 
+                        # DRM-protected: download → decrypt → remux
                         decryption_key = downloader.get_decryption_key(
                             stream_info.widevine_pssh, track_metadata["id"]
                         )
@@ -302,7 +304,17 @@ def download_urls(
                         logger.debug(f'Downloading to "{enc_path}"')
                         downloader.download(enc_path, stream_info.stream_url)
                         logger.debug(f'Decrypting to "{dec_path}"')
-                        downloader_song.decrypt(enc_path, dec_path, decryption_key)
+
+                        # CENC streams (data: URI) use the raw KID as-is
+                        cenc_kid = None
+                        if stream_info.widevine_pssh.startswith("data:"):
+                            raw = base64.b64decode(stream_info.widevine_pssh.split(",")[-1])
+                            cenc_kid = raw.hex()
+
+                        downloader_song.decrypt(
+                            enc_path, dec_path, decryption_key,
+                            cenc_kid=cenc_kid,
+                        )
                         logger.debug(f'Remuxing to "{final_path}"')
                         downloader_song.remux(dec_path, remuxed_path, stream_info.codec)
 

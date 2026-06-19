@@ -31,8 +31,10 @@ def get_param_string(param: click.Parameter) -> str:
         return param.default.value
     elif isinstance(param.default, Path):
         return str(param.default)
+    elif param.default is None:
+        return ""
     else:
-        return param.default
+        return str(param.default)
 
 
 def write_default_config_file(ctx: click.Context):

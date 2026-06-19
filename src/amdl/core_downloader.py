@@ -133,6 +133,12 @@ def download_urls(
     """
     logger = _setup_logger("amdl.core", log_level, log_callback)
 
+    # ── normalize path types (callers may pass str, e.g. from GUI) ─
+    temp_path = Path(temp_path)
+    output_path = Path(output_path)
+    if wvd_path is not None:
+        wvd_path = Path(wvd_path)
+
     # ── expand txt files ─────────────────────────────────────
     if read_urls_as_txt:
         expanded: list[str] = []

@@ -1,6 +1,7 @@
 # Apple Music 下载器
 
 ## Quick Link：
+
 ## - [English README](README_en.md)
 
 Donate（non-porfit,no tax)
@@ -17,7 +18,7 @@ Donate（non-porfit,no tax)
 
 本项目使用了[gamdl（Glomatico的Apple Music下载器）](https://github.com/glomatico/gamdl)和[yt-dlp](https://github.com/yt-dlp/yt-dlp)的代码。我们衷心感谢gamdl和yt-dlp的所有贡献者，感谢他们在开源社区做出的杰出贡献。
 
-This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) and [yt-dlp](https://github.com/yt-dlp/yt-dlp). We sincerely thank all contributors to gamdl yt-dlp for their outstanding work in the open-source community.
+This project utilizes code from [gamdl (Glomatico&#39;s Apple Music Downloader)](https://github.com/glomatico/gamdl) and [yt-dlp](https://github.com/yt-dlp/yt-dlp). We sincerely thank all contributors to gamdl yt-dlp for their outstanding work in the open-source community.
 
 ## 功能特性
 
@@ -34,7 +35,13 @@ This project utilizes code from [gamdl (Glomatico's Apple Music Downloader)](htt
 2. 运行 `AppleMusicDownloader_Setup.exe` 并按照提示完成安装
 3. 安装完成后，您可以在开始菜单中找到 "Apple Music Downloader"
 
-### 方法二：从源码运行
+### 方法二：从PyPi运行
+
+```bash
+pip install applemusic-dl
+```
+
+### 方法三：从源码运行
 
 ```bash
 git clone https://github.com/wenfeng110402/AppleMusic-Downloader.git
@@ -58,11 +65,14 @@ python -m amdl
 ### 命令行快速使用
 
 ```bash
+# 查看帮助
 amdl --help
+
 amdl -c /path/to/cookies.txt "https://music.apple.com/..."
 ```
 
 ### Mac?
+
 Try this [am-downloader-mac](https://github.com/aki4nvr/am-downloader-mac)
 
 ## CI/CD 验证与自动打包
@@ -78,7 +88,6 @@ Try this [am-downloader-mac](https://github.com/aki4nvr/am-downloader-mac)
 1. 打开 GitHub 仓库的 **Actions**。
 2. 选择 **CI and Windows Build**。
 3. 点击 **Run workflow** 手动触发，或通过 push/PR 自动触发。
-
 
 ## 环境要求
 
@@ -113,20 +122,13 @@ Try this [am-downloader-mac](https://github.com/aki4nvr/am-downloader-mac)
 
 ## 免责声明 / Disclaimer
 
-本工具仅供学习与研究使用，严禁将其用于任何违反法律法规或侵犯他人权益的用途。  
-This tool is for educational and research purposes only. Any use that violates laws or infringes on the rights of others is strictly prohibited.
+本工具仅供学习与研究使用，严禁将其用于任何违反法律法规或侵犯他人权益的用途。This tool is for educational and research purposes only. Any use that violates laws or infringes on the rights of others is strictly prohibited.
 
-1. 本项目不直接提供或存储任何受版权保护的内容，用户需自行提供合法的凭证（如有效的 Apple Music 订阅和 Cookies 文件）以使用相关功能。  
-   This project does not directly provide or store any copyrighted content. Users must independently provide valid credentials (e.g., a valid Apple Music subscription and cookie files) to use its features.
-
-2. 本人不对用户如何使用本工具承担任何责任，因使用本工具产生的任何法律或版权争议，均由用户自行承担。  
-   I (or the development team) assume no responsibility for how users use this tool. Any legal or copyright disputes arising from its use are the sole responsibility of the user.
-
-3. 本项目基于 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 提供的代码实现，与原项目的作者无直接关联。如有任何异议，请联系本人以便协助处理。  
-   This project is implemented based on code from [yt-dlp](https://github.com/yt-dlp/yt-dlp) and is not directly affiliated with the original project's authors. If there are any objections, please contact me for assistance.
-
-4. 用户在使用本工具时，应自行确保符合当地相关法律法规。  
+1. 本项目不直接提供或存储任何受版权保护的内容，用户需自行提供合法的凭证（如有效的 Apple Music 订阅和 Cookies 文件）以使用相关功能。This project does not directly provide or store any copyrighted content. Users must independently provide valid credentials (e.g., a valid Apple Music subscription and cookie files) to use its features.
+2. 本人不对用户如何使用本工具承担任何责任，因使用本工具产生的任何法律或版权争议，均由用户自行承担。I (or the development team) assume no responsibility for how users use this tool. Any legal or copyright disputes arising from its use are the sole responsibility of the user.
+3. 本项目基于 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 提供的代码实现，与原项目的作者无直接关联。如有任何异议，请联系本人以便协助处理。This project is implemented based on code from [yt-dlp](https://github.com/yt-dlp/yt-dlp) and is not directly affiliated with the original project's authors. If there are any objections, please contact me for assistance.
+4. 用户在使用本工具时，应自行确保符合当地相关法律法规。
    Users must ensure compliance with local laws and regulations when using this tool.
 
-By using this tool, you agree to comply with all applicable laws and assume full responsibility for your actions.  
+By using this tool, you agree to comply with all applicable laws and assume full responsibility for your actions.
 通过使用本工具，您同意遵守所有适用法律，并对您的行为承担全部责任。

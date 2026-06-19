@@ -31,6 +31,12 @@ This project utilizes code from [gamdl (Glomatico&#39;s Apple Music Downloader)]
 - **Python 3.9+**
 - **pip** (Python package manager)
 
+### Run from PyPi
+
+```bash
+pip install applemusic-dl
+```
+
 ### Run from Source Code
 
 ```bash
@@ -49,8 +55,10 @@ python -m amdl
 ### Quick CLI usage
 
 ```bash
+# See the help
 amdl --help
-amdl --cookies-path /path/to/cookies.txt "https://music.apple.com/..."
+
+amdl -c /path/to/cookies.txt "https://music.apple.com/..."
 ```
 
 ## Environmental requirements

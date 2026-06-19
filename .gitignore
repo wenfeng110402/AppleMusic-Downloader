@@ -7,3 +7,4 @@ temp/
 debug_admin.py
 *.nsi
 test_launcher.py
+.vscode/

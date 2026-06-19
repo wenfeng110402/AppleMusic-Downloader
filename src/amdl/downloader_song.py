@@ -132,10 +132,13 @@ class DownloaderSong:
         m3u8_url = track_metadata["attributes"].get("extendedAssetUrls", {}).get("enhancedHls")
         if m3u8_url:
             result = self._get_stream_info(m3u8_url)
-            if result.stream_url:
+            if result.stream_url and result.widevine_pssh:
                 return result
 
         # Fallback: use webplayback-based stream (legacy codec path)
+        # This handles songs where Widevine PSSH is only available via
+        # webplayback assets (e.g. CENC `28:ctrp256` flavor), not from
+        # the enhancedHls master playlist.
         if webplayback:
             return self._get_stream_info_from_webplayback(webplayback)
         return StreamInfo()
@@ -146,17 +149,66 @@ class DownloaderSong:
             assets = webplayback.get("assets", [])
             if not assets:
                 return stream_info
-            stream_url = assets[0].get("URL")
-            if not stream_url:
-                return stream_info
-            stream_info.stream_url = stream_url
-            m3u8_obj = m3u8.load(stream_url)
-            m3u8_data = m3u8_obj.data
-            for key in m3u8_data.get("keys", []):
-                if key.get("keyformat") == "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed":
-                    stream_info.widevine_pssh = key.get("uri")
+
+            # Try each asset in order — look for one with a usable DRM key
+            for asset in assets:
+                stream_url = asset.get("URL")
+                if not stream_url:
+                    continue
+
+                m3u8_obj = m3u8.load(stream_url)
+                m3u8_data = m3u8_obj.data
+
+                # Check top-level keys for Widevine (classic keyformat or CENC)
+                for key in m3u8_data.get("keys", []):
+                    kf = key.get("keyformat")
+                    method = key.get("method")
+                    uri = key.get("uri")
+                    if not uri:
+                        continue
+                    # Classic Widevine keyformat
+                    if kf == "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed":
+                        stream_info.widevine_pssh = uri
+                        break
+                    # CENC scheme (ISO-23001-7) — Widevine without explicit keyformat
+                    if method and method.upper() == "ISO-23001-7".upper():
+                        stream_info.widevine_pssh = uri
+                        break
+
+                if stream_info.widevine_pssh:
+                    stream_info.stream_url = stream_url
+                    stream_info.codec = asset.get("codec") or "aac"
                     break
-            stream_info.codec = assets[0].get("codec") or "aac"
+
+            # If no Widevine found via top-level keys, try session_data path
+            if not stream_info.widevine_pssh:
+                for asset in assets:
+                    stream_url = asset.get("URL")
+                    if not stream_url:
+                        continue
+                    m3u8_obj = m3u8.load(stream_url)
+                    m3u8_data = m3u8_obj.data
+                    if m3u8_data.get("session_data"):
+                        drm_infos = self.get_drm_infos(m3u8_data)
+                        if drm_infos:
+                            asset_infos = self.get_asset_infos(m3u8_data)
+                            playlist = self.get_playlist_from_codec(m3u8_data)
+                            if playlist and asset_infos:
+                                variant_id = playlist["stream_info"]["stable_variant_id"]
+                                drm_ids = asset_infos[variant_id].get("AUDIO-SESSION-KEY-IDS", [])
+                                pssh = self.get_widevine_pssh(drm_infos, drm_ids)
+                                if pssh:
+                                    stream_info.widevine_pssh = pssh
+                                    stream_info.stream_url = m3u8_obj.base_uri + playlist["uri"]
+                                    stream_info.codec = playlist["stream_info"]["codecs"]
+                                    break
+
+            if not stream_info.stream_url:
+                # Last resort: use first asset's URL
+                stream_info.stream_url = assets[0].get("URL", "")
+                stream_info.codec = assets[0].get("codec") or "aac"
+            elif not stream_info.codec:
+                stream_info.codec = "aac"
         except Exception:
             pass
         return stream_info
@@ -166,24 +218,40 @@ class DownloaderSong:
         m3u8_obj = m3u8.load(m3u8_url)
         m3u8_data = m3u8_obj.data
         drm_infos = self.get_drm_infos(m3u8_data)
-        if not drm_infos:
-            return stream_info
         asset_infos = self.get_asset_infos(m3u8_data)
         playlist = self.get_playlist_from_codec(m3u8_data)
         if playlist is None:
             return stream_info
         stream_info.stream_url = m3u8_obj.base_uri + playlist["uri"]
-        variant_id = playlist["stream_info"]["stable_variant_id"]
-        drm_ids = asset_infos[variant_id]["AUDIO-SESSION-KEY-IDS"]
-        widevine_pssh, playready_pssh, fairplay_key = (
-            self.get_widevine_pssh(drm_infos, drm_ids),
-            self.get_playready_pssh(drm_infos, drm_ids),
-            self.get_fairplay_key(drm_infos, drm_ids),
-        )
-        stream_info.widevine_pssh = widevine_pssh
-        stream_info.playready_pssh = playready_pssh
-        stream_info.fairplay_key = fairplay_key
         stream_info.codec = playlist["stream_info"]["codecs"]
+
+        if drm_infos and asset_infos:
+            # DRM keys in master's session_data (standard path)
+            variant_id = playlist["stream_info"]["stable_variant_id"]
+            drm_ids = asset_infos[variant_id]["AUDIO-SESSION-KEY-IDS"]
+            stream_info.widevine_pssh = self.get_widevine_pssh(drm_infos, drm_ids)
+            stream_info.playready_pssh = self.get_playready_pssh(drm_infos, drm_ids)
+            stream_info.fairplay_key = self.get_fairplay_key(drm_infos, drm_ids)
+        else:
+            # Some songs have DRM keys in the media playlist M3U8 itself
+            # (no AudioSessionKeyInfo in master's session_data).
+            # Load the media playlist with proper auth headers and check keys.
+            try:
+                resp = self.downloader.apple_music_api.session.get(
+                    stream_info.stream_url, timeout=30
+                )
+                resp.raise_for_status()
+                media_m3u8 = m3u8.loads(resp.text)
+                for key in media_m3u8.keys:
+                    if key.keyformat == "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed":
+                        stream_info.widevine_pssh = key.uri
+                    elif key.keyformat == "com.microsoft.playready":
+                        stream_info.playready_pssh = key.uri
+                    elif key.keyformat == "com.apple.streamingkeydelivery":
+                        stream_info.fairplay_key = key.uri
+            except Exception:
+                pass
+
         return stream_info
 
     @staticmethod
@@ -350,21 +418,36 @@ class DownloaderSong:
         encrypted_path: Path,
         decrypted_path: Path,
         decryption_key: str,
+        cenc_kid: str | None = None,
     ):
-        self.fix_key_id(encrypted_path)
-        subprocess.run(
-            [
-                self.downloader.mp4decrypt_path_full,
-                encrypted_path,
-                "--key",
-                f"00000000000000000000000000000001:{decryption_key}",
-                "--key",
-                f"00000000000000000000000000000000:{self.DEFAULT_DECRYPTION_KEY}",
-                decrypted_path,
-            ],
-            check=True,
-            **self.downloader.subprocess_additional_args,
-        )
+        if cenc_kid:
+            # CENC stream: keep original KID, use it directly
+            subprocess.run(
+                [
+                    self.downloader.mp4decrypt_path_full,
+                    encrypted_path,
+                    "--key",
+                    f"{cenc_kid}:{decryption_key}",
+                    decrypted_path,
+                ],
+                check=True,
+                **self.downloader.subprocess_additional_args,
+            )
+        else:
+            self.fix_key_id(encrypted_path)
+            subprocess.run(
+                [
+                    self.downloader.mp4decrypt_path_full,
+                    encrypted_path,
+                    "--key",
+                    f"00000000000000000000000000000001:{decryption_key}",
+                    "--key",
+                    f"00000000000000000000000000000000:{self.DEFAULT_DECRYPTION_KEY}",
+                    decrypted_path,
+                ],
+                check=True,
+                **self.downloader.subprocess_additional_args,
+            )
 
     def remux(self, decrypted_path: Path, remuxed_path: Path, codec: str):
         if self.downloader.remux_mode == RemuxMode.MP4BOX:
@@ -410,7 +493,7 @@ class DownloaderSong:
                 "-c",
                 "copy",
                 "-f",
-                "mp4" if use_mp4_format else "ipod",
+                "mp4",
                 "-movflags",
                 "+faststart",
                 remuxed_path,

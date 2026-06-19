@@ -17,6 +17,7 @@ from InquirerPy.base.control import Choice
 from mutagen.mp4 import MP4, MP4Cover
 from PIL import Image
 from pywidevine import PSSH, Cdm, Device
+from pywidevine.pssh import WidevinePsshData
 from yt_dlp import YoutubeDL
 
 from .apple_music_api import AppleMusicApi
@@ -379,7 +380,17 @@ class Downloader:
 
     def get_decryption_key(self, pssh: str, track_id: str) -> str:
         try:
-            pssh_obj = PSSH(pssh.split(",")[-1])
+            # Reconstruct PSSH if it's a data: URI containing just a KID
+            # (CENC streams like `28:ctrp256` provide the KID inline)
+            pssh_for_cdm_arg = pssh.split(",")[-1]
+            if pssh.startswith("data:"):
+                raw = base64.b64decode(pssh.split(",")[-1])
+                if len(raw) <= 24:
+                    # Just a KID — wrap in Widevine PSSH protobuf (gamdl compat)
+                    wpd = WidevinePsshData(algorithm=1, key_ids=[raw])
+                    pssh_for_cdm_arg = wpd.SerializeToString()  # raw bytes
+
+            pssh_obj = PSSH(pssh_for_cdm_arg)
             cdm_session = self.cdm.open()
             challenge = base64.b64encode(
                 self.cdm.get_license_challenge(cdm_session, pssh_obj)

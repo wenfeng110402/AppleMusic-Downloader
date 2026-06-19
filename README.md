@@ -59,7 +59,7 @@ python -m amdl
 
 ```bash
 amdl --help
-amdl --cookies-path /path/to/cookies.txt "https://music.apple.com/..."
+amdl -c /path/to/cookies.txt "https://music.apple.com/..."
 ```
 
 ### Mac?

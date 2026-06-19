@@ -47,6 +47,21 @@ def write_default_config_file(ctx: click.Context):
     ctx.params["config_path"].write_text(json.dumps(config_file, indent=4))
 
 
+_CONFIG_MIGRATIONS = {
+    "codec_song": {"aac": "aac-legacy"},
+    "codec_music_video": {},
+    "quality_post": {},
+}
+
+
+def _migrate_config(config_file: dict) -> None:
+    """Migrate deprecated config values to current enum values in-place."""
+    for key, mapping in _CONFIG_MIGRATIONS.items():
+        old_val = config_file.get(key)
+        if old_val in mapping:
+            config_file[key] = mapping[old_val]
+
+
 def load_config_file(
     ctx: click.Context,
     param: click.Parameter,
@@ -65,6 +80,8 @@ def load_config_file(
     if not ctx.params["config_path"].exists():
         write_default_config_file(ctx)
     config_file = dict(json.loads(ctx.params["config_path"].read_text()))
+    # Backward compatibility for renamed/deprecated config values
+    _migrate_config(config_file)
     for param in ctx.command.params:
         if (
             config_file.get(param.name) is not None

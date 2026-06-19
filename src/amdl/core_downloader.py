@@ -21,6 +21,7 @@ from .downloader import Downloader
 from .downloader_music_video import DownloaderMusicVideo
 from .downloader_post import DownloaderPost
 from .downloader_song import DownloaderSong
+from .downloader_song_legacy import DownloaderSongLegacy
 from .enums import (
     CoverFormat,
     DownloadMode,
@@ -31,6 +32,9 @@ from .enums import (
     SyncedLyricsFormat,
 )
 from .itunes_api import ItunesApi
+
+# ── legacy codecs that use webplayback + ffmpeg -decryption_key ──
+LEGACY_CODECS = (SongCodec.AAC_LEGACY,)
 
 # ── type aliases ──────────────────────────────────────────────
 LogCallback = Callable[[str], None]
@@ -182,6 +186,7 @@ def download_urls(
     )
 
     downloader_song = DownloaderSong(downloader, codec_song, synced_lyrics_format)
+    downloader_song_legacy = DownloaderSongLegacy(downloader, codec_song)
     downloader_music_video = DownloaderMusicVideo(downloader, codec_music_video)
     downloader_post = DownloaderPost(downloader, quality_post)
 
@@ -285,6 +290,32 @@ def download_urls(
                         pass
                     elif final_path.exists() and not overwrite:
                         logger.warning(f'Song already exists at "{final_path}", skipping')
+                    elif codec_song in LEGACY_CODECS:
+                        # ── LEGACY PATH (v2.4.2 compat) ──────────────
+                        # Uses webplayback-only stream selection and
+                        # ffmpeg -decryption_key for single-step decrypt+remux.
+                        # This avoids mp4decrypt + -c copy issues with
+                        # fragmented MP4 streams.
+                        stream_info = downloader_song_legacy.get_stream_info(webplayback)
+                        if not stream_info.stream_url or not stream_info.widevine_pssh:
+                            logger.warning(
+                                "Song is not downloadable or not available in the chosen codec, skipping"
+                            )
+                            continue
+
+                        decryption_key = downloader_song_legacy.get_decryption_key(
+                            stream_info.widevine_pssh, track_metadata["id"]
+                        )
+                        enc_path = downloader_song.get_encrypted_path(track_metadata["id"])
+                        dec_path = downloader_song.get_decrypted_path(track_metadata["id"])
+                        remuxed_path = downloader_song.get_remuxed_path(track_metadata["id"])
+
+                        logger.debug(f'Downloading to "{enc_path}"')
+                        downloader.download(enc_path, stream_info.stream_url)
+                        logger.debug(f'Remuxing to "{remuxed_path}"')
+                        downloader_song_legacy.remux(
+                            enc_path, dec_path, remuxed_path, decryption_key,
+                        )
                     else:
                         stream_info = downloader_song.get_stream_info(track_metadata, webplayback)
                         if not stream_info.stream_url or not stream_info.widevine_pssh:
@@ -315,7 +346,7 @@ def download_urls(
                             enc_path, dec_path, decryption_key,
                             cenc_kid=cenc_kid,
                         )
-                        logger.debug(f'Remuxing to "{final_path}"')
+                        logger.debug(f'Remuxing to "{remuxed_path}"')
                         downloader_song.remux(dec_path, remuxed_path, stream_info.codec)
 
                     # synced lyrics

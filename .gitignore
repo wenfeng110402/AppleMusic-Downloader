@@ -8,3 +8,4 @@ debug_admin.py
 *.nsi
 test_launcher.py
 .vscode/
+src/amdl_backup/

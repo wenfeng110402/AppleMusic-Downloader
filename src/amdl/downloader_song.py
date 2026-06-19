@@ -5,6 +5,7 @@ import datetime
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 from xml.dom import minidom
 from xml.etree import ElementTree
@@ -33,7 +34,7 @@ class DownloaderSong:
         self.codec = codec
         self.synced_lyrics_format = synced_lyrics_format
 
-    def get_drm_infos(self, m3u8_data: dict) -> dict:
+    def get_drm_infos(self, m3u8_data: dict) -> dict | None:
         drm_info_raw = next(
             (
                 session_data
@@ -46,7 +47,7 @@ class DownloaderSong:
             return None
         return json.loads(base64.b64decode(drm_info_raw["value"]).decode("utf-8"))
 
-    def get_asset_infos(self, m3u8_data: dict) -> dict:
+    def get_asset_infos(self, m3u8_data: dict) -> dict | None:
         return json.loads(
             base64.b64decode(
                 next(
@@ -128,7 +129,7 @@ class DownloaderSong:
             "com.apple.streamingkeydelivery",
         )
 
-    def get_stream_info(self, track_metadata: dict, webplayback: dict = None) -> StreamInfo:
+    def get_stream_info(self, track_metadata: dict, webplayback: dict | None = None) -> StreamInfo:
         m3u8_url = track_metadata["attributes"].get("extendedAssetUrls", {}).get("enhancedHls")
         if m3u8_url:
             result = self._get_stream_info(m3u8_url)
@@ -302,7 +303,7 @@ class DownloaderSong:
         return f"{index}\n{timestamp_srt_start} --> {timestamp_srt_end}\n{text}\n"
 
     def get_lyrics(self, track_metadata: dict) -> Lyrics:
-        lyrics = Lyrics()
+        lyrics = Lyrics(synced="", unsynced="")
         if not track_metadata["attributes"]["hasLyrics"]:
             return lyrics
         elif track_metadata.get("relationships") is None:
@@ -478,29 +479,69 @@ class DownloaderSong:
         remuxed_path: Path,
         codec: str,
     ):
-        use_mp4_format = any(
-            codec.startswith(possible_codec)
-            for possible_codec in self.MP4_FORMAT_CODECS
-        )
-        subprocess.run(
-            [
-                self.downloader.ffmpeg_path_full,
-                "-loglevel",
-                "error",
-                "-y",
-                "-i",
-                decrypted_path,
-                "-c",
-                "copy",
-                "-f",
-                "mp4",
-                "-movflags",
-                "+faststart",
-                remuxed_path,
-            ],
-            check=True,
-            **self.downloader.subprocess_additional_args,
-        )
+        # Check if the decrypted file is fragmented (contains moof boxes).
+        # Scan the entire file — 4 KB is not enough because moof may
+        # appear after a large moov box.
+        is_fragmented = False
+        try:
+            with open(decrypted_path, "rb") as _f:
+                is_fragmented = b"moof" in _f.read()
+        except Exception:
+            pass
+
+        if is_fragmented:
+            # Fragmented MP4 files from mp4decrypt can't be reliably
+            # re-muxed with -c copy — ffmpeg drops priming samples and
+            # macOS can't play the output. Re-encode AAC to get a valid file.
+            # Use Apple's encoder (aac_at) on macOS for best compatibility.
+            aac_encoder = "aac"
+            if sys.platform == "darwin":
+                aac_encoder = "aac_at"
+            subprocess.run(
+                [
+                    self.downloader.ffmpeg_path_full,
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-i",
+                    decrypted_path,
+                    "-c:a",
+                    aac_encoder,
+                    "-b:a",
+                    "256k",
+                    "-f",
+                    "mp4",
+                    "-movflags",
+                    "+faststart",
+                    remuxed_path,
+                ],
+                check=True,
+                **self.downloader.subprocess_additional_args,
+            )
+        else:
+            use_mp4_format = any(
+                codec.startswith(possible_codec)
+                for possible_codec in self.MP4_FORMAT_CODECS
+            )
+            subprocess.run(
+                [
+                    self.downloader.ffmpeg_path_full,
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-i",
+                    decrypted_path,
+                    "-c",
+                    "copy",
+                    "-f",
+                    "mp4" if use_mp4_format else "ipod",
+                    "-movflags",
+                    "+faststart",
+                    remuxed_path,
+                ],
+                check=True,
+                **self.downloader.subprocess_additional_args,
+            )
 
     def get_lyrics_synced_path(self, final_path: Path) -> Path:
         return final_path.with_suffix(

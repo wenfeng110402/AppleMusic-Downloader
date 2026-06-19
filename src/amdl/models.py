@@ -1,31 +1,33 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 
 
 @dataclass
 class UrlInfo:
-    storefront: str = None
-    type: str = None
-    id: str = None
+    storefront: Optional[str] = None
+    type: Optional[str] = None
+    id: Optional[str] = None
 
 
 @dataclass
 class DownloadQueue:
-    playlist_attributes: dict = None
-    tracks_metadata: list[dict] = None
+    playlist_attributes: Optional[dict] = None
+    tracks_metadata: Optional[list[dict]] = None
 
 
 @dataclass
 class Lyrics:
-    synced: str = None
-    unsynced: str = None
+    synced: Optional[str] = None
+    unsynced: Optional[str] = None
 
 
 @dataclass
 class StreamInfo:
-    stream_url: str = None
-    widevine_pssh: str = None
-    playready_pssh: str = None
-    fairplay_key: str = None
+    stream_url: Optional[str] = None
+    widevine_pssh: Optional[str] = None
+    playready_pssh: Optional[str] = None
+    fairplay_key: Optional[str] = None
+    codec: Optional[str] = None
     codec: str = None

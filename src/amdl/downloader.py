@@ -33,6 +33,11 @@ class Downloader:
     ILLEGAL_CHARS_RE = r'[\\/:*?"<>|;]'
     ILLEGAL_CHAR_REPLACEMENT = "_"
     VALID_URL_RE = r"/([a-z]{2})/(artist|album|playlist|song|music-video|post)/([^/]*)(?:/([^/?]*))?(?:\?i=)?([0-9a-z]*)?"
+    # Dynamically set in _set_binaries_path_full
+    ffmpeg_path_full: str
+    mp4box_path_full: str
+    mp4decrypt_path_full: str
+    nm3u8dlre_path_full: str
 
     def __init__(
         self,
@@ -159,17 +164,11 @@ class Downloader:
         # 使用utils中的函数获取startupinfo
         from .utils import get_subprocess_startupinfo
         startupinfo = get_subprocess_startupinfo()
-            
+
+        self.subprocess_additional_args: dict = {"startupinfo": startupinfo}
         if self.silent:
-            self.subprocess_additional_args = {
-                "stdout": subprocess.DEVNULL,
-                "stderr": subprocess.DEVNULL,
-                "startupinfo": startupinfo
-            }
-        else:
-            self.subprocess_additional_args = {
-                "startupinfo": startupinfo
-            }
+            self.subprocess_additional_args["stdout"] = subprocess.DEVNULL
+            self.subprocess_additional_args["stderr"] = subprocess.DEVNULL
     
     def set_cdm(self):
         if self.wvd_path:

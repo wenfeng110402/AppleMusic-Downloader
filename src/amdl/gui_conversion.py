@@ -290,17 +290,20 @@ def convert_downloaded_files(
     ffmpeg_exe: str | None,
     log: LogFunc,
 ) -> list[str]:
+    result_files: list[str] = []
     try:
         log(f"准备转换 {len(downloaded_files)} 个下载的文件")
         converted_count = 0
 
-        if audio_format and audio_format != "保持原格式":
+        if audio_format and audio_format != "keep original":
             for file_path in downloaded_files:
                 if not file_path.endswith((".m4a", ".mp4")):
+                    result_files.append(file_path)
                     continue
                 converted_path = os.path.splitext(file_path)[0] + f".{audio_format}"
                 if os.path.exists(converted_path):
                     log(f"    跳过 {os.path.basename(file_path)} (目标文件已存在)")
+                    result_files.append(converted_path)
                     continue
                 if convert_audio_file(
                     file_path,
@@ -311,6 +314,7 @@ def convert_downloaded_files(
                 ):
                     converted_count += 1
                     log(f"    成功转换 {os.path.basename(file_path)} 为 {audio_format}")
+                    result_files.append(converted_path)
                     try:
                         os.remove(file_path)
                         log(f"    已删除原文件 {os.path.basename(file_path)}")
@@ -318,14 +322,16 @@ def convert_downloaded_files(
                         log(f"    删除原文件失败 {os.path.basename(file_path)}: {str(error)}")
                 else:
                     log(f"    转换失败 {os.path.basename(file_path)}")
+                    result_files.append(file_path)
 
-        if video_format and video_format != "保持原格式":
-            for file_path in downloaded_files:
+        if video_format and video_format != "keep original":
+            for file_path in list(result_files):
                 if not file_path.endswith((".mov", ".mp4")):
                     continue
                 converted_path = os.path.splitext(file_path)[0] + f".{video_format}"
                 if os.path.exists(converted_path):
                     log(f"    跳过 {os.path.basename(file_path)} (目标文件已存在)")
+                    result_files.append(converted_path)
                     continue
                 if convert_video_file(
                     file_path,
@@ -336,6 +342,7 @@ def convert_downloaded_files(
                 ):
                     converted_count += 1
                     log(f"    成功转换 {os.path.basename(file_path)} 为 {video_format}")
+                    result_files.append(converted_path)
                     try:
                         os.remove(file_path)
                         log(f"    已删除原文件 {os.path.basename(file_path)}")
@@ -343,8 +350,8 @@ def convert_downloaded_files(
                         log(f"    删除原文件失败 {os.path.basename(file_path)}: {str(error)}")
                 else:
                     log(f"    转换失败 {os.path.basename(file_path)}")
-
+                    result_files.append(file_path)
         log(f"格式转换完成，共转换 {converted_count} 个文件")
     except Exception as error:
         log(f"格式转换过程中发生错误: {str(error)}")
-    return []
+    return result_files

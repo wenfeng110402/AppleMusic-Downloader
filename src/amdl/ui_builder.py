@@ -326,7 +326,7 @@ def _build_output_tab(window, parent):
     fg = QGridLayout()
     fg.setSpacing(10)
     window.audio_format = ComboBox()
-    window.audio_format.addItems(["keep original", "mp3", "flac", "wav", "aac", "m4a", "ogg", "wma"])
+    window.audio_format.addItems(["keep original", "mp3", "flac", "wav", "ogg", "wma"])
     window.audio_format.setMinimumWidth(200)
     window.video_format = ComboBox()
     window.video_format.addItems(["keep original", "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"])

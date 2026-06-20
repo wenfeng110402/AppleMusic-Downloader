@@ -1,4 +1,6 @@
 # Apple Music 下载器
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/wenfeng110402/AppleMusic-Downloader/total?style=social&logo=GitHub)
+
 
 ## Quick Link：
 
@@ -12,7 +14,8 @@ Donate（non-porfit,no tax)
 ![Visitor Count](https://count.getloli.com/@AMDL?name=AMDL&theme=3d-num&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/github/license/wenfeng110402/AppleMusic-Downloader)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/wenfeng110402/AppleMusic-Downloader)
+![GitHub License](https://img.shields.io/github/license/wenfeng110402/AppleMusic-Downloader?style=social)
 
 ## 致谢 / Acknowledgments
 
@@ -51,7 +54,6 @@ pip install -e .
 ```
 
 本项目使用 `src` 布局；如果你不安装为可编辑包，也可以临时这样运行：
-
 ```bash
 PYTHONPATH=src python -c "from amdl.cli import main; main(args=['--help'], standalone_mode=False)"
 ```

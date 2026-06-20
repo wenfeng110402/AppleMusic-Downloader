@@ -181,12 +181,17 @@ class DownloadThread(QThread):
                 if val:
                     kwargs[core_key] = val
 
+            # ── record start time BEFORE download ──────────────
+            download_start_time = time.time()
+
             # ── run core downloader (no Click, no terminal I/O) ──
             error_count = core_download_urls(**kwargs)
 
             # ── collect files for conversion ──────────────────
+            # Use download_start_time so that ANY file created/modified
+            # during the entire download process is captured.
             if self.output_dir:
-                self._collect_new_files(time.time())
+                self._collect_new_files(download_start_time)
 
             # ── format conversion (post-processing) ───────────
             audio_format = opts.get("audio_format")

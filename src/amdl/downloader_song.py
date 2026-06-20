@@ -510,8 +510,6 @@ class DownloaderSong:
                         "copy",
                         "-f",
                         "mp4",
-                        "-movflags",
-                        "+faststart",
                         remuxed_path,
                     ],
                     check=True,

@@ -229,8 +229,9 @@ class DownloaderSong:
         if drm_infos and asset_infos:
             # DRM keys in master's session_data (standard path)
             variant_id = playlist["stream_info"]["stable_variant_id"]
-            drm_ids = asset_infos[variant_id]["AUDIO-SESSION-KEY-IDS"]
-            stream_info.widevine_pssh = self.get_widevine_pssh(drm_infos, drm_ids)
+            drm_ids = asset_infos.get(variant_id, {}).get("AUDIO-SESSION-KEY-IDS", [])
+            if drm_ids:
+                stream_info.widevine_pssh = self.get_widevine_pssh(drm_infos, drm_ids)
             stream_info.playready_pssh = self.get_playready_pssh(drm_infos, drm_ids)
             stream_info.fairplay_key = self.get_fairplay_key(drm_infos, drm_ids)
         else:
@@ -490,34 +491,59 @@ class DownloaderSong:
             pass
 
         if is_fragmented:
-            # Fragmented MP4 files from mp4decrypt can't be reliably
-            # re-muxed with -c copy — ffmpeg drops priming samples and
-            # macOS can't play the output. Re-encode AAC to get a valid file.
-            # Use Apple's encoder (aac_at) on macOS for best compatibility.
-            aac_encoder = "aac"
-            if sys.platform == "darwin":
-                aac_encoder = "aac_at"
-            subprocess.run(
-                [
-                    self.downloader.ffmpeg_path_full,
-                    "-loglevel",
-                    "error",
-                    "-y",
-                    "-i",
-                    decrypted_path,
-                    "-c:a",
-                    aac_encoder,
-                    "-b:a",
-                    "256k",
-                    "-f",
-                    "mp4",
-                    "-movflags",
-                    "+faststart",
-                    remuxed_path,
-                ],
-                check=True,
-                **self.downloader.subprocess_additional_args,
+            # Check if the codec is ec-3 (Atmos / Dolby Digital Plus JOC).
+            # For ec-3, use -c copy -f mp4 to preserve Atmos encoding.
+            is_ec3 = any(
+                codec.startswith(possible_codec)
+                for possible_codec in self.MP4_FORMAT_CODECS
             )
+            if is_ec3:
+                subprocess.run(
+                    [
+                        self.downloader.ffmpeg_path_full,
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-i",
+                        decrypted_path,
+                        "-c",
+                        "copy",
+                        "-f",
+                        "mp4",
+                        remuxed_path,
+                    ],
+                    check=True,
+                    **self.downloader.subprocess_additional_args,
+                )
+            else:
+                # Fragmented MP4 files from mp4decrypt can't be reliably
+                # re-muxed with -c copy — ffmpeg drops priming samples and
+                # macOS can't play the output. Re-encode AAC to get a valid file.
+                # Use Apple's encoder (aac_at) on macOS for best compatibility.
+                aac_encoder = "aac"
+                if sys.platform == "darwin":
+                    aac_encoder = "aac_at"
+                subprocess.run(
+                    [
+                        self.downloader.ffmpeg_path_full,
+                        "-loglevel",
+                        "error",
+                        "-y",
+                        "-i",
+                        decrypted_path,
+                        "-c:a",
+                        aac_encoder,
+                        "-b:a",
+                        "256k",
+                        "-f",
+                        "mp4",
+                        "-movflags",
+                        "+faststart",
+                        remuxed_path,
+                    ],
+                    check=True,
+                    **self.downloader.subprocess_additional_args,
+                )
         else:
             use_mp4_format = any(
                 codec.startswith(possible_codec)

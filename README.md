@@ -1,6 +1,6 @@
 # Apple Music 下载器
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/wenfeng110402/AppleMusic-Downloader/total?style=social&logo=GitHub)
 
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/wenfeng110402/AppleMusic-Downloader/total?style=social&logo=GitHub)
 
 ## Quick Link：
 
@@ -9,7 +9,7 @@
 Donate（non-porfit,no tax)
 [here！](https://hcb.hackclub.com/donations/start/amdl)
 
-<h2 align="left">👤 Repo VisitorsAdded on April 5, 2026):</h2>
+<h2 align="left">👤 Repo Visitors（Added on April 5, 2026):</h2>
 
 ![Visitor Count](https://count.getloli.com/@AMDL?name=AMDL&theme=3d-num&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto)
 
@@ -54,6 +54,7 @@ pip install -e .
 ```
 
 本项目使用 `src` 布局；如果你不安装为可编辑包，也可以临时这样运行：
+
 ```bash
 PYTHONPATH=src python -c "from amdl.cli import main; main(args=['--help'], standalone_mode=False)"
 ```

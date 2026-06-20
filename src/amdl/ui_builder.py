@@ -216,7 +216,7 @@ def _build_codec_tab(window, parent):
         return vb
 
     window.codec_song = ComboBox()
-    window.codec_song.addItems(["aac-legacy", "atmos"])
+    window.codec_song.addItems(["aac-legacy"])
     codec_row.addLayout(_codec_group(window.tr_text("label_codec_song"), window.codec_song))
 
     window.codec_music_video = ComboBox()

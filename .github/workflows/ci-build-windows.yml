@@ -3,8 +3,14 @@ name: CI and Windows Build
 on:
   push:
     branches: [ master, eng_version ]
+    paths:
+      - 'src/amdl/**'
+      - '!src/amdl/__init__.py'
   pull_request:
     branches: [ master, eng_version ]
+    paths:
+      - 'src/amdl/**'
+      - '!src/amdl/__init__.py'
   workflow_dispatch:
 
 permissions:

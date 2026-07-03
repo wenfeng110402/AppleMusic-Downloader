@@ -216,11 +216,11 @@ def _build_codec_tab(window, parent):
         return vb
 
     window.codec_song = ComboBox()
-    window.codec_song.addItems(["aac-legacy"])
+    window.codec_song.addItems(["aac-web", "aac", "alac", "atmos", "ac3", "aac-he", "ask"])
     codec_row.addLayout(_codec_group(window.tr_text("label_codec_song"), window.codec_song))
 
     window.codec_music_video = ComboBox()
-    window.codec_music_video.addItems(["h264", "h265"])
+    window.codec_music_video.addItems(["h264", "h265", "ask"])
     codec_row.addLayout(_codec_group(window.tr_text("label_codec_mv"), window.codec_music_video))
 
     window.quality_post = ComboBox()

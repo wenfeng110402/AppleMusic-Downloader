@@ -1,12 +1,6 @@
+gamdl>=3.7
 click
 colorama
-inquirerpy
-m3u8
-mutagen
 pillow
-pywidevine
-pyyaml
-termcolor
-yt-dlp
 PyQt6
 PyQt6-Fluent-Widgets

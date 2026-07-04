@@ -1,5 +1,7 @@
 # Apple Music 下载器
 
+## 此项目正在重构中,进度见[TODO List](https://github.com/wenfeng110402/AppleMusic-Downloader/blob/rebuild/TODO.md)
+
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/wenfeng110402/AppleMusic-Downloader/total?style=social&logo=GitHub)
 
 ## Quick Link：

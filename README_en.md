@@ -1,6 +1,8 @@
 # AppleMusic Downloader
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/wenfeng110402/AppleMusic-Downloader/total?style=social&logo=GitHub)
 
+## This project is currently being refactored; please see details here.[TODO List](https://github.com/wenfeng110402/AppleMusic-Downloader/blob/rebuild/TODO.md)
+
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/wenfeng110402/AppleMusic-Downloader/total?style=social&logo=GitHub)
 
 Quick links:
 
@@ -12,7 +14,6 @@ Donate (non-profit, no tax)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/wenfeng110402/AppleMusic-Downloader)
 ![GitHub License](https://img.shields.io/github/license/wenfeng110402/AppleMusic-Downloader?style=social)
-
 
 ## Acknowledgments
 

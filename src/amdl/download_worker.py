@@ -1,4 +1,4 @@
-"""Download worker — calls core_downloader directly, no Click dependency."""
+"""Download worker — calls core_downloader (gamdl) directly, no Click dependency."""
 
 import os
 import platform
@@ -15,40 +15,47 @@ from amdl.enums import (
     CoverFormat,
     DownloadMode,
     MusicVideoCodec,
-    PostQuality,
-    RemuxMode,
     SongCodec,
     SyncedLyricsFormat,
+    UploadedVideoQuality,
 )
 from amdl.gui_conversion import (
     convert_downloaded_files as shared_convert_downloaded_files,
     resolve_ffmpeg_executable,
 )
 
-# ── GUI-string → Enum mapping ───────────────────────────────
+# ── GUI-string → gamdl Enum mapping ──────────────────────────
 _SONG_CODEC_MAP = {
-    "aac-legacy": SongCodec.AAC_LEGACY,
+    "aac-web": SongCodec.AAC_WEB,
+    "aac-he-web": SongCodec.AAC_HE_WEB,
+    "aac": SongCodec.AAC,
+    "aac-he": SongCodec.AAC_HE,
+    "aac-binaural": SongCodec.AAC_BINAURAL,
+    "aac-downmix": SongCodec.AAC_DOWNMIX,
+    "aac-he-binaural": SongCodec.AAC_HE_BINAURAL,
+    "aac-he-downmix": SongCodec.AAC_HE_DOWNMIX,
     "atmos": SongCodec.ATMOS,
+    "ac3": SongCodec.AC3,
+    "alac": SongCodec.ALAC,
+    "ask": SongCodec.ASK,
 }
 _MV_CODEC_MAP = {
     "h264": MusicVideoCodec.H264,
     "h265": MusicVideoCodec.H265,
+    "ask": MusicVideoCodec.ASK,
 }
 _QUALITY_MAP = {
-    "best": PostQuality.BEST,
-    "ask": PostQuality.ASK,
+    "best": UploadedVideoQuality.BEST,
+    "ask": UploadedVideoQuality.ASK,
 }
 _DL_MODE_MAP = {
     "ytdlp": DownloadMode.YTDLP,
     "nm3u8dlre": DownloadMode.NM3U8DLRE,
 }
-_REMUX_MAP = {
-    "ffmpeg": RemuxMode.FFMPEG,
-    "mp4box": RemuxMode.MP4BOX,
-}
 _COVER_MAP = {
     "jpg": CoverFormat.JPG,
     "png": CoverFormat.PNG,
+    "raw": CoverFormat.RAW,
 }
 _SYNCED_LYRICS_MAP = {
     "lrc": SyncedLyricsFormat.LRC,
@@ -126,19 +133,17 @@ class DownloadThread(QThread):
             cookies_path = Path(self.cookie_file)
             output_path = Path(self.output_dir) if self.output_dir else Path.cwd()
 
-            # Map GUI strings to proper enums
-            codec_song = _safe_enum(opts.get("codec_song"), _SONG_CODEC_MAP, SongCodec.AAC_LEGACY)
+            codec_song = _safe_enum(opts.get("codec_song"), _SONG_CODEC_MAP, SongCodec.AAC_WEB)
             codec_mv = _safe_enum(opts.get("codec_music_video"), _MV_CODEC_MAP, MusicVideoCodec.H264)
-            quality = _safe_enum(opts.get("quality_post"), _QUALITY_MAP, PostQuality.BEST)
+            quality = _safe_enum(opts.get("quality_post"), _QUALITY_MAP, UploadedVideoQuality.BEST)
             dl_mode = _safe_enum(opts.get("download_mode"), _DL_MODE_MAP, DownloadMode.YTDLP)
-            remux = _safe_enum(opts.get("remux_mode"), _REMUX_MAP, RemuxMode.FFMPEG)
             cover_fmt = _safe_enum(opts.get("cover_format"), _COVER_MAP, CoverFormat.JPG)
             synced_fmt = _safe_enum(
                 opts.get("synced_lyrics_format"), _SYNCED_LYRICS_MAP, SyncedLyricsFormat.LRC
             )
 
             cover_size = opts.get("cover_size", 1200)
-            truncate = opts.get("truncate")
+            truncate_val = opts.get("truncate")
             temp_path = opts.get("temp_path") or "./temp"
             wvd_path = opts.get("wvd_path") or None
 
@@ -153,10 +158,9 @@ class DownloadThread(QThread):
                 quality_post=quality,
                 synced_lyrics_format=synced_fmt,
                 download_mode=dl_mode,
-                remux_mode=remux,
                 cover_format=cover_fmt,
                 cover_size=cover_size,
-                truncate=truncate if truncate and truncate > 0 else None,
+                truncate=truncate_val if truncate_val and truncate_val > 0 else None,
                 overwrite=opts.get("overwrite", False),
                 save_cover=opts.get("save_cover", False),
                 save_playlist=opts.get("save_playlist", False),
@@ -188,8 +192,6 @@ class DownloadThread(QThread):
             error_count = core_download_urls(**kwargs)
 
             # ── collect files for conversion ──────────────────
-            # Use download_start_time so that ANY file created/modified
-            # during the entire download process is captured.
             if self.output_dir:
                 self._collect_new_files(download_start_time)
 

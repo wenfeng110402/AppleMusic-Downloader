@@ -101,6 +101,9 @@ def download_urls(
     cover_format: CoverFormat = CoverFormat.JPG,
     cover_size: int = 1200,
     truncate: int | None = None,
+    # optional – conversion
+    audio_format: str | None = None,
+    video_format: str | None = None,
     # optional – templates
     template_folder_album: str = "{album_artist}/{album}",
     template_folder_compilation: str = "Compilations/{album}",
@@ -152,6 +155,8 @@ def download_urls(
             cover_format=cover_format,
             cover_size=cover_size,
             truncate=truncate,
+            audio_format=audio_format,
+            video_format=video_format,
             template_folder_album=template_folder_album,
             template_folder_compilation=template_folder_compilation,
             template_file_single_disc=template_file_single_disc,
@@ -193,6 +198,8 @@ async def _download_urls_async(
     cover_format: CoverFormat = CoverFormat.JPG,
     cover_size: int = 1200,
     truncate: int | None = None,
+    audio_format: str | None = None,
+    video_format: str | None = None,
     template_folder_album: str = "{album_artist}/{album}",
     template_folder_compilation: str = "Compilations/{album}",
     template_file_single_disc: str = "{track:02d} {title}",
@@ -353,6 +360,23 @@ async def _download_urls_async(
         except Exception as e:
             error_count += 1
             logger.error(f'Failed to download "{title}": {e}', exc_info=not no_exceptions)
+
+    # ── format conversion (post-processing) ────────────
+    if audio_format or video_format:
+        try:
+            from amdl.converter import convert_directory, resolve_ffmpeg_executable
+            exe = resolve_ffmpeg_executable(ffmpeg_path)
+            if exe:
+                logger.info("开始格式转换...")
+                convert_directory(
+                    str(output_path),
+                    audio_format,
+                    video_format,
+                    exe,
+                    logger.info if log_callback else (lambda m: None),
+                )
+        except Exception as e:
+            logger.error(f"格式转换失败: {e}", exc_info=not no_exceptions)
 
     logger.info(f"Done ({error_count} error(s))")
     return error_count

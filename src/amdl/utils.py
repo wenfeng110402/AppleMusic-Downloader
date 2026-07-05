@@ -1,64 +1,16 @@
-import json
-import time
 import sys
-import subprocess
-import colorama
-import requests
-
-
-def color_text(text: str, color) -> str:
-    return color + text + colorama.Style.RESET_ALL
-
-
-def raise_response_exception(response):
-    # 构建详细的错误信息
-    error_details = {
-        "url": response.url,
-        "status_code": response.status_code,
-        "response_text": response.text,
-        "request_headers": dict(response.request.headers),
-        "response_headers": dict(response.headers)
-    }
-    raise requests.HTTPError(
-        json.dumps(error_details, ensure_ascii=False, indent=2),
-        response=response,
-    )
-    
-def get_subprocess_startupinfo():
-    """
-    获取用于隐藏命令行窗口的 startupinfo 配置
-    
-    Returns:
-        subprocess.STARTUPINFO: 配置了隐藏窗口的 startupinfo 对象，在非 Windows 系统上返回 None
-    """
-    if sys.platform == "win32":
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-        return startupinfo
-    return None
+from pathlib import Path
 
 
 def resource_path(relative_path: str) -> str:
-    """
-    返回运行时资源的绝对路径。支持源码运行与 PyInstaller 打包后的 _MEIPASS。
-
-    :param relative_path: 相对于项目根或 _MEIPASS 的相对路径，例如 "tools/ffmpeg.exe"
-    :return: 资源的绝对路径字符串
-    """
+    """返回运行时资源的绝对路径。支持源码运行与 PyInstaller 打包后的 _MEIPASS。"""
     try:
-        from pathlib import Path
-        import sys
-
         if getattr(sys, "frozen", False):
             base = getattr(sys, "_MEIPASS", Path(sys.executable).parent)
         else:
-            # project root (amdl is package dir, so go up one level)
             base = Path(__file__).parent.parent
-
         return str(Path(base) / relative_path)
     except Exception:
-        # 回退到相对路径
         return relative_path
 
 

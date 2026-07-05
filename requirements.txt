@@ -2,5 +2,6 @@ gamdl>=3.7
 click
 colorama
 pillow
-PyQt6
-PyQt6-Fluent-Widgets
+fastapi
+uvicorn
+pydantic

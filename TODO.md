@@ -1,267 +1,153 @@
-# TODO — AppleMusic Downloader (amdl) — 重构清单
+# TODO — AppleMusic Downloader
 
-> **新架构方向**: 直接依赖 gamdl v3.8+，不再自维护 Apple Music API / 下载 / 解密代码。
-> applemusic-dl 变为 gamdl 的薄封装层，保留：GUI (PyQt6+Fluent) + 格式转换 + wrapper 自动部署命令。
-> 勾选一个，完成一个！💪
-
----
-
-## 一、🔴 核心架构迁移
-
-> 将项目从自维护的 gamdl fork 迁移到直接依赖 `gamdl` 库。
-> 这是重构的根基，建议按顺序执行。
-
-### Phase 1 — 依赖与骨架
-
-- [X] **1.1 添加 gamdl 依赖**
-
-  - `pyproject.toml` 添加 `gamdl >= 3.7`，`requirements.txt` 同步
-  - 移除 `pywidevine`、`inquirerpy` 等直接依赖（gamdl 自带）
-- [X] **1.2 重写 `cli.py` → 调用 gamdl CLI**
-
-  - 改为直接调用 `gamdl.cli.cli.main()`，将 `argv` 透传
-  - 保留 `amdl` 命令入口，行为与 `gamdl` 一致
-- [X] **1.3 重写 `core_downloader.py` → 薄封装 gamdl Embedding API**
-
-  - 改为异步调用 gamdl 的 `AppleMusicDownloader` + `AppleMusicApi`
-  - 保留 `download_urls()` 函数签名兼容性（同步封装异步）
-  - 保留 `progress_callback` / `log_callback` 透传
-- [X] **1.4 重写 `download_worker.py` → 调用新 `core_downloader`**
-
-  - 枚举映射更新为 gamdl 原生值（aac-web / aac / alac / atmos 等）
-  - 同步适配新 `core_downloader` 的函数签名
-- [X] **1.5 适配 `ui_builder.py` → gamdl 对齐**
-
-  - `codec_song` ComboBox: `aac-web`, `aac`, `alac`, `atmos`, `ac3`, `aac-he`, `ask`
-  - `codec_music_video` ComboBox: 添加 `ask`
-  - `cover_format` 已对齐（jpg/png/raw）
-- [X] **1.6 适配 `settings_store.py` → gamdl 对齐**
-
-  - 默认 codec_song 改为 `aac-web`（原 `aac-legacy`）
-  - 配置项命名与 gamdl 保持一致
-
-### Phase 2 — 文件清理
-
-- [X] **1.7 删除废弃文件**
-
-  - `downloader.py` — 整个文件删除（功能由 gamdl 接管）
-  - `downloader_song.py` — 删除
-  - `downloader_song_legacy.py` — 删除
-  - `downloader_music_video.py` — 删除
-  - `downloader_post.py` — 删除
-  - `apple_music_api.py` ✅
-  - `itunes_api.py` ✅
-  - `hardcoded_wvd.py` ✅
-  - `custom_formatter.py` ✅
-  - `models.py` ✅
-  - `constants.py` ✅
-  - `enums.py` 保留为 gamdl 重导出 shim ✅
-- [X] **1.8 清理 `utils.py`**
-
-  - `raise_response_exception`、`color_text` 仍有内部引用，保留不动
-  - `get_subprocess_startupinfo`、`resource_path`、`prepend_tools_to_path` 保留
-- [X] **1.9 清理 `AppleMusicDownloader.spec`**
-
-  - 从 `hiddenimports` 中移除已删除模块
-  - 添加 `gamdl`、`httpx`、`structlog` 等模块
-- [X] **1.10 清理 `pyproject.toml` + `requirements.txt`**
-
-  - 移除 `inquirerpy`、`m3u8`、`mutagen`、`pywidevine`、`pyyaml`、`termcolor`、`yt-dlp`（由 gamdl 传递依赖）
-  - 保留 `PyQt6`、`PyQt6-Fluent-Widgets`、`click`、`colorama`、`pillow`
+> 架构：**FastAPI 后端**（`amdl/`）+ **Flutter 前端**（`gui/`）
+> 后端基于 gamdl 封装，提供 REST API + WebSocket 实时推送。
+> 支持平台：Web / Windows / Linux / macOS
 
 ---
 
-## 二、🟡 格式转换 (保留 + 增强)
+## 一、🟡 后端 API 完善
 
-- [ ] **2.1 确认 `gui_conversion.py` 独立运作**
+### Phase 1 — 核心功能
 
-  - 验证不依赖已删除模块
-  - 确保 `resolve_ffmpeg_executable`、`convert_audio_file`、`convert_video_file` 正常
-- [ ] **2.2 GUI 格式转换选项对齐**
+- [X] **1.1 `server.py` 基础 API**
 
-  - 确保 `audio_format` / `video_format` 组合框值有效
-  - 格式转换默认关闭（keep original）
-- [ ] **2.3 CLI 模式下的格式转换**
+  - `GET /api/health` — 健康检查
+  - `GET /api/info` — 返回支持的枚举值（编解码器、封面格式等），供前端动态渲染
+  - `POST /api/download` — 简单下载（同步等待）
+- [ ] **1.2 实时进度推送（WebSocket）**
 
-  - 新增 `--audio-format` / `--video-format` CLI 参数
-  - 下载完成后自动调起转换
+  - `WS /api/ws/{task_id}` — 订阅下载进度
+  - 使用 `progress_callback` → `asyncio.run_coroutine_threadsafe` → WebSocket 广播
+  - 消息格式：`{"type":"progress", "completed":3, "total":10, "percent":30.0}`
+  - 参考：[task_manager.py](file:///Users/cret/Desktop/AppleMusic-Downloader/src/amdl/task_manager.py)
+- [ ] **1.3 多任务队列管理**
 
----
+  - `POST /api/tasks` — 提交下载任务，返回 `task_id`
+  - `GET /api/tasks` — 获取所有任务列表（按时间倒序）
+  - `GET /api/tasks/{task_id}` — 获取单个任务详情
+  - `DELETE /api/tasks/{task_id}` — 取消任务
+  - 后台 Worker 从队列取出任务，依次执行（支持并发数配置）
+  - 参考：`TaskManager` in [task_manager.py](file:///Users/cret/Desktop/AppleMusic-Downloader/src/amdl/task_manager.py)
+- [ ] **1.4 日志流推送**
 
-## 三、🟡 Wrapper 自动部署
+  - WebSocket 增加 `{"type":"log", "message":"[INFO] 正在下载..."}` 消息
+  - 将 `log_callback` 也接入 WebSocket 广播
 
-> wrapper-v2 是用于下载 ALAC (无损) 的可选依赖服务。
+### Phase 2 — 增强
 
-- [ ] **3.1 新建 `wrapper_manager.py`**
+- [ ] **1.5 下载历史持久化**
 
-  - `install_wrapper()` — 检测系统，下载/安装 [wrapper-v2](https://github.com/glomatico/wrapper-v2)
-  - `start_wrapper()` — 启动 wrapper 服务 (systemd/launchd/Windows Service)
-  - `stop_wrapper()` / `status_wrapper()`
-  - 支持 `amdl wrapper install`、`amdl wrapper start`、`amdl wrapper status`
-- [ ] **3.2 跨平台支持**
+  - 使用 SQLite 记录已下载的 URL / 标题 / 时间
+  - `GET /api/history` — 查询历史
+  - `DELETE /api/history` — 清空历史
+- [ ] **1.6 配置持久化**
 
-  - macOS: `launchd` plist 自启动
-  - Linux: `systemd` service
-  - Windows: NSSM 或 Windows Service
-- [ ] **3.3 wrapper 配置管理**
+  - `GET /api/config` — 获取当前配置
+  - `PUT /api/config` — 保存配置（默认下载路径、编解码器偏好等）
+  - 配置文件存 `~/.amdl/config.json`
+- [ ] **1.7 批量 URL 导入**
 
-  - `amdl wrapper config` — 设置 wrapper URL、端口、凭据
-  - 配置持久化到 `~/.amdl/wrapper_config.json`
-- [ ] **3.4 GUI wrapper 状态面板**
-
-  - 设置页显示 wrapper 连接状态
-  - 提供"启动/停止 wrapper"按钮
-
----
-
-## 四、🟡 新增功能
-
-- [ ] **4.1 自动检查更新**
-
-  - GUI/CLI 启动时异步检查 GitHub Releases
-- [ ] **4.2 macOS / Linux 原生打包**
-
-  - macOS: `.app` + DMG（`py2app` 或 `briefcase`）
-  - Linux: AppImage 或 Flatpak
-- [ ] **4.3 下载历史记录**
-
-  - 新建 `history_store.py`，记录已下载 URL/ID
-  - 可选：与 gamdl 的 SQLite database 互通
-- [ ] **4.4 下载完成后系统通知**
-
-  - macOS `pyobjc` / Windows `win10toast` / Linux `notify-send`
+  - 支持上传 `.txt` 文件，每行一个 URL
+  - `POST /api/tasks/import` — 上传文件并批量创建任务
 
 ---
 
-## 五、🟡 代码质量与测试
+## 二、🟡 Flutter GUI
 
-- [ ] **5.1 添加单元测试**
+- [ ] **2.1 项目基础**
 
-  - 新建 `tests/`，`pytest` 覆盖：
-    - 新 `core_downloader` 接口
-    - `gui_conversion` 工具函数
-    - `wrapper_manager` 配置读写
-    - `settings_store` 持久化
-- [ ] **5.2 CI 适配 + 自动化测试**
+  - 搭建 Flutter 项目结构（已存在 `gui/`）
+  - 配置 platform: web / windows / linux / macos
+  - 添加依赖：`web_socket_channel`、`http`、`provider`（或 riverpod）
+  - 配置后端 API 地址（开发环境可配）
+- [ ] **2.2 下载页面**
 
-  - 更新 `.github/workflows/ci-build-windows.yml`
-  - 添加 `pytest` 步骤
-  - 验证 gamdl 可正常导入
-- [ ] **5.3 类型注解完善**
+  - URL 输入框（支持多行粘贴）
+  - Cookie 文件选择器
+  - 参数配置区（编解码器、格式、封面尺寸等）
+  - **提交按钮** → `POST /api/tasks` → 跳转到任务详情
+- [ ] **2.3 任务列表页**
 
-  - 新代码要求完整类型注解
-  - 启用 `mypy` 严格模式
+  - 卡片列表展示所有任务（状态、进度、URL、创建时间）
+  - 状态标签：🟡 pending / 🔵 running / 🟢 completed / 🔴 failed / ⚫ cancelled
+  - 进度条 + 百分比显示
+  - 每个任务可取消、可重新下载
+  - 下拉刷新
+- [ ] **2.4 实时进度**
 
----
+  - 进入任务列表页时，连接所有 running 任务的 WebSocket
+  - 收到 `progress` 消息 → 更新进度条（动画）
+  - 收到 `status` 消息 → 更新状态标签
+  - 收到 `log` 消息 → 可选的日志面板
+- [ ] **2.5 设置页面**
 
-## 六、🟢 GUI 改进
+  - 后端地址配置
+  - 默认下载路径
+  - 默认编解码器偏好
+  - 默认封面尺寸
+  - 主题切换（浅色/深色）
+- [ ] **2.6 下载历史页**
 
-- [ ] **6.1 GUI 选项与 gamdl 全对齐**
+  - 历史记录列表
+  - 搜索/过滤
+  - 清空历史
+- [ ] **2.7 Cookie 管理**
 
-  - codec 选项：aac-web / aac-he-web / aac / alac / atmos / ac3 等
-  - 同步歌词格式：lrc / srt / ttml
-  - 封面格式：jpg / png / raw
-  - MV 分辨率选项
-  - MV 混流格式选项
-- [ ] **6.2 模板参数插入功能修复**
-
-  - `ui_builder.py` 连接 `template_param_combo` / `template_param_insert_btn`
-- [ ] **6.3 GUI 暴露所有模板设置**
-
-  - 添加 `template_folder_no_album`、`template_file_no_album`、`template_file_playlist`
-- [ ] **6.4 进度显示细化**
-
-  - 显示当前下载文件名 / 百分比 / 预估剩余时间
-- [ ] **6.5 下载按钮状态完善**
-
-  - 失败时保留错误上下文
-- [ ] **6.6 设置持久化覆盖所有选项**
-- [ ] **6.7 GUI 主题切换**
-
-  - 设置页添加浅色/深色/跟随系统
-- [ ] **6.8 Cookie 拖拽支持**
-- [ ] **6.9 下载队列管理**
-
-  - 多任务队列，暂停/恢复/取消
+  - 文件选择器（支持拖拽）
+  - 上传到后端保存
+  - 提示：如何从浏览器导出 Netscape 格式 cookies.txt
 
 ---
 
-## 七、🟢 文档与社区
+## 三、🟢 打包与部署
 
-- [ ] **7.1 更新 README**
+- [ ] **3.1 后端打包**
 
-  - 说明新架构：applemusic-dl = gamdl 封装 + GUI + 格式转换
-  - CLI 参数说明
-  - wrapper 安装使用说明
-  - FAQ
-- [ ] **7.2 添加 CHANGELOG**
+  - 使用 PyInstaller 打包 `server.py` 为单文件/单目录
+  - 支持 `--host`、`--port`、`--workers` 参数
+  - 输出到 `dist/amdl-server/`
+- [ ] **3.2 Flutter 打包**
 
-  - `CHANGELOG.md`，重点记录 v3.0 架构变更
-- [ ] **7.3 添加 `CONTRIBUTING.md`**
-- [ ] **7.4 GitHub Issue / PR 模板**
+  - **Web**: `flutter build web` → 部署到任意静态服务器
+  - **macOS**: `flutter build macos` → `.app` 或 DMG
+  - **Windows**: `flutter build windows` → NSIS 或 MSIX
+  - **Linux**: `flutter build linux` → AppImage 或 deb
+- [ ] **3.3 一键启动脚本**
 
----
-
-## 八、🟢 打包与部署
-
-- [X] **8.1 PyInstaller spec 更新**
-
-  - 移除已删模块的 hiddenimports
-  - 添加 `gamdl`、`httpx`、`structlog` 等新依赖
-  - 移除无效的 `'ffmpeg'` hiddenimport
-- [ ] **8.2 NSIS 版本号同步**
-
-  - `AppleMusicDownloader.nsi` 版本号与 `__init__.py` 统一
-- [ ] **8.3 PyPI 发布流程加固**
-
-  - 版本验证步骤
-- [ ] **8.4 NSIS 安装程序集成 wrapper**
-
-  - 可选：安装时询问是否同时部署 wrapper-v2 服务
+  - 启动后端 + 打开前端
+  - macOS: `.command` 或 `launchd`
+  - Windows: `.bat` 或 `.ps1`
+  - Linux: `.sh`
 
 ---
 
-## 九、🟢 远期规划
+## 四、🟢 代码质量
 
-- [ ] **9.1 Web UI（FastAPI + Vue/React）**
-- [ ] **9.2 移动端支持（iOS/Android）**
+- [ ] **4.1 后端测试**
+
+  - `pytest` 测试所有 API 端点
+  - Mock gamdl 下载（测试队列逻辑）
+- [ ] **4.2 错误处理完善**
+
+  - 后端全局异常捕获，统一返回 JSON
+  - 前端统一的错误提示组件
+- [ ] **4.3 类型注解**
+
+  - 后端完整类型注解
+  - Flutter 使用 freezed 或 json_serializable
 
 ---
 
 ## 完成进度
 
-> **总计 48 项** · 🔴 10 项 ✅已完成 · 🟡 11 项 · 🟢 27 项
+| 类别 | 总数 | 已完成 |
+|:---|:---:|:---:|
+| 🟡 后端 API — Phase 1 | 4 | 1 |
+| 🟡 后端 API — Phase 2 | 3 | 0 |
+| 🟡 Flutter GUI | 7 | 0 |
+| 🟢 打包部署 | 3 | 0 |
+| 🟢 代码质量 | 3 | 0 |
+| **总计** | **20** | **1** |
 
-| 类别                |     总数     |     已完成     |
-| ------------------- | :----------: | :-------------: |
-| 🔴 架构迁移 Phase 1 |      6      | **6 ✅** |
-| 🔴 架构迁移 Phase 2 |      4      | **4 ✅** |
-| 🟡 格式转换         |      3      |        0        |
-| 🟡 Wrapper 自动部署 |      4      |        0        |
-| 🟡 新增功能         |      4      |        0        |
-| 🟡 代码质量         |      3      |        0        |
-| 🟢 GUI 改进         |      9      |        0        |
-| 🟢 文档社区         |      4      |        0        |
-| 🟢 打包部署         |      4      |        0        |
-| 🟢 远期规划         |      2      |        0        |
-| **总计**      | **48** | **10 ✅** |
-
-> 最后更新: 2026-07-03 · 核心架构迁移已完成 ✅
-
-- 注意：wrapper 在 Windows 部署困难是已知问题
-
-### 7.3 Web UI
-
-- 使用 FastAPI + Vue/React 构建 Web 界面，实现远程下载管理
-
-### 7.4 移动端支持
-
-- 评估通过 API 暴露核心功能，构建 iOS/Android 客户端
-
----
-
-## 版本追踪
-
-| 日期       | 版本   | 说明                                      |
-| ---------- | ------ | ----------------------------------------- |
-| 2026-07-02 | v2.4.5 | 初次全面整理 TODO，列出 7 大类 30+ 项任务 |
+> 最后更新: 2026-07-05

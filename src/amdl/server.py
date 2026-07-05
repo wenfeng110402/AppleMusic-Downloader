@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Callable
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
@@ -18,6 +19,21 @@ from amdl.enums import (
     SyncedLyricsFormat,
     UploadedVideoQuality,
 )
+from amdl.task_manager import get_task_manager
+
+
+# ═══════════════════════════════════════════════════════════════
+# Lifespan (startup / shutdown)
+# ═══════════════════════════════════════════════════════════════
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start the task manager worker on startup, clean up on shutdown."""
+    tm = get_task_manager()
+    tm.start()
+    yield
+    await tm.stop()
+
 
 # ── FastAPI 应用 ──────────────────────────────────────────────
 app = FastAPI(
@@ -26,6 +42,7 @@ app = FastAPI(
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 
@@ -253,6 +270,28 @@ class DownloadResponse(BaseModel):
     message: str = Field(..., description="Description of the result")
 
 
+class TaskSubmitResponse(BaseModel):
+    task_id: str = Field(..., description="Task ID for tracking progress")
+    status: str = Field(..., description="Initial task status")
+    message: str = Field(..., description="Description")
+
+
+class TaskInfoResponse(BaseModel):
+    id: str
+    status: str
+    progress: dict
+    error_count: int
+    message: str
+    created_at: str
+    updated_at: str
+    urls: list[str]
+
+
+class TaskListResponse(BaseModel):
+    tasks: list[TaskInfoResponse]
+    total: int
+
+
 class ApiInfoResponse(BaseModel):
     """API 信息及支持的枚举值列表，供前端动态渲染选项。"""
     api_version: str
@@ -277,14 +316,14 @@ class HealthResponse(BaseModel):
 # ═══════════════════════════════════════════════════════════════
 
 def _build_log_callback() -> Callable[[str], None]:
-    """构造一个将日志同时写入 logging 和可选的回调的适配器。"""
+    """构造一个将日志写入 logging 的回调。"""
     def _log(msg: str) -> None:
         logging.getLogger("amdl.api").info(msg)
     return _log
 
 
 # ═══════════════════════════════════════════════════════════════
-# API 端点
+# API 端点 — 系统
 # ═══════════════════════════════════════════════════════════════
 
 @app.get("/api/health", response_model=HealthResponse, tags=["system"])
@@ -293,38 +332,28 @@ async def health_check():
     return HealthResponse(status="ok", version="2.0.0")
 
 
-@app.get(
-    "/api/info",
-    response_model=ApiInfoResponse,
-    tags=["system"],
-)
+@app.get("/api/info", response_model=ApiInfoResponse, tags=["system"])
 async def get_api_info():
     """获取 API 支持的选项列表，供前端动态渲染下拉菜单。"""
     return ApiInfoResponse(
         api_version="2.0.0",
         supported_codecs_song=[
-            {"value": c.value, "label": c.name}
-            for c in SongCodec
+            {"value": c.value, "label": c.name} for c in SongCodec
         ],
         supported_codecs_music_video=[
-            {"value": c.value, "label": c.name}
-            for c in MusicVideoCodec
+            {"value": c.value, "label": c.name} for c in MusicVideoCodec
         ],
         supported_cover_formats=[
-            {"value": c.value, "label": c.name}
-            for c in CoverFormat
+            {"value": c.value, "label": c.name} for c in CoverFormat
         ],
         supported_synced_lyrics_formats=[
-            {"value": c.value, "label": c.name}
-            for c in SyncedLyricsFormat
+            {"value": c.value, "label": c.name} for c in SyncedLyricsFormat
         ],
         supported_uploaded_video_qualities=[
-            {"value": c.value, "label": c.name}
-            for c in UploadedVideoQuality
+            {"value": c.value, "label": c.name} for c in UploadedVideoQuality
         ],
         supported_download_modes=[
-            {"value": c.value, "label": c.name}
-            for c in DownloadMode
+            {"value": c.value, "label": c.name} for c in DownloadMode
         ],
         supported_audio_conversion_formats=[
             "mp3", "flac", "wav", "aac", "m4a", "ogg", "wma", "alac",
@@ -341,20 +370,133 @@ async def get_api_info():
     )
 
 
+# ═══════════════════════════════════════════════════════════════
+# API 端点 — 任务队列
+# ═══════════════════════════════════════════════════════════════
+
+@app.post(
+    "/api/tasks",
+    response_model=TaskSubmitResponse,
+    tags=["tasks"],
+    summary="Submit a download task",
+    description="Submit an Apple Music download task. Returns a task_id immediately. "
+    "Track progress via WebSocket at /api/ws/{task_id}.",
+)
+async def submit_task(request: DownloadRequest):
+    """Submit a download task to the queue. Returns immediately with a task_id."""
+    tm = get_task_manager()
+    task_id = await tm.submit(request.model_dump())
+    return TaskSubmitResponse(
+        task_id=task_id,
+        status="pending",
+        message=f"Task submitted. Connect to /api/ws/{task_id} for real-time progress.",
+    )
+
+
+@app.get(
+    "/api/tasks",
+    response_model=TaskListResponse,
+    tags=["tasks"],
+    summary="List all tasks",
+    description="Get all download tasks, sorted by creation time (newest first).",
+)
+async def list_tasks():
+    """Get all tasks (newest first)."""
+    tm = get_task_manager()
+    tasks = tm.list_tasks()
+    return TaskListResponse(
+        tasks=[TaskInfoResponse(**t.to_dict()) for t in tasks],
+        total=len(tasks),
+    )
+
+
+@app.get(
+    "/api/tasks/{task_id}",
+    response_model=TaskInfoResponse,
+    tags=["tasks"],
+    summary="Get task details",
+    description="Get the status and progress of a specific task.",
+)
+async def get_task(task_id: str):
+    """Get details of a specific task."""
+    tm = get_task_manager()
+    task = tm.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+    return TaskInfoResponse(**task.to_dict())
+
+
+@app.delete(
+    "/api/tasks/{task_id}",
+    tags=["tasks"],
+    summary="Cancel a task",
+    description="Cancel a pending or running task.",
+)
+async def cancel_task(task_id: str):
+    """Cancel a task."""
+    tm = get_task_manager()
+    ok = await tm.cancel_task(task_id)
+    if not ok:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Task not found or already finished: {task_id}",
+        )
+    return {"message": "Task cancelled", "task_id": task_id}
+
+
+# ═══════════════════════════════════════════════════════════════
+# API 端点 — 实时进度 (WebSocket)
+# ═══════════════════════════════════════════════════════════════
+
+@app.websocket("/api/ws/{task_id}")
+async def task_progress_ws(websocket: WebSocket, task_id: str):
+    """WebSocket endpoint for real-time download progress.
+
+    Connect to /api/ws/{task_id} after submitting a task.
+    You will receive JSON messages:
+      - {"type":"subscribed", ...} — initial state on connect
+      - {"type":"progress", "completed":3, "total":10, "percent":30.0} — progress update
+      - {"type":"status", "status":"completed", ...} — status change
+    """
+    tm = get_task_manager()
+    await websocket.accept()
+
+    ok = await tm.subscribe(task_id, websocket)
+    if not ok:
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Task not found: {task_id}",
+        })
+        await websocket.close(code=1008)
+        return
+
+    try:
+        # Keep connection alive, listen for client-side disconnect
+        while True:
+            data = await websocket.receive_text()
+            # Client can send {"type":"ping"} to keep alive
+            if data == '{"type":"ping"}':
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await tm.unsubscribe(task_id, websocket)
+
+
+# ═══════════════════════════════════════════════════════════════
+# API 端点 — 简单下载（同步等待，兼容旧版）
+# ═══════════════════════════════════════════════════════════════
+
 @app.post(
     "/api/download",
     response_model=DownloadResponse,
     tags=["download"],
-    summary="Download Apple Music Content",
-    description="Download Apple Music songs, albums, playlists, artist pages, and music videos.",
+    summary="Download Apple Music Content (sync)",
+    description="Download Apple Music content synchronously. "
+    "For real-time progress, use /api/tasks instead.",
 )
 async def download(request: DownloadRequest):
-    """
-    下载 Apple Music 内容。
-
-    支持传入歌曲、专辑、播放列表、艺人页面、音乐视频等各类 Apple Music 链接。
-    详细参数说明见请求模型定义。
-    """
+    """下载 Apple Music 内容（同步等待）。推荐使用 /api/tasks 异步队列。"""
     log_callback = _build_log_callback()
 
     try:
@@ -414,6 +556,10 @@ async def download(request: DownloadRequest):
         ),
     )
 
+
+# ═══════════════════════════════════════════════════════════════
+# 全局异常处理器
+# ═══════════════════════════════════════════════════════════════
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Any, exc: Exception) -> JSONResponse:

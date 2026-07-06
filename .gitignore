@@ -9,3 +9,4 @@ debug_admin.py
 test_launcher.py
 .vscode/
 src/amdl_backup/
+start.sh

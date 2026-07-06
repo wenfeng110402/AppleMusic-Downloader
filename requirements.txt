@@ -5,3 +5,4 @@ pillow
 fastapi
 uvicorn
 pydantic
+pywebview

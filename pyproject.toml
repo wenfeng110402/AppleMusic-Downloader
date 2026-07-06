@@ -10,7 +10,8 @@ dependencies = [
     "pillow",
     "fastapi",
     "uvicorn",
-    "pydantic"
+    "pydantic",
+    "pywebview"
 ]
 readme = "README.md"
 dynamic = ["version"]

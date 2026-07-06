@@ -1,8 +1,9 @@
 # TODO — AppleMusic Downloader
 
-> 架构：**FastAPI 后端**（`amdl/`）+ **Flutter 前端**（`gui/`）
+> 架构：**FastAPI 后端**（`amdl/`）+ **Next.js 前端**（`gui/`）
 > 后端基于 gamdl 封装，提供 REST API + WebSocket 实时推送。
-> 支持平台：Web / Windows / Linux / macOS
+> 前端使用 Next.js 开发，开发时独立运行，生产环境构建为静态文件后由 pywebview 内嵌加载。
+> 支持平台：Windows / Linux / macOS
 
 ---
 
@@ -50,92 +51,144 @@
 
   - 支持上传 `.txt` 文件，每行一个 URL
   - `POST /api/tasks/import` — 上传文件并批量创建任务
+- [ ] **1.8 依赖检测与自动下载**
+
+  - `GET /api/deps/status` — 检查 ffmpeg、N_m3u8DL-RE 等外部依赖是否可用
+  - `POST /api/deps/install` — 自动下载缺失的依赖到 `tools/` 目录
+  - 查找顺序：系统 PATH → 项目 `tools/` 目录 → 自动下载预编译二进制
+  - 参考：[converter.py:resolve_ffmpeg_executable](file:///Users/cret/Desktop/AppleMusic-Downloader/src/amdl/converter.py#L24-L44)、[utils.py:prepend_tools_to_path](file:///Users/cret/Desktop/AppleMusic-Downloader/src/amdl/utils.py#L17-L99)
+- [ ] **1.9 下载后清理**
+
+  - `POST /api/cleanup` — 删除 `temp_path` 临时目录
+  - 下载任务完成后自动调用，也可手动触发
 
 ---
 
-## 二、🟡 Flutter GUI
+## 二、🟡 Next.js 前端（`gui/`）
 
-- [ ] **2.1 项目基础**
+### Phase 1 — 项目基础
 
-  - 搭建 Flutter 项目结构（已存在 `gui/`）
-  - 配置 platform: web / windows / linux / macos
-  - 添加依赖：`web_socket_channel`、`http`、`provider`（或 riverpod）
-  - 配置后端 API 地址（开发环境可配）
-- [ ] **2.2 下载页面**
+- [ ] **2.1 搭建 Next.js 项目**
+
+  - 使用 `create-next-app` 初始化项目
+  - 配置 TypeScript、Tailwind CSS
+  - 目录结构：`pages/`（或 `app/`）、`components/`、`hooks/`、`types/`
+  - 配置开发时后端 API 代理（解决跨域）
+- [ ] **2.2 项目基础架构**
+
+  - 封装 API 请求工具（`/api/*` 调用后端）
+  - 封装 WebSocket 连接工具（自动重连、心跳）
+  - 全局状态管理（可选择 Zustand / Context + useReducer）
+  - 主题支持（浅色/深色模式）
+
+### Phase 2 — 核心页面
+
+- [ ] **2.3 下载页面**
 
   - URL 输入框（支持多行粘贴）
-  - Cookie 文件选择器
+  - Cookie 文件选择器（或粘贴 cookie 文本）
   - 参数配置区（编解码器、格式、封面尺寸等）
   - **提交按钮** → `POST /api/tasks` → 跳转到任务详情
-- [ ] **2.3 任务列表页**
+- [ ] **2.4 任务列表页**
 
   - 卡片列表展示所有任务（状态、进度、URL、创建时间）
   - 状态标签：🟡 pending / 🔵 running / 🟢 completed / 🔴 failed / ⚫ cancelled
   - 进度条 + 百分比显示
   - 每个任务可取消、可重新下载
-  - 下拉刷新
-- [ ] **2.4 实时进度**
-
-  - 进入任务列表页时，连接所有 running 任务的 WebSocket
-  - 收到 `progress` 消息 → 更新进度条（动画）
-  - 收到 `status` 消息 → 更新状态标签
-  - 收到 `log` 消息 → 可选的日志面板
+  - 实时进度更新（WebSocket）
 - [ ] **2.5 设置页面**
 
   - 后端地址配置
   - 默认下载路径
   - 默认编解码器偏好
   - 默认封面尺寸
+  - Cookie 设置
   - 主题切换（浅色/深色）
 - [ ] **2.6 下载历史页**
 
   - 历史记录列表
   - 搜索/过滤
   - 清空历史
-- [ ] **2.7 Cookie 管理**
+- [ ] **2.7 依赖管理页**
 
-  - 文件选择器（支持拖拽）
-  - 上传到后端保存
-  - 提示：如何从浏览器导出 Netscape 格式 cookies.txt
+  - 显示各依赖工具的检测状态（✅ / ❌）
+  - 缺失时显示"一键下载"按钮
+  - 显示已安装工具的版本号
+- [ ] **2.8 关于页面**
+
+  - 版本信息
+  - 依赖工具版本展示
+  - GitHub 链接
 
 ---
 
-## 三、🟢 打包与部署
+## 三、🟡 pywebview 桌面壳（`pywebview/`）
 
-- [ ] **3.1 后端打包**
+> Next.js 开发完成后，构建为静态文件，由 pywebview 加载。
+
+- [ ] **3.1 搭建 pywebview 壳**
+
+  - 使用 Python 编写 pywebview 启动脚本
+  - 开发模式：加载 Next.js 开发服务器地址（`http://localhost:3000`）
+  - 生产模式：加载 Next.js 构建后的静态文件（`file://` 或内嵌 HTTP 服务器）
+- [ ] **3.2 pywebview 功能集成**
+
+  - 窗口标题、图标、最小尺寸设置
+  - 右键菜单屏蔽（可选）
+  - 开发者工具开关（开发模式自动开启）
+  - 文件对话框（打开/保存文件，通过 pywebview API 暴露给前端）
+  - 窗口置顶、全屏等操作
+- [ ] **3.3 前后端通信桥接**
+
+  - 前端通过 `pywebview.api` 调用 Python 方法（如文件选择器、系统通知）
+  - 后端事件推送（下载完成时弹出系统通知）
+
+---
+
+## 四、🟢 打包与部署
+
+- [ ] **4.1 后端打包**
 
   - 使用 PyInstaller 打包 `server.py` 为单文件/单目录
   - 支持 `--host`、`--port`、`--workers` 参数
   - 输出到 `dist/amdl-server/`
-- [ ] **3.2 Flutter 打包**
+- [ ] **4.2 前端构建**
 
-  - **Web**: `flutter build web` → 部署到任意静态服务器
-  - **macOS**: `flutter build macos` → `.app` 或 DMG
-  - **Windows**: `flutter build windows` → NSIS 或 MSIX
-  - **Linux**: `flutter build linux` → AppImage 或 deb
-- [ ] **3.3 一键启动脚本**
+  - `npm run build` → 输出静态文件到 `out/` 目录
+  - 静态文件嵌入 pywebview 壳中
+- [ ] **4.3 桌面应用打包**
 
-  - 启动后端 + 打开前端
+  - 使用 PyInstaller 将 pywebview 壳 + 前端静态文件打包为单文件/单目录
+  - **macOS**: 打包为 `.app` 或 DMG
+  - **Windows**: 打包为 NSIS 安装包或便携版
+  - **Linux**: 打包为 AppImage 或 deb
+- [ ] **4.4 一键启动脚本**
+
+  - 启动后端 + 桌面应用
   - macOS: `.command` 或 `launchd`
   - Windows: `.bat` 或 `.ps1`
   - Linux: `.sh`
 
 ---
 
-## 四、🟢 代码质量
+## 五、🟢 代码质量
 
-- [ ] **4.1 后端测试**
+- [ ] **5.1 后端测试**
 
   - `pytest` 测试所有 API 端点
   - Mock gamdl 下载（测试队列逻辑）
-- [ ] **4.2 错误处理完善**
+- [ ] **5.2 前端代码质量**
+
+  - ESLint + Prettier 代码规范
+  - TypeScript 严格模式
+- [ ] **5.3 错误处理完善**
 
   - 后端全局异常捕获，统一返回 JSON
   - 前端统一的错误提示组件
-- [ ] **4.3 类型注解**
+- [ ] **5.4 类型注解**
 
   - 后端完整类型注解
-  - Flutter 使用 freezed 或 json_serializable
+  - 前端 TypeScript 类型定义与后端 API 对齐
 
 ---
 
@@ -144,10 +197,11 @@
 | 类别 | 总数 | 已完成 |
 |:---|:---:|:---:|
 | 🟡 后端 API — Phase 1 | 4 | 1 |
-| 🟡 后端 API — Phase 2 | 3 | 0 |
-| 🟡 Flutter GUI | 7 | 0 |
-| 🟢 打包部署 | 3 | 0 |
-| 🟢 代码质量 | 3 | 0 |
-| **总计** | **20** | **1** |
+| 🟡 后端 API — Phase 2 | 5 | 0 |
+| 🟡 Next.js 前端 | 8 | 0 |
+| 🟡 pywebview 桌面壳 | 3 | 0 |
+| 🟢 打包部署 | 4 | 0 |
+| 🟢 代码质量 | 4 | 0 |
+| **总计** | **28** | **1** |
 
 > 最后更新: 2026-07-05

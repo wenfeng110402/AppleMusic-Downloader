@@ -3,7 +3,7 @@
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/wenfeng110402/AppleMusic-Downloader/total?style=social&logo=GitHub)
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/wenfeng110402/AppleMusic-Downloader)
+[![Platform](<https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey>)](https://github.com/wenfeng110402/AppleMusic-Downloader)
 ![GitHub License](https://img.shields.io/github/license/wenfeng110402/AppleMusic-Downloader?style=social)
 
 - [English README](README_en.md)
@@ -14,17 +14,17 @@ AppleMusic Downloader 是一个功能强大的 Apple Music 下载工具，支持
 
 项目提供三种使用方式：
 
-| 方式 | 适用场景 |
-|------|----------|
-| **CLI 命令行** | 终端用户，通过 `pip install applemusic-dl` 安装即可使用 |
-| **API 服务** | 开发者，将下载能力集成到自己的应用中 |
-| **桌面应用** | 普通用户，下载打包好的安装程序直接使用 |
+| 方式                 | 适用场景                                                 |
+| -------------------- | -------------------------------------------------------- |
+| **CLI 命令行** | 终端用户，通过`pip install applemusic-dl` 安装即可使用 |
+| **API 服务**   | 开发者，将下载能力集成到自己的应用中                     |
+| **桌面应用**   | 普通用户，下载打包好的安装程序直接使用                   |
 
 ---
 
 ## 致谢
 
-本项目使用了 [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) 和 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 的代码。衷心感谢 gamdl 和 yt-dlp 的所有贡献者在开源社区做出的杰出贡献。
+本项目使用了 [gamdl (Glomatico&#39;s Apple Music Downloader)](https://github.com/glomatico/gamdl) 和 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 的代码。衷心感谢 gamdl 和 yt-dlp 的所有贡献者在开源社区做出的杰出贡献。
 
 ---
 
@@ -130,19 +130,19 @@ python -m amdl --server --host 0.0.0.0 --port 8000
 
 ### API 端点概览
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/api/health` | 健康检查 |
-| GET | `/api/info` | 获取支持的编码、格式等选项 |
-| GET | `/api/dependencies` | 检查外部依赖（ffmpeg, N_m3u8DL-RE） |
-| POST | `/api/tasks` | 提交下载任务 |
-| GET | `/api/tasks` | 获取所有任务列表 |
-| GET | `/api/tasks/{task_id}` | 获取单个任务详情 |
-| DELETE | `/api/tasks/{task_id}` | 取消任务 |
-| WebSocket | `/api/ws/{task_id}` | 实时下载进度推送 |
-| GET | `/api/settings` | 读取用户偏好设置 |
-| POST | `/api/settings` | 保存用户偏好设置 |
-| DELETE | `/api/temp` | 清理临时目录 |
+| 方法      | 路径                     | 说明                                |
+| --------- | ------------------------ | ----------------------------------- |
+| GET       | `/api/health`          | 健康检查                            |
+| GET       | `/api/info`            | 获取支持的编码、格式等选项          |
+| GET       | `/api/dependencies`    | 检查外部依赖（ffmpeg, N_m3u8DL-RE） |
+| POST      | `/api/tasks`           | 提交下载任务                        |
+| GET       | `/api/tasks`           | 获取所有任务列表                    |
+| GET       | `/api/tasks/{task_id}` | 获取单个任务详情                    |
+| DELETE    | `/api/tasks/{task_id}` | 取消任务                            |
+| WebSocket | `/api/ws/{task_id}`    | 实时下载进度推送                    |
+| GET       | `/api/settings`        | 读取用户偏好设置                    |
+| POST      | `/api/settings`        | 保存用户偏好设置                    |
+| DELETE    | `/api/temp`            | 清理临时目录                        |
 
 详细 API 文档请参见 [docs/api.md](docs/api.md)。
 
@@ -316,6 +316,7 @@ python -m amdl
 桌面应用基于 pywebview，在 Windows、macOS、Linux 上均可用。
 
 > **🐧 Linux 用户请注意**：pywebview 在 Linux 上依赖 Qt WebEngine，启动桌面模式前需要先安装系统依赖：
+>
 > ```bash
 > sudo apt update && sudo apt install -y python3-pyqt5 python3-pyqt5.qtwebengine libqt5webkit5-dev
 > pip install pywebview[qt]

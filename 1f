@@ -1,8 +1,0 @@
-  File "<string>", line 21
-  File "<string>", line 21
-    print('Cookies not found, checking other import asyncio
-          ^
-SyntaxError: unterminated string literal (detected at line 21)
-    print('Cookies not found, checking other import asyncio
-          ^
-SyntaxError: unterminated string literal (detected at line 21)

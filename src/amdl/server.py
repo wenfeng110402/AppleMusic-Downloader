@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import shutil
 import subprocess
 import threading
@@ -26,11 +27,19 @@ from amdl.task_manager import get_task_manager
 
 logger = logging.getLogger("amdl.server")
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-FRONTEND_OUT = PROJECT_ROOT / "src" / "fronted" / "out"
-TEMP_DIR = PROJECT_ROOT / "temp"
-SETTINGS_FILE = PROJECT_ROOT / "settings.json"
-ICON_FILE = PROJECT_ROOT / "icon.ico"
+# ── Path resolution（兼容 PyInstaller 打包） ───────────────
+if getattr(sys, "frozen", False):
+    # PyInstaller 运行时：数据文件在 sys._MEIPASS
+    BASE_DIR = Path(sys._MEIPASS)  # type: ignore[attr-defined]
+    FRONTEND_OUT = BASE_DIR / "frontend_out"
+else:
+    # 开发模式：用常规相对路径
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    FRONTEND_OUT = BASE_DIR / "src" / "fronted" / "out"
+
+TEMP_DIR = BASE_DIR / "temp"
+SETTINGS_FILE = BASE_DIR / "settings.json"
+ICON_FILE = BASE_DIR / "icon.ico"
 
 
 # ═══════════════════════════════════════════════════════════════

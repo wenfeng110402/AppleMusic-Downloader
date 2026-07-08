@@ -72,7 +72,7 @@ jobs:
             artifact: AppleMusicDownloader-linux-x64
           - os: macos
             runner: macos-latest
-            artifact: AppleMusicDownloader-macos-universal.dmg
+            artifact: AppleMusicDownloader-macos-arm64.dmg
           - os: windows
             runner: windows-latest
             artifact: AppleMusicDownloader-windows-x64.exe

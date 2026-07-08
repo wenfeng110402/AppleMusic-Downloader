@@ -87,16 +87,16 @@ mkdir -p "$DIST_DIR"
 
 case "$PLATFORM" in
   macos)
-    # onedir mode: .app bundle is in dist/$APP_NAME/
-    APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
+    # onedir --windowed 产出 dist/AppleMusicDownloader.app
     SRC_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
+    DST_BUNDLE="$DIST_DIR/${APP_NAME}-macos-arm64.app"
+    DMG_PATH="$DIST_DIR/${APP_NAME}-macos-arm64.dmg"
     if [[ -d "$SRC_BUNDLE" ]]; then
-      mv "$SRC_BUNDLE" "$APP_BUNDLE"
+      mv "$SRC_BUNDLE" "$DST_BUNDLE"
     fi
-    # Also create a DMG for distribution
-    if command -v hdiutil &>/dev/null; then
-      DMG_PATH="$DIST_DIR/${APP_NAME}-macos-arm64.dmg"
-      hdiutil create -volname "$APP_NAME" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$DMG_PATH"
+    # Create DMG for distribution
+    if command -v hdiutil &>/dev/null && [[ -d "$DST_BUNDLE" ]]; then
+      hdiutil create -volname "$APP_NAME" -srcfolder "$DST_BUNDLE" -ov -format UDZO "$DMG_PATH"
       echo "DMG created: $DMG_PATH"
     fi
     ;;

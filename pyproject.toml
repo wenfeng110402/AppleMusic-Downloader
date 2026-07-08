@@ -11,7 +11,11 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "pydantic",
-    "pywebview"
+]
+
+[project.optional-dependencies]
+desktop = [
+    "pywebview",
 ]
 readme = "README.md"
 dynamic = ["version"]

@@ -1,67 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import {
-  useBackendStatus,
-  useTasks,
-  useSubmitTask,
-  useCancelTask,
-  DEFAULT_FORM,
-  FormState,
-} from "./service";
-import Sidebar from "./widgets/sidebar";
+import Sidebar from "./components/sidebar";
+import Download from "./components/download";
+import Queue from "./components/queue";
+import Settings from "./components/settings";
+import HowToInstallDependencies from "./components/howToInstallDependencies";
 
 export default function Page() {
-  const backendOnline = useBackendStatus();
-  const { tasks, refresh: refreshTasks } = useTasks();
-  const submitTask = useSubmitTask(refreshTasks);
-  const cancelTask = useCancelTask(refreshTasks);
+  const [active, setActive] = useState("download");
 
-  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
-
-  function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function handleSubmit() {
-    await submitTask(form);
-    setForm((prev) => ({ ...prev, urls: "" }));
+  if (active === "how-to-install") {
+    return (
+      <div className="flex h-screen w-screen overflow-hidden" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+        <HowToInstallDependencies onBack={() => setActive("settings")} />
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      
-      <Sidebar />
-      {/* Download form - write your UI here */}
-      <section>
-        <textarea
-          placeholder="URLs (one per line)"
-          value={form.urls}
-          onChange={(e) => updateForm("urls", e.target.value)}
-        />
-        <input
-          placeholder="cookies.txt path"
-          value={form.cookies_path}
-          onChange={(e) => updateForm("cookies_path", e.target.value)}
-        />
-        <button onClick={handleSubmit}>Submit</button>
-      </section>
-
-      {/* Task list - write your UI here */}
-      <section>
-        <button onClick={refreshTasks}>Refresh</button>
-        {tasks.length === 0 && <p>No tasks</p>}
-        <ul>
-          {tasks.map((t) => (
-            <li key={t.id}>
-              <span>{t.status}</span> | <span>{t.message}</span>{" "}
-              <button onClick={() => cancelTask(t.id)}>Cancel</button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {!backendOnline && <p>Backend not running</p>}
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+      <Sidebar active={active} onNavigate={setActive} />
+      <main className="flex flex-1 flex-col overflow-hidden">
+        {active === "download" && <Download onNavigate={setActive} />}
+        {active === "queue" && <Queue />}
+        {active === "settings" && <Settings />}
+      </main>
     </div>
   );
 }

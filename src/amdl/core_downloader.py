@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import traceback
 from pathlib import Path
 from typing import Callable
 
@@ -25,6 +26,7 @@ from gamdl.downloader import (
     AppleMusicUploadedVideoDownloader,
     DownloadMode,
 )
+from gamdl.downloader.exceptions import GamdlDownloaderMediaFileExistsError
 from gamdl.interface import (
     AppleMusicBaseInterface,
     AppleMusicInterface,
@@ -240,7 +242,7 @@ async def _download_urls_async(
         urls = expanded
 
     # ── parse exclude_tags ───────────────────────────────
-    exclude_tags_list: list[str] | None = None
+    exclude_tags_list: list[str] = []
     if exclude_tags:
         exclude_tags_list = [t.strip().lower() for t in exclude_tags.split(",") if t.strip()]
 
@@ -304,7 +306,7 @@ async def _download_urls_async(
         playlist_file_template="{playlist_title}",
         date_tag_template=template_date,
         exclude_tags=exclude_tags_list,
-        truncate=truncate,
+        truncate=truncate if truncate is not None else 0,
     )
 
     song_downloader = AppleMusicSongDownloader(base=base_downloader)
@@ -338,6 +340,7 @@ async def _download_urls_async(
     total_tracks = len(all_items) if all_items else 1
     error_count = 0
     completed = 0
+    completed_files: list[str] = []
 
     # ── download each item ───────────────────────────────
     for item in all_items:
@@ -348,6 +351,9 @@ async def _download_urls_async(
             logger.error(f'Failed to process "{name}": {item.media.error}', exc_info=not no_exceptions)
             continue
 
+        if item.media.partial or not item.final_path:
+            continue
+
         meta = item.media.media_metadata
         title = meta.get("attributes", {}).get("name", "unknown") if isinstance(meta, dict) else "unknown"
         logger.info(f'Downloading "{title}"')
@@ -355,28 +361,37 @@ async def _download_urls_async(
         try:
             await downloader.download(item)
             completed += 1
+            completed_files.append(str(item.final_path))
+            if progress_callback:
+                progress_callback(completed, total_tracks)
+        except GamdlDownloaderMediaFileExistsError:          # ← 加这 4 行
+            completed += 1
+            logger.info(f'Skipped "{title}": file already exists')
             if progress_callback:
                 progress_callback(completed, total_tracks)
         except Exception as e:
             error_count += 1
-            logger.error(f'Failed to download "{title}": {e}', exc_info=not no_exceptions)
+            tb = traceback.format_exc()
+            logger.error(f'Failed to download "{title}": {e}')
+            logger.error(f'Traceback:\n{tb}')
 
     # ── format conversion (post-processing) ────────────
     if audio_format or video_format:
-        try:
-            from amdl.converter import convert_directory, resolve_ffmpeg_executable
-            exe = resolve_ffmpeg_executable(ffmpeg_path)
-            if exe:
-                logger.info("开始格式转换...")
-                convert_directory(
-                    str(output_path),
-                    audio_format,
-                    video_format,
-                    exe,
-                    logger.info if log_callback else (lambda m: None),
-                )
-        except Exception as e:
-            logger.error(f"格式转换失败: {e}", exc_info=not no_exceptions)
+        if completed_files:
+            try:
+                from amdl.converter import convert_file_list, resolve_ffmpeg_executable
+                exe = resolve_ffmpeg_executable(ffmpeg_path)
+                if exe:
+                    logger.info("Starting format conversion...")
+                    convert_file_list(
+                        [Path(p) for p in completed_files],
+                        audio_format,
+                        video_format,
+                        exe,
+                        logger.info if log_callback else (lambda m: None),
+                    )
+            except Exception as e:
+                logger.error(f"Format conversion failed: {e}", exc_info=not no_exceptions)
 
     logger.info(f"Done ({error_count} error(s))")
     return error_count

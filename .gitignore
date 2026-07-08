@@ -1,6 +1,7 @@
 *.exe
 __pycache__/
 *.pyc
+*.pyo
 temp/
 *.log
 .DS_Store
@@ -10,3 +11,10 @@ test_launcher.py
 .vscode/
 src/amdl_backup/
 start.sh
+node_modules/
+.next/
+out/
+*.egg-info/
+dist/
+build/
+.env

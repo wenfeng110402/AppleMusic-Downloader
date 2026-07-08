@@ -20,8 +20,6 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
-
 from fastapi import WebSocket
 
 from amdl.core_downloader import download_urls
@@ -60,6 +58,7 @@ class DownloadTask:
         self.progress: tuple[int, int] = (0, 0)  # (completed, total)
         self.error_count: int = 0
         self.message: str = ""
+        self.logs: list[str] = []
         self.created_at: str = datetime.now(timezone.utc).isoformat()
         self.updated_at: str = self.created_at
         self.cancelled: bool = False
@@ -77,6 +76,7 @@ class DownloadTask:
             },
             "error_count": self.error_count,
             "message": self.message,
+            "logs": self.logs,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "urls": self.kwargs.get("urls", []),
@@ -215,6 +215,7 @@ class TaskManager:
 
         # ── Build log callback ───────────────────────────
         def on_log(msg: str):
+            task.logs.append(msg)
             logging.getLogger("amdl.task").info(f"[{task_id[:8]}] {msg}")
 
         # ── Execute download ─────────────────────────────
@@ -238,8 +239,16 @@ class TaskManager:
 
             if not task.cancelled:
                 task.error_count = err_count
-                task.status = TaskStatus.COMPLETED
-                task.message = "全部完成" if err_count == 0 else f"完成（{err_count} 个错误）"
+                url_count = len(task.kwargs.get("urls", []))
+                if err_count == 0:
+                    task.status = TaskStatus.COMPLETED
+                    task.message = "全部完成"
+                elif err_count >= url_count:
+                    task.status = TaskStatus.FAILED
+                    task.message = f"全部失败（{err_count} 个错误）"
+                else:
+                    task.status = TaskStatus.COMPLETED
+                    task.message = f"部分完成（{err_count} 个错误）"
                 task.updated_at = datetime.now(timezone.utc).isoformat()
 
         except InterruptedError:
@@ -277,16 +286,19 @@ class TaskManager:
         await self._send_to_subscribers(task, message)
 
     async def _broadcast_status(self, task: DownloadTask):
+        completed, total = task.progress[0], task.progress[1]
         message = {
             "type": "status",
             "task_id": task.id,
             "status": task.status.value,
             "progress": {
-                "completed": task.progress[0],
-                "total": task.progress[1],
+                "completed": completed,
+                "total": total,
+                "percent": round(completed / total * 100, 1) if total > 0 else 0,
             },
             "error_count": task.error_count,
             "message": task.message,
+            "logs": task.logs,
             "updated_at": task.updated_at,
         }
         await self._send_to_subscribers(task, message)

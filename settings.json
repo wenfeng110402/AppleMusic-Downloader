@@ -1,0 +1,18 @@
+{
+  "cookies_path": "/Users/cret/cookies.txt",
+  "output_path": "/Users/cret/Desktop/Compilations",
+  "temp_path": "./temp",
+  "ffmpeg_path": "ffmpeg",
+  "mp4box_path": "MP4Box",
+  "nm3u8dlre_path": "N_m3u8DL-RE",
+  "audio_format": "mp3",
+  "codec_song": "aac-web",
+  "download_mode": "ytdlp",
+  "cover_format": "jpg",
+  "cover_size": 1200,
+  "language": "en-US",
+  "overwrite": false,
+  "save_cover": false,
+  "save_playlist": false,
+  "no_synced_lyrics": false
+}

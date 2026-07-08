@@ -10,7 +10,12 @@ dependencies = [
     "pillow",
     "fastapi",
     "uvicorn",
-    "pydantic"
+    "pydantic",
+]
+
+[project.optional-dependencies]
+desktop = [
+    "pywebview",
 ]
 readme = "README.md"
 dynamic = ["version"]

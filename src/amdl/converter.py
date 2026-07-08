@@ -405,3 +405,48 @@ def convert_directory(
         return []
 
     return convert_downloaded_files(files, audio_format or "keep original", video_format or "keep original", ffmpeg_exe, log)
+
+
+def convert_file_list(
+    files: list[Path],
+    audio_format: str | None,
+    video_format: str | None,
+    ffmpeg_exe: str,
+    log: LogFunc,
+) -> list[str]:
+    """Convert only files from current download task, not the whole directory."""
+    if not ffmpeg_exe:
+        log("    Error: FFmpeg not available, conversion skipped")
+        return []
+
+    if not files:
+        return []
+
+    converted: list[str] = []
+    audio_exts = (".m4a", ".mp4")
+    video_exts = (".mp4", ".mov", ".m4v")
+
+    for path in files:
+        if not path.exists():
+            continue
+        ext = path.suffix.lower()
+        if audio_format and ext in audio_exts:
+            log(f"    Converting {path.name} to {audio_format}...")
+            target = str(path.with_suffix(f".{audio_format}"))
+            ok = convert_audio_file(str(path), target, audio_format, ffmpeg_exe, log)
+            if ok:
+                converted.append(target)
+                log(f"    Done: {target}")
+        elif video_format and ext in video_exts:
+            log(f"    Converting {path.name} to {video_format}...")
+            target = str(path.with_suffix(f".{video_format}"))
+            ok = convert_video_file(str(path), target, video_format, ffmpeg_exe, log)
+            if ok:
+                converted.append(target)
+                log(f"    Done: {target}")
+
+    if converted:
+        log(f"Conversion complete: {len(converted)} file(s) converted")
+    else:
+        log("No files were converted")
+    return converted

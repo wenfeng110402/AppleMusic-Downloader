@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --card-bg: rgba(255, 255, 255, 0.02);
+  --card-border: rgba(255, 255, 255, 0.06);
+  --input-bg: rgba(255, 255, 255, 0.03);
+  --input-border: rgba(255, 255, 255, 0.08);
+  --input-focus: rgba(239, 68, 68, 0.45);
+  --input-focus-ring: rgba(239, 68, 68, 0.12);
+  --text-muted: rgba(255, 255, 255, 0.35);
+  --text-dim: rgba(255, 255, 255, 0.58);
+  --text-body: rgba(255, 255, 255, 0.82);
+  --text-heading: rgba(255, 255, 255, 0.92);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.06);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.12);
+  --sidebar-bg: rgba(255, 255, 255, 0.015);
+  --sidebar-border: rgba(255, 255, 255, 0.04);
+  --sidebar-active: rgba(239, 68, 68, 0.1);
+  --sidebar-hover: rgba(255, 255, 255, 0.03);
+  --divider: rgba(255, 255, 255, 0.04);
+  --log-bg: rgba(0, 0, 0, 0.35);
+  --log-text: rgba(237, 237, 237, 0.55);
+}
+
+[data-theme="light"] {
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
+  --card-bg: rgba(0, 0, 0, 0.02);
+  --card-border: rgba(0, 0, 0, 0.06);
+  --input-bg: rgba(0, 0, 0, 0.02);
+  --input-border: rgba(0, 0, 0, 0.08);
+  --input-focus: rgba(239, 68, 68, 0.5);
+  --input-focus-ring: rgba(239, 68, 68, 0.15);
+  --text-muted: rgba(0, 0, 0, 0.35);
+  --text-dim: rgba(0, 0, 0, 0.55);
+  --text-body: rgba(0, 0, 0, 0.78);
+  --text-heading: rgba(0, 0, 0, 0.88);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.08);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.15);
+  --sidebar-bg: rgba(0, 0, 0, 0.015);
+  --sidebar-border: rgba(0, 0, 0, 0.04);
+  --sidebar-active: rgba(239, 68, 68, 0.08);
+  --sidebar-hover: rgba(0, 0, 0, 0.03);
+  --divider: rgba(0, 0, 0, 0.04);
+  --log-bg: rgba(0, 0, 0, 0.06);
+  --log-text: rgba(0, 0, 0, 0.55);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+}
+
+/* ── Form controls ── */
+.input {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  padding: 7px 10px;
+  font-size: 12.5px;
+  color: var(--foreground);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input::placeholder {
+  color: var(--text-muted);
+}
+.input:focus {
+  border-color: var(--input-focus);
+  box-shadow: 0 0 0 2px var(--input-focus-ring);
+}
+select.input {
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  padding-right: 26px;
+}
+textarea.input {
+  resize: none;
+  line-height: 1.5;
+}
+
+/* ── Buttons ── */
+.btn-primary {
+  border-radius: 7px;
+  background: #ef4444;
+  padding: 9px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.08s ease;
+  border: none;
+  outline: none;
+}
+.btn-primary:hover {
+  background: #dc2626;
+}
+.btn-primary:active {
+  transform: scale(0.985);
+}
+.btn-primary:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  border-radius: 6px;
+  border: 1px solid var(--input-border);
+  background: transparent;
+  padding: 6px 11px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+  outline: none;
+}
+.btn-secondary:hover {
+  border-color: var(--text-muted);
+  color: var(--text-body);
+}
+
+/* ── Card container ── */
+.card {
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  overflow: hidden;
+}
+
+.card > :not(:first-child) {
+  border-top: 1px solid var(--card-border);
+}
+
+/* ── Scrollbar (macOS style) ── */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* ── Focus visible for keyboard users ── */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(239, 68, 68, 0.35);
+  outline-offset: 1px;
+}

@@ -1,0 +1,133 @@
+# ─────────────────────────────────────────────────────────────────
+# AppleMusic Downloader — Cross-platform Build & Release
+#
+# Triggers:
+#   - push / pull_request to main
+#   - pushing a tag v*  (e.g. v2.0.0) → creates a GitHub Release
+# ─────────────────────────────────────────────────────────────────
+
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Lint & Test (fast, runs first)
+  # ─────────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: src/fronted/package-lock.json
+
+      - name: Install Python deps
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[desktop]"
+
+      - name: Install frontend deps
+        run: |
+          cd src/fronted
+          npm install
+
+      - name: Lint frontend
+        run: |
+          cd src/fronted
+          npm run lint
+
+      - name: TypeScript check
+        run: |
+          cd src/fronted
+          npx tsc --noEmit
+
+  # ─────────────────────────────────────────────────────────────
+  # Build matrix: Linux · macOS · Windows
+  # ─────────────────────────────────────────────────────────────
+  build:
+    name: "Build (${{ matrix.os }})"
+    needs: [lint]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            runner: ubuntu-latest
+            artifact: AppleMusicDownloader-linux-x64
+          - os: macos
+            runner: macos-latest
+            artifact: AppleMusicDownloader-macos-universal.dmg
+          - os: windows
+            runner: windows-latest
+            artifact: AppleMusicDownloader-windows-x64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: src/fronted/package-lock.json
+
+      - name: Build (${{ matrix.os }})
+        shell: bash
+        run: bash scripts/build.sh ${{ matrix.os }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}*
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────
+  # Release (only on tag push v*)
+  # ─────────────────────────────────────────────────────────────
+  release:
+    name: Create Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "AppleMusic Downloader ${{ github.ref_name }}"
+          body_path: CHANGELOG.md
+          draft: true
+          prerelease: false
+          files: |
+            release-artifacts/**/*

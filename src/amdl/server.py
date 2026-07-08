@@ -39,7 +39,15 @@ else:
 
 TEMP_DIR = BASE_DIR / "temp"
 SETTINGS_FILE = BASE_DIR / "settings.json"
-ICON_FILE = BASE_DIR / "icon.ico"
+
+# ── 图标：根据平台自动选择 ────────────────────────────────
+import platform as _platform
+if _platform.system() == "Darwin":
+    ICON_FILE = BASE_DIR / "icon.icns"
+elif _platform.system() == "Windows":
+    ICON_FILE = BASE_DIR / "icon.ico"
+else:
+    ICON_FILE = BASE_DIR / "icon.png"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -444,6 +452,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8000, log_level: str = "info
 
 def run_desktop():
     import webview
+    import sys as _sys
 
     host = "127.0.0.1"
     port = 8000
@@ -456,7 +465,7 @@ def run_desktop():
     window_ref: list = []
     api = PywebviewApi(window_ref)
 
-    window = webview.create_window(
+    kwargs: dict = dict(
         title="Apple Music Downloader",
         url=url,
         width=1200,
@@ -465,6 +474,12 @@ def run_desktop():
         resizable=True,
         js_api=api,
     )
+
+    # 设置窗口图标：Windows 用 .ico，macOS 用 .icns，Linux 用 .png
+    if ICON_FILE.exists():
+        kwargs["icon"] = str(ICON_FILE)
+
+    window = webview.create_window(**kwargs)
     window_ref.append(window)
     webview.start(debug=False)
 

@@ -315,6 +315,12 @@ python -m amdl
 
 The desktop app is built on pywebview and works on Windows, macOS, and Linux.
 
+> **🐧 Linux users**: pywebview on Linux requires Qt WebEngine. Before launching desktop mode, install the system dependencies:
+> ```bash
+> sudo apt update && sudo apt install -y python3-pyqt5 python3-pyqt5.qtwebengine libqt5webkit5-dev
+> pip install pywebview[qt]
+> ```
+
 ---
 
 ## Requirements

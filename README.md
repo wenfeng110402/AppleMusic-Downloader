@@ -301,6 +301,28 @@ docker run -d --name amdl-frontend \
 
 ---
 
+## 桌面应用
+
+在桌面模式下，后端服务和前端 Web UI 集成在同一个窗口中：
+
+```bash
+# 启动桌面应用
+python -m amdl --desktop
+
+# 或直接启动（自动检测）
+python -m amdl
+```
+
+桌面应用基于 pywebview，在 Windows、macOS、Linux 上均可用。
+
+> **🐧 Linux 用户请注意**：pywebview 在 Linux 上依赖 Qt WebEngine，启动桌面模式前需要先安装系统依赖：
+> ```bash
+> sudo apt update && sudo apt install -y python3-pyqt5 python3-pyqt5.qtwebengine libqt5webkit5-dev
+> pip install pywebview[qt]
+> ```
+
+---
+
 ## 环境要求
 
 ### 必需

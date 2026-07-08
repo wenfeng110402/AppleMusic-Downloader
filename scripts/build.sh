@@ -52,8 +52,7 @@ PYI_ARGS=(
 # Platform-specific flags
 case "$PLATFORM" in
   macos)
-    PYI_ARGS+=(--windowed --onefile)
-    PYI_ARGS+=(--target-architecture universal2)
+    PYI_ARGS+=(--windowed --onedir)
     # macOS code signing identity (optional, set via env)
     if [[ -n "${APPLE_SIGN_IDENTITY:-}" ]]; then
       PYI_ARGS+=(--codesign-identity "$APPLE_SIGN_IDENTITY")
@@ -88,14 +87,15 @@ mkdir -p "$DIST_DIR"
 
 case "$PLATFORM" in
   macos)
-    # PyInstaller --onefile --windowed on macOS creates a .app
+    # onedir mode: .app bundle is in dist/$APP_NAME/
     APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
-    if [[ -d "$ROOT_DIR/dist/$APP_NAME.app" ]]; then
-      mv "$ROOT_DIR/dist/$APP_NAME.app" "$APP_BUNDLE"
+    SRC_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
+    if [[ -d "$SRC_BUNDLE" ]]; then
+      mv "$SRC_BUNDLE" "$APP_BUNDLE"
     fi
     # Also create a DMG for distribution
     if command -v hdiutil &>/dev/null; then
-      DMG_PATH="$DIST_DIR/${APP_NAME}-macos-universal.dmg"
+      DMG_PATH="$DIST_DIR/${APP_NAME}-macos-arm64.dmg"
       hdiutil create -volname "$APP_NAME" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$DMG_PATH"
       echo "DMG created: $DMG_PATH"
     fi

@@ -1,20 +1,62 @@
-*.exe
+# ── OS ──────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ── Python ───────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ── Environments ────────────────────────────────────────────
+.env
+.venv/
+venv/
+env/
+
+# ── Testing & Coverage ─────────────────────────────────────
+.tox/
+.nox/
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.hypothesis/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# ── IDE / Editor ───────────────────────────────────────────
+.vscode/
+.idea/
+*.sublime-*
+
+# ── Project-specific ───────────────────────────────────────
 temp/
 *.log
-.DS_Store
-debug_admin.py
-*.nsi
-test_launcher.py
-.vscode/
-src/amdl_backup/
-start.sh
 node_modules/
 .next/
 out/
-*.egg-info/
-dist/
-build/
-.env
+src/amdl_backup/
+
+# ── Build artifacts ────────────────────────────────────────
+*.exe
+*.nsi
+debug_admin.py
+test_launcher.py
+start.sh

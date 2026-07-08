@@ -12,13 +12,13 @@ dependencies = [
     "uvicorn",
     "pydantic",
 ]
+readme = "README.md"
+dynamic = ["version"]
 
 [project.optional-dependencies]
 desktop = [
     "pywebview",
 ]
-readme = "README.md"
-dynamic = ["version"]
 
 [project.urls]
 homepage = "https://github.com/wenfeng110402/AppleMusic-Downloader"

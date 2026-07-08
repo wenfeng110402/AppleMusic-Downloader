@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -41,20 +41,30 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Using version: $VERSION"
 
-      - name: Update version in pyproject.toml
+      - name: Update version in source files
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           python - <<'PY'
-          import re, os
-          v = os.environ.get('VERSION', '')
-          p = 'pyproject.toml'
-          with open(p, 'r', encoding='utf-8') as f:
+          import os
+          v = os.environ.get('VERSION', '0.0.0')
+
+          # Update pyproject.toml: replace dynamic with static version
+          with open('pyproject.toml', 'r', encoding='utf-8') as f:
               c = f.read()
-          c_new = re.sub(r'dynamic = \\\"version\\\"', f'version = "{v}"', c)
-          with open(p, 'w', encoding='utf-8') as f:
-              f.write(c_new)
-          print('pyproject.toml updated to version', v)
+          c = c.replace('dynamic = ["version"]', f'version = "{v}"')
+          with open('pyproject.toml', 'w', encoding='utf-8') as f:
+              f.write(c)
+
+          # Update __init__.py so runtime version matches
+          import re
+          with open('src/amdl/__init__.py', 'r', encoding='utf-8') as f:
+              c = f.read()
+          c = re.sub(r'__version__\s*=\s*"[^"]*"', f'__version__ = "{v}"', c)
+          with open('src/amdl/__init__.py', 'w', encoding='utf-8') as f:
+              f.write(c)
+
+          print(f'Updated version to {v} in pyproject.toml and __init__.py')
           PY
 
       - name: Build package

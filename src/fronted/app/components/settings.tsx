@@ -20,7 +20,7 @@ function saveSettings(form: FormState) {
   }).catch(() => {});
 }
 
-export default function Settings() {
+export default function Settings({ onNavigate }: { onNavigate?: (id: string) => void }) {
   const { t } = useI18n();
   const [form, setForm] = useState<FormState>(loadSettings);
   const [loaded, setLoaded] = useState(false);
@@ -71,7 +71,6 @@ export default function Settings() {
               <select className="input" value={form.codec_song} onChange={(e) => set("codec_song", e.target.value)}>
                 <option value="aac-web">AAC (web)</option>
                 <option value="atmos">Atmos</option>
-                <option value="ac3">AC3</option>
               </select>
             </Row>
             <Row label={t("settings.mode")}>
@@ -151,9 +150,12 @@ export default function Settings() {
         </details>
 
         {/* ══════ Actions ══════ */}
-        <div className="flex gap-2">
-          <button className="btn w-full" disabled={checking} onClick={handleCheckDeps}>
+        <div className="flex flex-col gap-2">
+          <button className="btn-secondary w-full" disabled={checking} onClick={handleCheckDeps}>
             {checking ? t("settings.checking") : t("settings.check_deps")}
+          </button>
+          <button className="btn-secondary w-full" onClick={() => onNavigate?.("how-to-install")}>
+            {t("settings.how_to_install")}
           </button>
         </div>
       </div>

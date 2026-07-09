@@ -1,6 +1,26 @@
 from __future__ import annotations
 import sys
 
+_HELP = """\
+AppleMusic Downloader (amdl) v2.4.6
+
+Usage:
+  amdl --server [options]     Start API server
+  amdl --desktop              Launch desktop app
+  amdl <gamdl args...>        Pass through to gamdl CLI
+
+Server options:
+  --host HOST        Listen address (default: 127.0.0.1)
+  --port PORT        Listen port (default: 8000)
+  --log-level LEVEL  Log level: DEBUG, INFO, WARNING, ERROR (default: INFO)
+
+Examples:
+  amdl --server --host 0.0.0.0 --port 8000
+  amdl --desktop
+  amdl -c /path/to/cookies.txt "https://music.apple.com/..."
+  amdl --help
+"""
+
 
 def main():
     """AMDL entry point.
@@ -12,8 +32,13 @@ def main():
     """
     args = sys.argv[1:] if len(sys.argv) > 1 else []
 
+    # ── 帮助信息 ──────────────────────────────────────────────
+    if not args or args[0] in ("--help", "-h"):
+        print(_HELP)
+        return
+
     # ── API 服务模式 ──────────────────────────────────────────
-    if args and args[0] == "--server":
+    if args[0] == "--server":
         from amdl.server import run_server
 
         # 解析 --host / --port（如果有的话）
@@ -37,7 +62,7 @@ def main():
         return
 
     # ── 桌面模式 ──────────────────────────────────────────────
-    if args and args[0] == "--desktop":
+    if args[0] == "--desktop":
         from amdl.server import run_desktop
 
         run_desktop()

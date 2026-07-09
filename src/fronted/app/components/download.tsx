@@ -41,13 +41,17 @@ export default function Download({ onNavigate }: { onNavigate?: (id: string) => 
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    // 恢复上次的 url 输入
+    const savedUrls = sessionStorage.getItem("amdl_pending_urls") || "";
+
     fetch("/api/settings")
       .then((r) => r.json())
       .then((data) => {
         setForm(() => ({
           ...DEFAULT_FORM,
           ...(data && Object.keys(data).length > 0 ? data : {}),
-          urls: "",
+          urls: savedUrls,
         }));
       })
       .catch(() => {});
@@ -58,6 +62,10 @@ export default function Download({ onNavigate }: { onNavigate?: (id: string) => 
       const next = { ...prev, [key]: value };
       const { urls, ...rest } = next;
       void urls;
+      // 随时保存 urls 到 sessionStorage
+      if (key === "urls") {
+        sessionStorage.setItem("amdl_pending_urls", value);
+      }
       fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,17 +80,11 @@ export default function Download({ onNavigate }: { onNavigate?: (id: string) => 
       alert(t("download.cookies_empty"));
       return;
     }
-    let settings: Partial<FormState> = {};
-    try {
-      const raw = localStorage.getItem("amdl_settings");
-      if (raw) settings = JSON.parse(raw);
-    } catch { /* ignore */ }
-    const merged: FormState = { ...DEFAULT_FORM, ...settings };
-    merged.urls = form.urls;
-    merged.cookies_path = form.cookies_path.trim();
-    merged.output_path = form.output_path;
-    merged.audio_format = form.audio_format;
-    await submitTask(merged);
+    // 直接用当前 form 的全部状态提交，无需读 localStorage
+    // form 已在 useEffect 中从 /api/settings 加载，set() 实时更新
+    await submitTask(form);
+    // 提交成功后清空暂存
+    sessionStorage.removeItem("amdl_pending_urls");
     onNavigate?.("queue");
   };
 

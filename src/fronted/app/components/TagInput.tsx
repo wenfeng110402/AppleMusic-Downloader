@@ -49,6 +49,11 @@ export default function TagInput({ value, onChange, placeholder }: TagInputProps
     inputRef.current?.focus();
   };
 
+  // 失去焦点时提交当前输入（点击 Submit 按钮时也会触发）
+  const handleBlur = () => {
+    add(input);
+  };
+
   return (
     <div
       className="input mb-4 flex min-h-[80px] cursor-text flex-wrap items-start gap-1.5 py-2.5"
@@ -85,6 +90,7 @@ export default function TagInput({ value, onChange, placeholder }: TagInputProps
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
       />
     </div>
   );

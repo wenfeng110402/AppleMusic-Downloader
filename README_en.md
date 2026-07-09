@@ -366,6 +366,8 @@ The desktop app is built on pywebview and works on Windows, macOS, and Linux.
 - Artist Profiles
 - Post Videos
 
+> **💡 About codec selection**: When selecting Atmos or AC3 in the settings, the downloader will automatically fall back to AAC stereo if the track is not available in the selected format. Not all songs have Atmos/AC3 versions (typically only songs released after 2021). Only tracks marked with "Dolby Atmos" in Apple Music support Atmos downloads.
+
 ---
 
 ## Project Structure

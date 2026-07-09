@@ -321,6 +321,12 @@ The desktop app is built on pywebview and works on Windows, macOS, and Linux.
 > pip install pywebview[qt]
 > ```
 
+> **🍎 macOS users**: The .app downloaded from Releases is flagged by macOS Gatekeeper. Before opening it, run:
+> ```bash
+> xattr -d com.apple.quarantine /Applications/AppleMusicDownloader.app
+> ```
+> Or right-click the .app and select "Open" (instead of double-clicking).
+
 ---
 
 ## Requirements

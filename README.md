@@ -322,6 +322,12 @@ python -m amdl
 > pip install pywebview[qt]
 > ```
 
+> **🍎 macOS 用户请注意**：从 Releases 下载的 .app 文件需要先解除 macOS 的隔离标记才能打开：
+> ```bash
+> xattr -d com.apple.quarantine /Applications/AppleMusicDownloader.app
+> ```
+> 或者右键 → 打开（而非双击），在弹出的对话框中点击「打开」。
+
 ---
 
 ## 环境要求

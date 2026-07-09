@@ -28,9 +28,29 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return "dark";
   });
 
+  // 启动时从后端恢复 theme
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.theme && data.theme !== theme) {
+          setThemeState(data.theme);
+          localStorage.setItem("amdl_theme", data.theme);
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
     localStorage.setItem("amdl_theme", t);
+    fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme: t }),
+    }).catch(() => {});
   }, []);
 
   const toggle = useCallback(() => {

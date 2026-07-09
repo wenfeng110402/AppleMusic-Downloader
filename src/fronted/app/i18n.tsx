@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 
 // ── 翻译键 ──────────────────────────────────────────────────
 
@@ -214,9 +214,29 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return "zh";
   });
 
+  // 启动时从后端恢复 locale（覆盖 localStorage）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.language && data.language !== locale) {
+          setLocale(data.language === "zh-CN" ? "zh" : "en");
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const changeLocale = useCallback((l: string) => {
     setLocale(l);
     localStorage.setItem("amdl_locale", l);
+    // 同步到后端
+    fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: l === "zh" ? "zh-CN" : "en-US" }),
+    }).catch(() => {});
   }, []);
 
   const t = useCallback(

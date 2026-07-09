@@ -306,8 +306,31 @@ async def _download_urls_async(
         playlist_file_template="{playlist_title}",
         date_tag_template=template_date,
         exclude_tags=exclude_tags_list,
-        truncate=truncate if truncate is not None else 0,
     )
+
+    # truncate=None = 不截断（gamdl 默认），传 0 会导致标题全空
+    # 所以只在有值时传递
+    _dl_kwargs: dict[str, object] = dict(
+        interface=interface,
+        output_path=str(output_path),
+        temp_path=str(temp_path),
+        nm3u8dlre_path=nm3u8dlre_path,
+        ffmpeg_path=ffmpeg_path,
+        download_mode=download_mode,
+        album_folder_template=template_folder_album,
+        compilation_folder_template=template_folder_compilation,
+        no_album_folder_template=template_folder_no_album,
+        playlist_folder_template=template_file_playlist,
+        single_disc_file_template=template_file_single_disc,
+        multi_disc_file_template=template_file_multi_disc,
+        no_album_file_template=template_file_no_album,
+        playlist_file_template="{playlist_title}",
+        date_tag_template=template_date,
+        exclude_tags=exclude_tags_list,
+    )
+    if truncate is not None:
+        _dl_kwargs["truncate"] = truncate
+    base_downloader = AppleMusicBaseDownloader(**_dl_kwargs)  # type: ignore[arg-type]
 
     song_downloader = AppleMusicSongDownloader(base=base_downloader)
     mv_downloader = AppleMusicMusicVideoDownloader(base=base_downloader)
@@ -364,7 +387,7 @@ async def _download_urls_async(
             completed_files.append(str(item.final_path))
             if progress_callback:
                 progress_callback(completed, total_tracks)
-        except GamdlDownloaderMediaFileExistsError:          # ← 加这 4 行
+        except GamdlDownloaderMediaFileExistsError:        
             completed += 1
             logger.info(f'Skipped "{title}": file already exists')
             if progress_callback:

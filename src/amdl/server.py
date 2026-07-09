@@ -266,7 +266,15 @@ async def get_settings():
 
 @app.post("/api/settings", tags=["system"])
 async def save_settings(payload: dict):
-    SETTINGS_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 读取已有设置，做合并而非覆盖
+    existing: dict = {}
+    if SETTINGS_FILE.exists():
+        try:
+            existing = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    existing.update(payload)
+    SETTINGS_FILE.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
     return JSONResponse(content={"status": "ok"})
 
 
@@ -478,11 +486,10 @@ def run_desktop():
     # 设置窗口图标（pywebview >= 6.0 才支持 icon 参数）
     if ICON_FILE.exists():
         try:
-            from importlib.metadata import version as _ver
-            _pw_ver = tuple(int(x) for x in _ver("pywebview").split(".")[:2])
+            _v = tuple(int(x) for x in getattr(webview, "__version__", "0").split(".")[:2])
         except Exception:
-            _pw_ver = (0, 0)
-        if _pw_ver >= (6, 0):
+            _v = (0, 0)
+        if _v >= (6, 0):
             kwargs["icon"] = str(ICON_FILE)
 
     window = webview.create_window(**kwargs)

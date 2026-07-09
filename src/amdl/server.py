@@ -475,9 +475,15 @@ def run_desktop():
         js_api=api,
     )
 
-    # 设置窗口图标：Windows 用 .ico，macOS 用 .icns，Linux 用 .png
+    # 设置窗口图标（pywebview >= 6.0 才支持 icon 参数）
     if ICON_FILE.exists():
-        kwargs["icon"] = str(ICON_FILE)
+        try:
+            from importlib.metadata import version as _ver
+            _pw_ver = tuple(int(x) for x in _ver("pywebview").split(".")[:2])
+        except Exception:
+            _pw_ver = (0, 0)
+        if _pw_ver >= (6, 0):
+            kwargs["icon"] = str(ICON_FILE)
 
     window = webview.create_window(**kwargs)
     window_ref.append(window)

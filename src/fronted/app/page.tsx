@@ -24,7 +24,7 @@ export default function Page() {
       <main className="flex flex-1 flex-col overflow-hidden">
         {active === "download" && <Download onNavigate={setActive} />}
         {active === "queue" && <Queue />}
-        {active === "settings" && <Settings />}
+        {active === "settings" && <Settings onNavigate={setActive} />}
       </main>
     </div>
   );

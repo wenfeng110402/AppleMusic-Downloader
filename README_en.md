@@ -351,7 +351,6 @@ The desktop app is built on pywebview and works on Windows, macOS, and Linux.
 
 ### Optional
 
-- [mp4decrypt](https://www.bento4.com/downloads/): Required for music video downloads and experimental audio codecs
 - [MP4Box](https://gpac.io/downloads/gpac-nightly-builds/): Alternative remux mode
 - [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE/releases/latest): Alternative download mode
 

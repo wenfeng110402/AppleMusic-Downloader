@@ -92,6 +92,9 @@ const zh: Record<string, string> = {
   "install.nm3u8dlre.linux.step2": "解压后移动到 /usr/local/bin 或添加到 PATH",
   "install.nm3u8dlre.linux.step3": "运行 N_m3u8DL-RE --version 验证",
   "install.verify": "进入设置 → 高级设置 → 点击「Check」按钮验证依赖是否安装成功。",
+  "install.winget": "通过 winget 安装…",
+  "install.downloading": "下载中…",
+  "install.extracting": "解压中…",
   "install.back": "返回",
 };
 
@@ -182,6 +185,9 @@ const en: Record<string, string> = {
   "install.nm3u8dlre.linux.step1": "Download N_m3u8DL-RE_linux-x64.tar.gz from GitHub Releases",
   "install.nm3u8dlre.linux.step2": "Extract, move to /usr/local/bin or add to PATH",
   "install.nm3u8dlre.linux.step3": "Run N_m3u8DL-RE --version to verify",
+  "install.winget": "Installing via winget…",
+  "install.downloading": "Downloading…",
+  "install.extracting": "Extracting…",
   "install.verify": "Go to Settings → Advanced → click Check to verify dependencies are installed.",
   "install.back": "Back",
 };

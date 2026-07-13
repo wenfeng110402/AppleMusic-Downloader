@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { DEFAULT_FORM } from "../service";
 import { useI18n } from "../i18n";
 import type { FormState, DependencyCheckItem, DependencyCheckResponse } from "../service";
@@ -20,12 +20,54 @@ function saveSettings(form: FormState) {
   }).catch(() => {});
 }
 
+interface DepDownloadStatus {
+  status: string;   // "downloading" | "extracting" | "ok" | "error" | "skipped"
+  progress: number;  // 0-100
+  error?: string;
+}
+
 export default function Settings({ onNavigate }: { onNavigate?: (id: string) => void }) {
   const { t } = useI18n();
   const [form, setForm] = useState<FormState>(loadSettings);
   const [loaded, setLoaded] = useState(false);
   const [deps, setDeps] = useState<DependencyCheckItem[]>([]);
   const [checking, setChecking] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, DepDownloadStatus>>({});
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── auto-check deps & poll download progress ──────────
+  useEffect(() => {
+    // Initial check
+    fetch("/api/dependencies")
+      .then((r) => r.json())
+      .then((data: DependencyCheckResponse) => setDeps(data.dependencies))
+      .catch(() => {});
+
+    // Poll download progress while deps are being downloaded
+    const poll = () => {
+      fetch("/api/dependencies/download-progress")
+        .then((r) => r.json())
+        .then((data: { dependencies: Record<string, DepDownloadStatus> }) => {
+          setDownloadProgress(data.dependencies);
+          const allDone = Object.values(data.dependencies).every(
+            (d) => d.status === "ok" || d.status === "error" || d.status === "skipped"
+          );
+          // Recheck deps when downloads finish
+          if (allDone && Object.keys(data.dependencies).length > 0) {
+            fetch("/api/dependencies")
+              .then((r) => r.json())
+              .then((d: DependencyCheckResponse) => setDeps(d.dependencies))
+              .catch(() => {});
+          }
+        })
+        .catch(() => {});
+    };
+    poll();
+    pollingRef.current = setInterval(poll, 3000);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (loaded) {
@@ -67,9 +109,77 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
   const set = (key: keyof FormState, value: string | boolean | number) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  // ── download progress states ──────────────────────────
+  const activeDownloads = Object.entries(downloadProgress).filter(
+    ([_, v]) => v.status === "downloading" || v.status === "extracting" || v.status === "winget"
+  );
+  const failedDownloads = Object.entries(downloadProgress).filter(
+    ([_, v]) => v.status === "error"
+  );
+
+  const statusLabel = (st: DepDownloadStatus) => {
+    if (st.status === "winget") return t("install.winget");
+    if (st.status === "downloading") return t("install.downloading");
+    if (st.status === "extracting") return t("install.extracting");
+    return st.status;
+  };
+
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto">
+    <div className="flex flex-1 flex-col overflow-y-auto scroll-edge-top">
       <div className="mx-auto w-full max-w-[520px] px-8 py-8">
+
+        {/* ══════ Auto-download progress banner ══════ */}
+        {activeDownloads.length > 0 && (
+          <section className="mb-6 animate-fade-in-up">
+            <div className="card px-4 py-3.5">
+              <div className="mb-2.5 text-[12.5px] font-semibold" style={{ color: "var(--text-body)" }}>
+                正在自动下载依赖…
+              </div>
+              {activeDownloads.map(([name, st]) => (
+                <div key={name} className="mb-2.5 last:mb-0">
+                  <div className="flex items-center justify-between text-[11px] mb-1.5" style={{ color: "var(--text-dim)" }}>
+                    <span className="font-medium">{name}</span>
+                    <span className="tabular-nums">
+                      {st.status === "winget" ? "安装中" : `${Math.round(st.progress)}%`}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}>
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: st.status === "winget" ? "50%" : `${st.progress}%`,
+                        background: st.status === "winget" ? "#6366f1" : "#ef4444",
+                        transition: "width 0.6s var(--ease-spring)",
+                      }}
+                    />
+                  </div>
+                  <div className="mt-0.5 text-[9.5px]" style={{ color: "var(--text-muted)" }}>
+                    {statusLabel(st)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ══════ Failed downloads notice ══════ */}
+        {failedDownloads.length > 0 && activeDownloads.length === 0 && (
+          <section className="mb-6 animate-fade-in-up">
+            <div className="card px-4 py-3.5" style={{ borderColor: "rgba(239,68,68,0.2)" }}>
+              <div className="mb-1 text-[12.5px] font-semibold" style={{ color: "#ef4444" }}>
+                部分依赖下载失败
+              </div>
+              {failedDownloads.map(([name, st]) => (
+                <div key={name} className="text-[11px]" style={{ color: "var(--text-dim)" }}>
+                  {name}: {st.error || "下载失败"}
+                </div>
+              ))}
+              <div className="mt-2 text-[10.5px]" style={{ color: "var(--text-muted)" }}>
+                请手动安装缺失的依赖，或参考"如何安装"指南。
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ══════ Codec & Format ══════ */}
         <Section title="Codec & Format">
@@ -116,11 +226,22 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
         </Section>
 
         {/* ══════ Advanced ══════ */}
-        <details className="group mb-6">
-          <summary className="mb-1.5 cursor-pointer text-[10.5px] font-semibold tracking-[0.05em] uppercase transition-colors" style={{ color: "var(--text-dim)" }}>
-            {t("settings.advanced")}
+        <details className="group mb-8">
+          <summary
+            className="mb-2 cursor-pointer text-[10.5px] font-semibold tracking-[0.05em] uppercase select-none"
+            style={{
+              color: "var(--text-dim)",
+              transition: "color 0.2s var(--ease-spring)",
+            }}
+          >
+            <span className="group-open:text-[var(--text-body)]">
+              {t("settings.advanced")}
+            </span>
           </summary>
-          <div className="card">
+          <div
+            className="card animate-fade-in-up"
+            style={{ animationDuration: "0.3s" }}
+          >
             <DepRow
               label={t("settings.ffmpeg_path")}
               value={form.ffmpeg_path}
@@ -165,8 +286,12 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
         </details>
 
         {/* ══════ Actions ══════ */}
-        <div className="flex flex-col gap-2">
-          <button className="btn-secondary w-full" onClick={() => onNavigate?.("how-to-install")}>
+        <div className="flex flex-col gap-2.5 mt-6">
+          <button
+            className="btn-secondary w-full py-[9px] text-[12px] font-medium"
+            style={{ borderRadius: 9 }}
+            onClick={() => onNavigate?.("how-to-install")}
+          >
             {t("settings.how_to_install")}
           </button>
         </div>
@@ -239,7 +364,7 @@ function DepRow(props: {
   const statusColor = props.dep
     ? props.dep.found ? "#22c55e" : "#ef4444"
     : undefined;
-  const showCheck = props.dep !== null; // null = cookies/output, undefined = deps还没检测过
+  const showCheck = props.dep !== null;
 
   return (
     <div className="px-4 py-2.5">
@@ -253,13 +378,24 @@ function DepRow(props: {
           placeholder={props.label}
         />
         {props.dep ? (
-          <span style={{ color: statusColor, fontSize: 15, fontWeight: 600, width: 20, textAlign: "center" }}>
+          <span
+            style={{
+              color: statusColor,
+              fontSize: 15,
+              fontWeight: 600,
+              width: 20,
+              textAlign: "center",
+              transition: "transform 0.3s var(--ease-spring-bounce)",
+              display: props.checking ? "none" : "inline",
+            }}
+          >
             {statusIcon}
           </span>
         ) : null}
         {showCheck ? (
           <button
             className="btn-secondary text-[10.5px] whitespace-nowrap px-2.5 py-1"
+            style={{ borderRadius: 6 }}
             disabled={props.checking}
             onClick={props.onCheck}
           >

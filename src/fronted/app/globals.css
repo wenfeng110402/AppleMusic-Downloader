@@ -1,52 +1,104 @@
 @import "tailwindcss";
 
+/* ══════════════════════════════════════════════════════════════
+   Apple Design System — Tokens & Foundations
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Spring curves (Apple-equivalent CSS approximations) ──
+   Critically-damped  (damping=1.0, response≈0.4): no overshoot, smooth settle.
+   Under-damped       (damping≈0.8, response≈0.4): one gentle bounce.
+   Snappy             (response≈0.2): fast settle for small UI elements.       */
+
 :root {
+  --ease-spring: cubic-bezier(0.25, 0.1, 0.25, 1.0);
+  --ease-spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1.0);
+  --ease-spring-snappy: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+  --ease-out-expo: cubic-bezier(0.16, 1.0, 0.3, 1.0);
+
+  /* ── Dark scheme ────────────────────────────────────── */
   --background: #0a0a0a;
   --foreground: #ededed;
-  --card-bg: rgba(255, 255, 255, 0.02);
-  --card-border: rgba(255, 255, 255, 0.06);
+
+  /* Cards & surfaces */
+  --card-bg: rgba(255, 255, 255, 0.025);
+  --card-border: rgba(255, 255, 255, 0.05);
+
+  /* Inputs */
   --input-bg: rgba(255, 255, 255, 0.03);
-  --input-border: rgba(255, 255, 255, 0.08);
-  --input-focus: rgba(239, 68, 68, 0.45);
-  --input-focus-ring: rgba(239, 68, 68, 0.12);
-  --text-muted: rgba(255, 255, 255, 0.35);
-  --text-dim: rgba(255, 255, 255, 0.58);
-  --text-body: rgba(255, 255, 255, 0.82);
-  --text-heading: rgba(255, 255, 255, 0.92);
-  --scrollbar-thumb: rgba(255, 255, 255, 0.06);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.12);
-  --sidebar-bg: rgba(255, 255, 255, 0.015);
+  --input-border: rgba(255, 255, 255, 0.07);
+  --input-focus: rgba(239, 68, 68, 0.42);
+  --input-focus-ring: rgba(239, 68, 68, 0.10);
+
+  /* Text hierarchy (size-specific opacity for SF-style depth) */
+  --text-muted: rgba(255, 255, 255, 0.28);   /* tertiary / placeholders */
+  --text-dim: rgba(255, 255, 255, 0.50);      /* secondary labels */
+  --text-body: rgba(255, 255, 255, 0.80);     /* primary body */
+  --text-heading: rgba(255, 255, 255, 0.92);  /* headings / prominence */
+
+  /* Sidebar — material */
+  --sidebar-bg: rgba(10, 10, 10, 0.70);
+  --sidebar-blur: 20px;
+  --sidebar-saturate: 180%;
   --sidebar-border: rgba(255, 255, 255, 0.04);
-  --sidebar-active: rgba(239, 68, 68, 0.1);
-  --sidebar-hover: rgba(255, 255, 255, 0.03);
+  --sidebar-active: rgba(239, 68, 68, 0.10);
+  --sidebar-hover: rgba(255, 255, 255, 0.04);
+
+  /* Misc */
   --divider: rgba(255, 255, 255, 0.04);
   --log-bg: rgba(0, 0, 0, 0.35);
   --log-text: rgba(237, 237, 237, 0.55);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.06);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.12);
+  --scrim: rgba(0, 0, 0, 0.0);  /* no scrim in dark mode by default */
 }
 
+/* ── Light scheme ─────────────────────────────────────── */
 [data-theme="light"] {
   --background: #f5f5f7;
   --foreground: #1d1d1f;
-  --card-bg: rgba(0, 0, 0, 0.02);
-  --card-border: rgba(0, 0, 0, 0.06);
-  --input-bg: rgba(0, 0, 0, 0.02);
-  --input-border: rgba(0, 0, 0, 0.08);
-  --input-focus: rgba(239, 68, 68, 0.5);
-  --input-focus-ring: rgba(239, 68, 68, 0.15);
-  --text-muted: rgba(0, 0, 0, 0.35);
-  --text-dim: rgba(0, 0, 0, 0.55);
-  --text-body: rgba(0, 0, 0, 0.78);
+
+  --card-bg: rgba(0, 0, 0, 0.018);
+  --card-border: rgba(0, 0, 0, 0.05);
+
+  --input-bg: rgba(0, 0, 0, 0.018);
+  --input-border: rgba(0, 0, 0, 0.07);
+  --input-focus: rgba(239, 68, 68, 0.48);
+  --input-focus-ring: rgba(239, 68, 68, 0.12);
+
+  --text-muted: rgba(0, 0, 0, 0.28);
+  --text-dim: rgba(0, 0, 0, 0.48);
+  --text-body: rgba(0, 0, 0, 0.76);
   --text-heading: rgba(0, 0, 0, 0.88);
-  --scrollbar-thumb: rgba(0, 0, 0, 0.08);
-  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.15);
-  --sidebar-bg: rgba(0, 0, 0, 0.015);
+
+  --sidebar-bg: rgba(245, 245, 247, 0.72);
+  --sidebar-blur: 20px;
+  --sidebar-saturate: 180%;
   --sidebar-border: rgba(0, 0, 0, 0.04);
   --sidebar-active: rgba(239, 68, 68, 0.08);
-  --sidebar-hover: rgba(0, 0, 0, 0.03);
+  --sidebar-hover: rgba(0, 0, 0, 0.04);
+
   --divider: rgba(0, 0, 0, 0.04);
   --log-bg: rgba(0, 0, 0, 0.06);
   --log-text: rgba(0, 0, 0, 0.55);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.08);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.15);
 }
+
+/* ── Reduced transparency: make glass surfaces solid ──── */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --sidebar-bg: #0a0a0a;
+    --sidebar-blur: 0px;
+    --sidebar-saturate: 100%;
+  }
+  [data-theme="light"] {
+    --sidebar-bg: #f5f5f7;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Tailwind theme bridge
+   ══════════════════════════════════════════════════════════════ */
 
 @theme inline {
   --color-background: var(--background);
@@ -55,33 +107,57 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* ══════════════════════════════════════════════════════════════
+   Base — typography, reduced motion
+   ══════════════════════════════════════════════════════════════ */
+
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Segoe UI", system-ui, sans-serif;
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
+  /* Smooth cross-fade when theme changes */
+  transition: background 0.4s var(--ease-spring), color 0.4s var(--ease-spring);
 }
 
-/* ── Form controls ── */
+/* ── Reduced motion: cross-fade instead of spring ─────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.15s !important;
+    transition-timing-function: ease !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Form controls — spring-aware input/select
+   ══════════════════════════════════════════════════════════════ */
+
 .input {
   width: 100%;
-  border-radius: 6px;
+  border-radius: 7px;
   border: 1px solid var(--input-border);
   background: var(--input-bg);
   padding: 7px 10px;
   font-size: 12.5px;
   color: var(--foreground);
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.18s var(--ease-spring),
+              box-shadow 0.18s var(--ease-spring);
 }
 .input::placeholder {
   color: var(--text-muted);
 }
 .input:focus {
   border-color: var(--input-focus);
-  box-shadow: 0 0 0 2px var(--input-focus-ring);
+  box-shadow: 0 0 0 2.5px var(--input-focus-ring);
 }
 select.input {
   appearance: none;
@@ -96,62 +172,94 @@ textarea.input {
   line-height: 1.5;
 }
 
-/* ── Buttons ── */
+/* ══════════════════════════════════════════════════════════════
+   Buttons — instant press feedback + spring release
+   ══════════════════════════════════════════════════════════════ */
+
 .btn-primary {
-  border-radius: 7px;
+  border-radius: 8px;
   background: #ef4444;
-  padding: 9px 16px;
+  padding: 9px 18px;
   font-size: 12.5px;
   font-weight: 600;
   color: #fff;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.005em;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.08s ease;
   border: none;
   outline: none;
+  /* Press: instant | Release: spring settle */
+  transition: background 0.18s var(--ease-spring),
+              transform 0.25s var(--ease-spring-bounce),
+              box-shadow 0.18s var(--ease-spring),
+              opacity 0.18s var(--ease-spring);
 }
 .btn-primary:hover {
   background: #dc2626;
+  box-shadow: 0 2px 12px rgba(239, 68, 68, 0.18);
 }
 .btn-primary:active {
-  transform: scale(0.985);
+  transform: scale(0.96);
+  background: #b91c1c;
+  transition: transform 0.06s var(--ease-spring-snappy),
+              background 0.06s var(--ease-spring-snappy);
 }
 .btn-primary:disabled {
   opacity: 0.35;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 .btn-secondary {
-  border-radius: 6px;
+  border-radius: 7px;
   border: 1px solid var(--input-border);
   background: transparent;
-  padding: 6px 11px;
+  padding: 6px 12px;
   font-size: 11.5px;
   font-weight: 500;
   color: var(--text-dim);
   cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition: border-color 0.18s var(--ease-spring),
+              color 0.18s var(--ease-spring),
+              background 0.18s var(--ease-spring);
   outline: none;
 }
 .btn-secondary:hover {
   border-color: var(--text-muted);
   color: var(--text-body);
+  background: rgba(255, 255, 255, 0.03);
+}
+.btn-secondary:active {
+  transform: scale(0.97);
+  transition: transform 0.08s var(--ease-spring-snappy);
 }
 
-/* ── Card container ── */
+/* ══════════════════════════════════════════════════════════════
+   Card — subtle depth, spring expand
+   ══════════════════════════════════════════════════════════════ */
+
 .card {
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid var(--card-border);
   background: var(--card-bg);
   overflow: hidden;
+  transition: border-color 0.2s var(--ease-spring);
+}
+.card:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+[data-theme="light"] .card:hover {
+  border-color: rgba(0, 0, 0, 0.08);
 }
 
 .card > :not(:first-child) {
   border-top: 1px solid var(--card-border);
 }
 
-/* ── Scrollbar (macOS style) ── */
+/* ══════════════════════════════════════════════════════════════
+   Scrollbar — macOS overlay style
+   ══════════════════════════════════════════════════════════════ */
+
 ::-webkit-scrollbar {
   width: 5px;
 }
@@ -161,16 +269,63 @@ textarea.input {
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
   border-radius: 3px;
+  transition: background 0.2s var(--ease-spring);
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
 
-/* ── Focus visible for keyboard users ── */
+/* ══════════════════════════════════════════════════════════════
+   Scroll edge fade — gradient mask where content meets chrome
+   ══════════════════════════════════════════════════════════════ */
+
+.scroll-edge-top {
+  mask-image: linear-gradient(to bottom,
+    transparent 0%, black 12px, black calc(100% - 12px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom,
+    transparent 0%, black 12px, black calc(100% - 12px), transparent 100%);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Focus visible — keyboard users
+   ══════════════════════════════════════════════════════════════ */
+
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid rgba(239, 68, 68, 0.35);
-  outline-offset: 1px;
+  outline: 2px solid rgba(239, 68, 68, 0.3);
+  outline-offset: 2px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Utility: spring-scale-in (for pop-in elements)
+   ══════════════════════════════════════════════════════════════ */
+
+@keyframes spring-in {
+  0%   { opacity: 0; transform: scale(0.92) translateY(4px); }
+  60%  { opacity: 1; transform: scale(1.01) translateY(0); }
+  100% { opacity: 1; transform: scale(1.00) translateY(0); }
+}
+
+@keyframes fade-in-up {
+  0%   { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-spring-in {
+  animation: spring-in 0.45s var(--ease-spring-bounce) both;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.35s var(--ease-spring) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-spring-in,
+  .animate-fade-in-up {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }

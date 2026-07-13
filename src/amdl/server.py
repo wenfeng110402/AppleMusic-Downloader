@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import shutil
 import subprocess
@@ -24,6 +25,7 @@ from amdl.enums import (
     UploadedVideoQuality,
 )
 from amdl.task_manager import get_task_manager
+from amdl.dependency_manager import ensure_dependencies_async
 
 logger = logging.getLogger("amdl.server")
 
@@ -39,6 +41,18 @@ else:
 
 TEMP_DIR = BASE_DIR / "temp"
 SETTINGS_FILE = BASE_DIR / "settings.json"
+BIN_DIR = BASE_DIR / "bin"
+
+
+def _add_bin_to_path() -> None:
+    """Add BIN_DIR to PATH so shutil.which can find bundled binaries."""
+    bin_str = str(BIN_DIR)
+    current = os.environ.get("PATH", "")
+    if bin_str not in current:
+        os.environ["PATH"] = f"{bin_str}{os.pathsep}{current}"
+
+
+_add_bin_to_path()
 
 # ── 图标：根据平台自动选择 ────────────────────────────────
 import platform as _platform
@@ -58,6 +72,8 @@ else:
 async def lifespan(app: FastAPI):
     tm = get_task_manager()
     tm.start()
+    # Auto-download missing dependencies in background
+    ensure_dependencies_async()
     logger.info("AMDL server started")
     yield
     await tm.stop()
@@ -221,14 +237,47 @@ class ApiInfoResponse(BaseModel):
 # Helpers
 # ═══════════════════════════════════════════════════════════════
 
+# ── well-known fallback paths per platform ──────────────────
+_HOMEBREW_PATHS: list[str] = [
+    "/opt/homebrew/bin",   # Apple Silicon
+    "/usr/local/bin",       # Intel Mac
+    "/home/linuxbrew/.linuxbrew/bin",
+]
+
+_KNOWN_EXTENSIONS: dict[str, str | None] = {
+    "N_m3u8DL-RE": ".exe" if sys.platform == "win32" else None,
+    "MP4Box": ".exe" if sys.platform == "win32" else None,
+    "ffmpeg": ".exe" if sys.platform == "win32" else None,
+}
+
+
 def _find_executable(name: str, custom_path: str | None = None) -> DependencyCheckItem:
+    """Find an executable, searching PATH → BIN_DIR → Homebrew paths."""
     target = custom_path or name
+
+    # 1) shutil.which — respects PATH (including BIN_DIR added above)
     found_path = shutil.which(target)
 
+    # 2) BIN_DIR direct lookup (for cases where BIN_DIR isn't in PATH yet)
+    if not found_path:
+        ext = _KNOWN_EXTENSIONS.get(name, None) or ""
+        candidate = BIN_DIR / f"{target}{ext}"
+        if candidate.exists():
+            found_path = str(candidate)
+
+    # 3) Homebrew fallback (macOS / Linux)
+    if not found_path and sys.platform != "win32":
+        for brew_dir in _HOMEBREW_PATHS:
+            candidate = Path(brew_dir) / target
+            if candidate.exists():
+                found_path = str(candidate)
+                break
+
     if found_path and Path(found_path).exists():
+        resolved = Path(found_path).resolve()
         try:
             result = subprocess.run(
-                [found_path, "-version"] if name in ("ffmpeg", "MP4Box") else [found_path, "--version"],
+                [str(resolved), "-version"] if name in ("ffmpeg", "MP4Box") else [str(resolved), "--version"],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -239,7 +288,7 @@ def _find_executable(name: str, custom_path: str | None = None) -> DependencyChe
         return DependencyCheckItem(
             name=name,
             found=True,
-            path=str(Path(found_path).resolve()),
+            path=str(resolved),
             version=version_line,
         )
 
@@ -300,6 +349,13 @@ async def check_dependencies(ffmpeg_path: str = "", nm3u8dlre_path: str = "", mp
         _find_executable("N_m3u8DL-RE", nm3u8dlre_path or None),
     ]
     return DependencyCheckResponse(all_ok=all(d.found for d in deps), dependencies=deps)
+
+
+@app.get("/api/dependencies/download-progress", tags=["system"])
+async def dep_download_progress():
+    """Get the progress of auto-downloading missing dependencies."""
+    from amdl.dependency_manager import get_progress as _get_progress
+    return {"dependencies": _get_progress()}
 
 
 @app.delete("/api/temp", tags=["system"])
@@ -448,8 +504,25 @@ class PywebviewApi:
 # Entry points
 # ═══════════════════════════════════════════════════════════════
 
+def _find_free_port(start: int = 8000, max_attempts: int = 20) -> int:
+    """Find the first available port starting from *start*."""
+    import socket
+    for port in range(start, start + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", port))
+                return port
+            except OSError:
+                continue
+    return start  # give up, let uvicorn fail with the original port
+
+
 def run_server(host: str = "127.0.0.1", port: int = 8000, log_level: str = "info"):
     import uvicorn
+
+    port = _find_free_port(port)
+    if port != 8000:
+        logger.info("Port 8000 in use — using port %d instead", port)
 
     logging.basicConfig(
         level=getattr(logging, log_level.upper(), logging.INFO),
@@ -463,7 +536,14 @@ def run_desktop():
     import sys as _sys
 
     host = "127.0.0.1"
-    port = 8000
+    port = _find_free_port(8000)
+
+    server_thread = threading.Thread(target=run_server, args=(host, port), daemon=True)
+    server_thread.start()
+    time.sleep(2)
+
+    url = f"http://{host}:{port}"
+    window_ref: list = []
 
     server_thread = threading.Thread(target=run_server, args=(host, port), daemon=True)
     server_thread.start()

@@ -352,7 +352,6 @@ python -m amdl
 
 ### 可选
 
-- [mp4decrypt](https://www.bento4.com/downloads/)：用于音乐视频下载和实验性音频编码
 - [MP4Box](https://gpac.io/downloads/gpac-nightly-builds/)：替代混流模式
 - [N_m3u8DL-RE](https://github.com/nilaoda/N_m3u8DL-RE/releases/latest)：替代下载模式
 

@@ -140,6 +140,14 @@ def download_urls(
     Note: mp4decrypt_path, mp4box_path, and remux_mode are no longer needed
     as gamdl handles everything internally.
     """
+    # Windows workaround: use SelectorEventLoop instead of ProactorEventLoop
+    # to avoid "cannot create weak reference to 'NoneType' object" errors
+    # caused by httpx_retries + anyio incompatibility with ProactorEventLoop.
+    if sys.platform == "win32":
+        try:
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        except Exception:
+            pass
     return asyncio.run(
         _download_urls_async(
             urls=urls,
@@ -252,6 +260,18 @@ async def _download_urls_async(
             cookies_path=str(cookies_path),
             language=language,
         )
+    except TypeError as e:
+        msg = str(e)
+        if "weak reference" in msg and sys.platform == "win32":
+            logger.critical(
+                "Failed to initialise Apple Music API on Windows due to event loop "
+                "incompatibility. Please try restarting the application. If the issue "
+                "persists, ensure you are using Python 3.10–3.12 and have the latest "
+                "versions of httpx and httpx_retries installed."
+            )
+        else:
+            logger.critical(f"Failed to initialise Apple Music API: {e}")
+        return 1
     except Exception as e:
         logger.critical(f"Failed to initialise Apple Music API: {e}")
         return 1

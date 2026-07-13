@@ -30,24 +30,31 @@ export default function Queue() {
   if (tasks.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full ring-1" style={{ background: "var(--card-bg)", borderColor: "var(--card-border)" }}>
+        <div
+          className="flex h-16 w-16 items-center justify-center rounded-2xl"
+          style={{
+            background: "var(--card-bg)",
+            border: "1px solid var(--card-border)",
+            animation: "spring-in 0.5s var(--ease-spring-bounce) both",
+          }}
+        >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-muted)" }}>
             <line x1="3" y1="12" x2="21" y2="12" />
             <line x1="12" y1="3" x2="12" y2="21" />
           </svg>
         </div>
-        <p className="mt-3 text-[12px]" style={{ color: "var(--text-muted)" }}>{t("queue.empty")}</p>
+        <p className="mt-4 text-[12px]" style={{ color: "var(--text-muted)", animation: "fade-in-up 0.4s var(--ease-spring) 0.1s both" }}>{t("queue.empty")}</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto">
+    <div className="flex flex-1 flex-col overflow-y-auto scroll-edge-top">
       <div className="mx-auto w-full max-w-[640px] px-6 py-6">
         {/* Header */}
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-5 flex items-center justify-between">
           <div>
-            <h2 className="text-[14px] font-medium" style={{ color: "var(--text-heading)" }}>{t("queue.title")}</h2>
+            <h2 className="text-[15px] font-semibold tracking-[-0.01em]" style={{ color: "var(--text-heading)" }}>{t("queue.title")}</h2>
             <p className="mt-0.5 text-[10.5px]" style={{ color: "var(--text-muted)" }}>
               {t("queue.count", { count: tasks.length })}
             </p>
@@ -167,17 +174,26 @@ function TaskRow({
         <svg
           width="12" height="12" viewBox="0 0 24 24"
           fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-          className={[
-            "shrink-0 text-foreground/25 transition-transform duration-200",
-            expanded ? "rotate-180" : "",
-          ].join(" ")}
+          className="shrink-0"
+          style={{
+            color: "rgba(255,255,255,0.25)",
+            transition: "transform 0.35s var(--ease-spring-bounce)",
+            transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+          }}
         >
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
 
       {/* ── Expanded: logs ── */}
-      {expanded && (
+      <div
+        className="overflow-hidden"
+        style={{
+          transition: "max-height 0.4s var(--ease-spring), opacity 0.3s var(--ease-spring)",
+          maxHeight: expanded ? "400px" : "0px",
+          opacity: expanded ? 1 : 0,
+        }}
+      >
         <div className="border-t px-4 py-3" style={{ borderColor: "var(--card-border)" }}>
           {task.logs && task.logs.length > 0 ? (
             <>
@@ -199,10 +215,10 @@ function TaskRow({
               </div>
             </>
           ) : (
-            <p className="py-2 text-center text-[11px] text-foreground/20">{t("queue.no_logs")}</p>
+            <p className="py-2 text-center text-[11px]" style={{ color: "var(--text-muted)" }}>{t("queue.no_logs")}</p>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

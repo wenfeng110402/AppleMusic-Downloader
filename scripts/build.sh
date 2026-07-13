@@ -32,14 +32,58 @@ mv next.config.ts.bak next.config.ts
 echo ">>> Frontend built:"
 ls -la out/
 
-# ── Step 2: Install Python deps + PyInstaller ──────────────────
+# ── Step 2: Download N_m3u8DL-RE for bundling ────────────────
+echo ">>> Downloading N_m3u8DL-RE for $PLATFORM..."
+BIN_DIR="$ROOT_DIR/bin"
+mkdir -p "$BIN_DIR"
+
+case "$PLATFORM" in
+  windows)
+    # R2 CDN — fast direct download
+    NMDLRE_URL="https://pub-e4955324bbd043d79465a5231bec51f6.r2.dev/N_m3u8DL-RE.exe"
+    NMDLRE_DEST="$BIN_DIR/N_m3u8DL-RE.exe"
+    if [[ ! -f "$NMDLRE_DEST" ]]; then
+      curl -#fL "$NMDLRE_URL" -o "$NMDLRE_DEST"
+    fi
+    BINARY_FLAG="bin/N_m3u8DL-RE.exe;bin"  # Windows uses ;
+    ;;
+  macos)
+    # GitHub release (arm64)
+    NMDLRE_URL=$(curl -sL "https://api.github.com/repos/nilaoda/N_m3u8DL-RE/releases/latest" \
+      | grep "browser_download_url.*macos-arm64.tar.gz" | cut -d'"' -f4)
+    NMDLRE_DEST="$BIN_DIR/N_m3u8DL-RE.tar.gz"
+    if [[ -n "$NMDLRE_URL" && ! -f "$BIN_DIR/N_m3u8DL-RE" ]]; then
+      curl -#fL "$NMDLRE_URL" -o "$NMDLRE_DEST"
+      tar xzf "$NMDLRE_DEST" -C "$BIN_DIR" N_m3u8DL-RE 2>/dev/null || \
+      tar xzf "$NMDLRE_DEST" -C "$BIN_DIR" --strip-components=1 "*/N_m3u8DL-RE" 2>/dev/null || true
+      rm -f "$NMDLRE_DEST"
+    fi
+    BINARY_FLAG="bin/N_m3u8DL-RE:bin"
+    ;;
+  linux)
+    NMDLRE_URL=$(curl -sL "https://api.github.com/repos/nilaoda/N_m3u8DL-RE/releases/latest" \
+      | grep "browser_download_url.*linux-x64.tar.gz" | cut -d'"' -f4)
+    NMDLRE_DEST="$BIN_DIR/N_m3u8DL-RE.tar.gz"
+    if [[ -n "$NMDLRE_URL" && ! -f "$BIN_DIR/N_m3u8DL-RE" ]]; then
+      curl -#fL "$NMDLRE_URL" -o "$NMDLRE_DEST"
+      tar xzf "$NMDLRE_DEST" -C "$BIN_DIR" N_m3u8DL-RE 2>/dev/null || \
+      tar xzf "$NMDLRE_DEST" -C "$BIN_DIR" --strip-components=1 "*/N_m3u8DL-RE" 2>/dev/null || true
+      rm -f "$NMDLRE_DEST"
+    fi
+    BINARY_FLAG="bin/N_m3u8DL-RE:bin"
+    ;;
+esac
+
+echo ">>> N_m3u8DL-RE ready: $(ls -lh "$BIN_DIR"/N_m3u8DL-RE* 2>/dev/null | awk '{print $5, $NF}')"
+
+# ── Step 3: Install Python deps + PyInstaller ──────────────────
 echo ">>> Installing Python dependencies..."
 cd "$ROOT_DIR"
 pip install --upgrade pip
 pip install -e ".[desktop]"
 pip install pyinstaller
 
-# ── Step 3: Run PyInstaller ────────────────────────────────────
+# ── Step 4: Run PyInstaller ────────────────────────────────────
 echo ">>> Running PyInstaller..."
 
 PYI_ARGS=(
@@ -48,6 +92,7 @@ PYI_ARGS=(
   --add-data "$ROOT_DIR/icon.ico:."
   --add-data "$ROOT_DIR/icon.png:."
   --add-data "$ROOT_DIR/icon.icns:."
+  --add-binary "$BINARY_FLAG"
   --clean
   --noconfirm
 )

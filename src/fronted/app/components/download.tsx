@@ -139,26 +139,40 @@ export default function Download({ onNavigate }: { onNavigate?: (id: string) => 
         </div> */}
 
         {/* ── Hero ── */}
-        <div className="mb-10 text-center">
+        <div className="mb-10 text-center animate-fade-in-up">
           <div
-            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full ring-1"
-            style={{ background: "var(--card-bg)", borderColor: "var(--card-border)" }}
+            className="mx-auto mb-5 flex h-13 w-13 items-center justify-center rounded-2xl"
+            style={{
+              background: "var(--card-bg)",
+              border: "1px solid var(--card-border)",
+              boxShadow: hover ? "0 4px 20px rgba(239, 68, 68, 0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
+              transition: "box-shadow 0.35s var(--ease-spring), transform 0.35s var(--ease-spring-bounce)",
+              transform: hover ? "scale(1.03)" : "scale(1)",
+            }}
             onMouseEnter={() => setHover(true)}
             onMouseLeave={() => setHover(false)}
           >
             <svg
-              width="20" height="20" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
-              className={`transition-all duration-300 ${hover ? "text-[#ef4444] scale-110" : ""}`}
-              style={{ color: hover ? undefined : "var(--text-dim)" }}
+              width="22" height="22" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{
+                color: hover ? "#ef4444" : "var(--text-dim)",
+                transition: "color 0.3s var(--ease-spring), transform 0.35s var(--ease-spring-bounce)",
+                transform: hover ? "scale(1.08)" : "scale(1)",
+              }}
             >
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
           </div>
-          <h2 className="text-[15px] font-medium" style={{ color: "var(--text-heading)" }}>{t("download.title")}</h2>
-          <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+          <h2
+            className="text-[16px] font-semibold tracking-[-0.01em]"
+            style={{ color: "var(--text-heading)" }}
+          >
+            {t("download.title")}
+          </h2>
+          <p className="mt-1.5 text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
             {t("download.url.placeholder")}
           </p>
         </div>
@@ -214,13 +228,17 @@ export default function Download({ onNavigate }: { onNavigate?: (id: string) => 
 
         {/* ── Submit ── */}
         <button
-          className="btn-primary w-full py-[11px] text-[13px] tracking-wide"
+          className="btn-primary w-full py-[12px] text-[13px] font-semibold tracking-[0.01em]"
+          style={{
+            borderRadius: 10,
+            letterSpacing: "0.01em",
+          }}
           onClick={handleSubmit}
         >
           {t("download.submit")}
         </button>
 
-        <p className="mt-3 text-center text-[10.5px] text-foreground/15">
+        <p className="mt-3.5 text-center text-[10.5px]" style={{ color: "var(--text-muted)" }}>
           {t("download.settings.hint")}
         </p>
       </div>

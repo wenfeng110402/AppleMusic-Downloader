@@ -1,5 +1,14 @@
 from __future__ import annotations
+import asyncio
 import sys
+
+# Windows: use SelectorEventLoop to avoid "cannot create weak reference
+# to NoneType" errors from httpx_retries + anyio on ProactorEventLoop.
+if sys.platform == "win32":
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
 
 _HELP = """\
 AppleMusic Downloader (amdl) v2.4.6

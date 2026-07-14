@@ -17,6 +17,16 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
+# Windows: use SelectorEventLoop instead of ProactorEventLoop
+# to avoid "cannot create weak reference to 'NoneType' object" errors
+# caused by httpx_retries + anyio incompatibility with ProactorEventLoop.
+# Must be set at module level, before any async operation.
+if sys.platform == "win32":
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
+
 from gamdl.api import AppleMusicApi
 from gamdl.downloader import (
     AppleMusicBaseDownloader,
@@ -140,14 +150,6 @@ def download_urls(
     Note: mp4decrypt_path, mp4box_path, and remux_mode are no longer needed
     as gamdl handles everything internally.
     """
-    # Windows workaround: use SelectorEventLoop instead of ProactorEventLoop
-    # to avoid "cannot create weak reference to 'NoneType' object" errors
-    # caused by httpx_retries + anyio incompatibility with ProactorEventLoop.
-    if sys.platform == "win32":
-        try:
-            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-        except Exception:
-            pass
     return asyncio.run(
         _download_urls_async(
             urls=urls,

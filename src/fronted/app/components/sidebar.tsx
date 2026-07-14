@@ -212,7 +212,7 @@ export default function Sidebar({ active, onNavigate }: { active: string; onNavi
         <div className="px-5 py-3">
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/70" />
-            <span className="text-[10.5px]" style={{ color: "var(--text-muted)" }}>v2.4.6</span>
+            <span className="text-[10.5px]" style={{ color: "var(--text-muted)" }}>v2.4.9</span>
           </div>
         </div>
       </div>

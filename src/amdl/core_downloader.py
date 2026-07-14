@@ -223,47 +223,55 @@ def download_urls(
             f"Please downgrade to Python 3.10 or 3.11, "
             f"or use WSL (Windows Subsystem for Linux)."
         ) from _last_exc
-    return asyncio.run(
-        _download_urls_async(
-            urls=urls,
-            cookies_path=cookies_path,
-            output_path=output_path,
-            temp_path=temp_path,
-            wvd_path=wvd_path,
-            nm3u8dlre_path=nm3u8dlre_path,
-            ffmpeg_path=ffmpeg_path,
-            download_mode=download_mode,
-            codec_song=codec_song,
-            codec_music_video=codec_music_video,
-            quality_post=quality_post,
-            synced_lyrics_format=synced_lyrics_format,
-            cover_format=cover_format,
-            cover_size=cover_size,
-            truncate=truncate,
-            audio_format=audio_format,
-            video_format=video_format,
-            template_folder_album=template_folder_album,
-            template_folder_compilation=template_folder_compilation,
-            template_file_single_disc=template_file_single_disc,
-            template_file_multi_disc=template_file_multi_disc,
-            template_folder_no_album=template_folder_no_album,
-            template_file_no_album=template_file_no_album,
-            template_file_playlist=template_file_playlist,
-            template_date=template_date,
-            exclude_tags=exclude_tags,
-            overwrite=overwrite,
-            save_cover=save_cover,
-            save_playlist=save_playlist,
-            synced_lyrics_only=synced_lyrics_only,
-            no_synced_lyrics=no_synced_lyrics,
-            read_urls_as_txt=read_urls_as_txt,
-            no_exceptions=no_exceptions,
-            language=language,
-            log_callback=log_callback,
-            log_level=log_level,
-            progress_callback=progress_callback,
+
+    # macOS / Linux — use explicit event loop instead of asyncio.run() to avoid
+    # interfering with uvicorn's running event loop when called from a thread pool.
+    _loop = asyncio.new_event_loop()
+    try:
+        return _loop.run_until_complete(
+            _download_urls_async(
+                urls=urls,
+                cookies_path=cookies_path,
+                output_path=output_path,
+                temp_path=temp_path,
+                wvd_path=wvd_path,
+                nm3u8dlre_path=nm3u8dlre_path,
+                ffmpeg_path=ffmpeg_path,
+                download_mode=download_mode,
+                codec_song=codec_song,
+                codec_music_video=codec_music_video,
+                quality_post=quality_post,
+                synced_lyrics_format=synced_lyrics_format,
+                cover_format=cover_format,
+                cover_size=cover_size,
+                truncate=truncate,
+                audio_format=audio_format,
+                video_format=video_format,
+                template_folder_album=template_folder_album,
+                template_folder_compilation=template_folder_compilation,
+                template_file_single_disc=template_file_single_disc,
+                template_file_multi_disc=template_file_multi_disc,
+                template_folder_no_album=template_folder_no_album,
+                template_file_no_album=template_file_no_album,
+                template_file_playlist=template_file_playlist,
+                template_date=template_date,
+                exclude_tags=exclude_tags,
+                overwrite=overwrite,
+                save_cover=save_cover,
+                save_playlist=save_playlist,
+                synced_lyrics_only=synced_lyrics_only,
+                no_synced_lyrics=no_synced_lyrics,
+                disable_music_video_skip=disable_music_video_skip,
+                read_urls_as_txt=read_urls_as_txt,
+                no_exceptions=no_exceptions,
+                language=language,
+                log_callback=log_callback,
+                log_level=log_level,
+                progress_callback=progress_callback,
+            )
         )
-    )
+    finally:
+        _loop.close()
 
 
 async def _download_urls_async(
@@ -315,9 +323,14 @@ async def _download_urls_async(
         f"| EventLoop: {type(asyncio.get_running_loop()).__name__}"
     )
 
-    # ── normalize path types ──────────────────────────────
-    temp_path = Path(temp_path)
-    output_path = Path(output_path)
+    # ── normalize & resolve path types ───────────────────
+    # Resolve to absolute paths to prevent CWD-dependent failures
+    # when gamdl's Rust ammuxer runs in a thread pool (asyncio.to_thread).
+    temp_path = Path(temp_path).resolve()
+    output_path = Path(output_path).resolve()
+    cookies_path = cookies_path.resolve()
+    if wvd_path is not None:
+        wvd_path = wvd_path.resolve()
 
     # ── expand txt files ─────────────────────────────────
     if read_urls_as_txt:

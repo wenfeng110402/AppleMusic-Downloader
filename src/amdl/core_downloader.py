@@ -290,6 +290,7 @@ async def _download_urls_async(
     save_playlist: bool = False,
     synced_lyrics_only: bool = False,
     no_synced_lyrics: bool = False,
+    disable_music_video_skip: bool = False,
     read_urls_as_txt: bool = False,
     no_exceptions: bool = True,
     language: str = "en-US",

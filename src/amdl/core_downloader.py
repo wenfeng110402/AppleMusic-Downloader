@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import subprocess
 import sys
 import traceback
 from pathlib import Path
@@ -446,6 +448,53 @@ async def _download_urls_async(
     if truncate is not None:
         _dl_kwargs["truncate"] = truncate
     base_downloader = AppleMusicBaseDownloader(**_dl_kwargs)  # type: ignore[arg-type]
+
+    # ── patch: replace gamdl's multiprocess-based download with direct yt-dlp ──
+    # gamdl 3.8.3 uses multiprocessing.Process for yt-dlp downloads, which fails
+    # silently inside PyInstaller bundles (fork issues on macOS).  We bypass it
+    # with an async subprocess call so the file is guaranteed to be on disk.
+    _dl_mode = download_mode
+    _silent = False  # base_downloader.silent is not directly exposed
+
+    async def _patched_download_stream(
+        stream_url: str,
+        download_path: str,
+    ) -> None:
+        Path(download_path).parent.mkdir(parents=True, exist_ok=True)
+        is_m3u8 = stream_url.split("?")[0].endswith(".m3u8")
+        use_nm3u8 = _dl_mode == DownloadMode.NM3U8DLRE and is_m3u8
+
+        if use_nm3u8:
+            # N_m3u8DL-RE mode — delegate to gamdl's existing subprocess impl
+            await base_downloader._download_nm3u8dlre(stream_url, download_path)
+        else:
+            # yt-dlp via subprocess (bypasses gamdl's multiprocessing.Process)
+            args = [
+                "yt-dlp",
+                "--quiet", "--no-warnings",
+                "--overwrites",
+                "--allow-unplayable-formats",
+                "--concurrent-fragments", "8",
+                "-o", download_path,
+                stream_url,
+            ]
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                err = stderr.decode(errors="replace") if stderr else "unknown error"
+                raise RuntimeError(f"yt-dlp failed (exit {proc.returncode}): {err}")
+            # yt-dlp may write to a temp file and rename; verify the final file
+            if not Path(download_path).exists():
+                raise RuntimeError(
+                    f"yt-dlp did not produce {download_path} "
+                    f"(exit {proc.returncode})"
+                )
+
+    base_downloader.download_stream = _patched_download_stream  # type: ignore[assignment]
 
     song_downloader = AppleMusicSongDownloader(base=base_downloader)
     mv_downloader = AppleMusicMusicVideoDownloader(base=base_downloader)

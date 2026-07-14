@@ -25,6 +25,12 @@ from typing import Callable
 
 logger = logging.getLogger("amdl.dep_mgr")
 
+# ── Windows: hide cmd window for subprocess calls ───────────
+if sys.platform == "win32":
+    _SUBPROCESS_FLAGS = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
+else:
+    _SUBPROCESS_FLAGS = 0
+
 # ── paths ────────────────────────────────────────────────────
 # BASE_DIR — project root (dev) or _MEIPASS (frozen, read-only).
 # _DATA_DIR — writable persistent data directory.
@@ -256,6 +262,7 @@ def _winget_available() -> bool:
             ["winget", "--version"],
             capture_output=True,
             timeout=10,
+            creationflags=_SUBPROCESS_FLAGS,
         )
         return True
     except Exception:
@@ -279,6 +286,7 @@ def _try_winget_install(name: str) -> bool:
         check = subprocess.run(
             ["winget", "list", "--exact", "--id", pkg_id, "--accept-source-agreements"],
             capture_output=True, text=True, timeout=30,
+            creationflags=_SUBPROCESS_FLAGS,
         )
         if pkg_id.lower() in check.stdout.lower():
             logger.info("%s already installed via winget, skipping", name)
@@ -294,6 +302,7 @@ def _try_winget_install(name: str) -> bool:
                 "--accept-source-agreements", "--disable-interactivity",
             ],
             capture_output=True, text=True, timeout=120,
+            creationflags=_SUBPROCESS_FLAGS,
         )
 
         if result.returncode == 0:
@@ -496,6 +505,12 @@ def _ensure_dependencies_sync() -> None:
     for dep in defs:
         exe_name = dep.exe_name
         dest = BIN_DIR / exe_name
+
+        # ── already installed system-wide? ────────────
+        if shutil.which(exe_name) is not None:
+            _progress.update(dep.name, "ok", 100)
+            logger.info("%s found in system PATH, skipping download", dep.name)
+            continue
 
         # ── already in BIN_DIR? ──────────────────────
         if dest.exists():

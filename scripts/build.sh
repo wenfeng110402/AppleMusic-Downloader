@@ -117,6 +117,9 @@ PYI_ARGS=(
   --add-data "$ROOT_DIR/icon.ico:."
   --add-data "$ROOT_DIR/icon.png:."
   --add-data "$ROOT_DIR/icon.icns:."
+  --collect-all gamdl
+  --collect-all pywebview
+  --hidden-import amdl.dependency_manager
   --clean
   --noconfirm
 )
@@ -129,7 +132,7 @@ fi
 # Platform-specific flags
 case "$PLATFORM" in
   macos)
-    PYI_ARGS+=(--windowed --onedir)
+    PYI_ARGS+=(--windowed --onedir --codesign-identity "-")
     # macOS code signing identity (optional, set via env)
     if [[ -n "${APPLE_SIGN_IDENTITY:-}" ]]; then
       PYI_ARGS+=(--codesign-identity "$APPLE_SIGN_IDENTITY")

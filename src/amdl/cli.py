@@ -1,10 +1,15 @@
 from __future__ import annotations
 import sys
 
-# Ensure anyio uses the asyncio backend (avoids event-loop detection issues).
+# Windows: use SelectorEventLoop + anyio asyncio backend.
 if sys.platform == "win32":
     import os as _os
     _os.environ.setdefault("ANYIO_BACKEND", "asyncio")
+    import asyncio as _asyncio
+    try:
+        _asyncio.set_event_loop_policy(_asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
 
 _HELP = """\
 AppleMusic Downloader (amdl) v2.4.6

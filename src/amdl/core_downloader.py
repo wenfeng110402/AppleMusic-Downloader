@@ -362,9 +362,8 @@ async def _download_urls_async(
             logger.critical(
                 f"Failed to initialise AppleMusic API: {e}\n"
                 f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} "
-                f"on Windows is not compatible with httpx_retries + anyio.\n"
-                f"Please use Python 3.10 or 3.11 on Windows, "
-                f"or use WSL (Windows Subsystem for Linux)."
+                f"on Windows needs SelectorEventLoop but ProactorEventLoop is active.\n"
+                f"Restart the application — the event loop policy should be set automatically."
             )
         else:
             logger.critical(f"Failed to initialise AppleMusic API: {e}")
@@ -472,7 +471,6 @@ async def _download_urls_async(
             args = [
                 "yt-dlp",
                 "--quiet", "--no-warnings",
-                "--overwrite",
                 "--allow-unplayable-formats",
                 "--concurrent-fragments", "8",
                 "-o", download_path,

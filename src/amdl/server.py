@@ -12,9 +12,15 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-# ── Windows: ensure anyio uses asyncio backend ──────────────
+# ── Windows: use SelectorEventLoop + anyio asyncio backend ──
+# httpx_retries.RetryTransport is incompatible with ProactorEventLoop.
 if sys.platform == "win32":
     os.environ.setdefault("ANYIO_BACKEND", "asyncio")
+    import asyncio as _asyncio
+    try:
+        _asyncio.set_event_loop_policy(_asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        pass
 
 # ── Windows: hide cmd window for subprocess calls ───────────
 if sys.platform == "win32":

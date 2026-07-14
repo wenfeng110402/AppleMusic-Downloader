@@ -25,8 +25,36 @@ from typing import Callable
 logger = logging.getLogger("amdl.dep_mgr")
 
 # ── paths ────────────────────────────────────────────────────
+# BASE_DIR — project root (dev) or _MEIPASS (frozen, read-only).
+# _DATA_DIR — writable persistent data directory.
+# BIN_DIR   — where downloaded binaries live.
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-BIN_DIR = BASE_DIR / "bin"
+
+
+def _get_data_dir() -> Path:
+    """Return a writable data directory persistent across runs.
+
+    - PyInstaller bundle: uses OS-specific app data dir (read-write).
+    - Development / pip install: uses the project root (BASE_DIR).
+    """
+    if getattr(sys, "frozen", False):
+        app = "AppleMusicDownloader"
+        if sys.platform == "win32":
+            return Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / app
+        elif sys.platform == "darwin":
+            return Path.home() / "Library" / "Application Support" / app
+        else:
+            return Path.home() / ".local" / "share" / app
+    return BASE_DIR
+
+
+_DATA_DIR = _get_data_dir()
+BIN_DIR = _DATA_DIR / "bin"
+
+
+# Public alias — used by server.py for settings / temp
+DATA_DIR = _DATA_DIR
 
 
 # ── helpers ──────────────────────────────────────────────────
@@ -112,7 +140,7 @@ def _ffmpeg_url() -> str:
     os_ = _os()
     arch = _arch()
     if os_ == "macos":
-        return f"{_FFMPEG_RELEASE}/ffmpeg-master-latest-macos{arch}-gpl.zip"
+        return f"{_FFMPEG_RELEASE}/ffmpeg-master-latest-macos-{arch}-gpl.zip"
     if os_ == "windows":
         return f"{_FFMPEG_RELEASE}/ffmpeg-master-latest-win64-gpl.zip"
     return f"{_FFMPEG_RELEASE}/ffmpeg-master-latest-linux64-gpl.tar.xz"
@@ -244,10 +272,11 @@ def _try_winget_install(name: str) -> bool:
             _progress.update(name, "ok", 100)
             return True
 
-        # ── install ──
+        # ── install (user scope — no admin needed) ──
         result = subprocess.run(
             [
                 "winget", "install", "--exact", "--id", pkg_id,
+                "--scope", "user",
                 "--silent", "--accept-package-agreements",
                 "--accept-source-agreements", "--disable-interactivity",
             ],

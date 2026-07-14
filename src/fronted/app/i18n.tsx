@@ -95,6 +95,13 @@ const zh: Record<string, string> = {
   "install.winget": "通过 winget 安装…",
   "install.downloading": "下载中…",
   "install.extracting": "解压中…",
+  "settings.dep_downloading": "正在自动下载依赖…",
+  "settings.dep_installing": "安装中",
+  "settings.dep_failed_title": "部分依赖下载失败",
+  "settings.dep_failed_hint": "请手动安装缺失的依赖，或参考&ldquo;如何安装&rdquo;指南。",
+  "settings.dep_failed_unknown": "下载失败",
+  "settings.check": "检查",
+  "settings.not_found": "未找到: {name}",
   "install.back": "返回",
 };
 
@@ -189,6 +196,13 @@ const en: Record<string, string> = {
   "install.downloading": "Downloading…",
   "install.extracting": "Extracting…",
   "install.verify": "Go to Settings → Advanced → click Check to verify dependencies are installed.",
+  "settings.dep_downloading": "Downloading dependencies…",
+  "settings.dep_installing": "Installing…",
+  "settings.dep_failed_title": "Some dependencies failed to download",
+  "settings.dep_failed_hint": "Please install them manually or check the install guide.",
+  "settings.dep_failed_unknown": "Download failed",
+  "settings.check": "Check",
+  "settings.not_found": "Not found: {name}",
   "install.back": "Back",
 };
 

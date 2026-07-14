@@ -111,10 +111,10 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
 
   // ── download progress states ──────────────────────────
   const activeDownloads = Object.entries(downloadProgress).filter(
-    ([_, v]) => v.status === "downloading" || v.status === "extracting" || v.status === "winget"
+    ([, v]) => v.status === "downloading" || v.status === "extracting" || v.status === "winget"
   );
   const failedDownloads = Object.entries(downloadProgress).filter(
-    ([_, v]) => v.status === "error"
+    ([, v]) => v.status === "error"
   );
 
   const statusLabel = (st: DepDownloadStatus) => {
@@ -133,14 +133,14 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
           <section className="mb-6 animate-fade-in-up">
             <div className="card px-4 py-3.5">
               <div className="mb-2.5 text-[12.5px] font-semibold" style={{ color: "var(--text-body)" }}>
-                正在自动下载依赖…
+                {t("settings.dep_downloading")}
               </div>
               {activeDownloads.map(([name, st]) => (
                 <div key={name} className="mb-2.5 last:mb-0">
                   <div className="flex items-center justify-between text-[11px] mb-1.5" style={{ color: "var(--text-dim)" }}>
                     <span className="font-medium">{name}</span>
                     <span className="tabular-nums">
-                      {st.status === "winget" ? "安装中" : `${Math.round(st.progress)}%`}
+                      {st.status === "winget" ? t("settings.dep_installing") : `${Math.round(st.progress)}%`}
                     </span>
                   </div>
                   <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}>
@@ -167,15 +167,15 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
           <section className="mb-6 animate-fade-in-up">
             <div className="card px-4 py-3.5" style={{ borderColor: "rgba(239,68,68,0.2)" }}>
               <div className="mb-1 text-[12.5px] font-semibold" style={{ color: "#ef4444" }}>
-                部分依赖下载失败
+                {t("settings.dep_failed_title")}
               </div>
               {failedDownloads.map(([name, st]) => (
                 <div key={name} className="text-[11px]" style={{ color: "var(--text-dim)" }}>
-                  {name}: {st.error || "下载失败"}
+                  {name}: {st.error || t("settings.dep_failed_unknown")}
                 </div>
               ))}
               <div className="mt-2 text-[10.5px]" style={{ color: "var(--text-muted)" }}>
-                请手动安装缺失的依赖，或参考"如何安装"指南。
+                {t("settings.dep_failed_hint")}
               </div>
             </div>
           </section>
@@ -358,6 +358,7 @@ function DepRow(props: {
   checking: boolean;
   onCheck: () => void;
 }) {
+  const { t } = useI18n();
   const statusIcon = props.dep
     ? props.dep.found ? "✓" : "✗"
     : null;
@@ -399,7 +400,7 @@ function DepRow(props: {
             disabled={props.checking}
             onClick={props.onCheck}
           >
-            {props.checking ? "…" : "检查"}
+            {props.checking ? "…" : t("settings.check")}
           </button>
         ) : null}
       </div>
@@ -407,7 +408,7 @@ function DepRow(props: {
         <div className="mt-1 text-[10px] ml-[52px]" style={{ color: statusColor }}>
           {props.dep.found
             ? (props.dep.version || props.dep.path || props.dep.name)
-            : `未找到: ${props.dep.name}`}
+            : t("settings.not_found", { name: props.dep.name })}
         </div>
       )}
     </div>

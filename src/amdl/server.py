@@ -25,23 +25,22 @@ from amdl.enums import (
     UploadedVideoQuality,
 )
 from amdl.task_manager import get_task_manager
+from amdl.dependency_manager import BIN_DIR, DATA_DIR
 from amdl.dependency_manager import ensure_dependencies_async
 
 logger = logging.getLogger("amdl.server")
 
 # ── Path resolution（兼容 PyInstaller 打包） ───────────────
 if getattr(sys, "frozen", False):
-    # PyInstaller 运行时：数据文件在 sys._MEIPASS
-    BASE_DIR = Path(sys._MEIPASS)  # type: ignore[attr-defined]
+    BASE_DIR = Path(sys._MEIPASS)  # type: ignore[attr-defined]  (只读)
     FRONTEND_OUT = BASE_DIR / "frontend_out"
 else:
-    # 开发模式：用常规相对路径
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
     FRONTEND_OUT = BASE_DIR / "src" / "fronted" / "out"
 
-TEMP_DIR = BASE_DIR / "temp"
-SETTINGS_FILE = BASE_DIR / "settings.json"
-BIN_DIR = BASE_DIR / "bin"
+# DATA_DIR / TEMP_DIR / SETTINGS_FILE — 统一从 dependency_manager 获取
+TEMP_DIR = DATA_DIR / "temp"
+SETTINGS_FILE = DATA_DIR / "settings.json"
 
 
 def _add_bin_to_path() -> None:
@@ -533,17 +532,9 @@ def run_server(host: str = "127.0.0.1", port: int = 8000, log_level: str = "info
 
 def run_desktop():
     import webview
-    import sys as _sys
 
     host = "127.0.0.1"
     port = _find_free_port(8000)
-
-    server_thread = threading.Thread(target=run_server, args=(host, port), daemon=True)
-    server_thread.start()
-    time.sleep(2)
-
-    url = f"http://{host}:{port}"
-    window_ref: list = []
 
     server_thread = threading.Thread(target=run_server, args=(host, port), daemon=True)
     server_thread.start()

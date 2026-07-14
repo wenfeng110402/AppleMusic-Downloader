@@ -22,7 +22,12 @@ from enum import Enum
 from pathlib import Path
 from fastapi import WebSocket
 
-from amdl.core_downloader import download_urls
+# Lazy import: core_downloader does a Python version guard at import time,
+# so we catch ImportError here and propagate as a clear error message.
+try:
+    from amdl.core_downloader import download_urls
+except Exception as _import_err:
+    download_urls = _import_err  # type: ignore[assignment]
 
 # ── Global singleton ─────────────────────────────────────────
 _task_manager: TaskManager | None = None
@@ -200,6 +205,15 @@ class TaskManager:
         if not task or task.cancelled:
             return
 
+        # ── Check for import-time error (Python version guard) ──
+        if not callable(download_urls):
+            msg = str(download_urls)
+            task.status = TaskStatus.FAILED
+            task.message = msg
+            task.logs.append(f"[FATAL] {msg}")
+            task.updated_at = datetime.now(timezone.utc).isoformat()
+            return
+
         # ── Build progress callback ──────────────────────
         def on_progress(completed: int, total: int):
             """Called by core_downloader.download_urls from the worker thread."""
@@ -258,6 +272,9 @@ class TaskManager:
         except Exception as e:
             task.status = TaskStatus.FAILED
             task.message = str(e)
+            task.logs.append(f"[ERROR] {e}")
+            task.updated_at = datetime.now(timezone.utc).isoformat()
+            logging.getLogger("amdl.task").error(f"[{task_id[:8]}] Task failed: {e}")
             task.updated_at = datetime.now(timezone.utc).isoformat()
             logging.getLogger("amdl.task").error(
                 f"[{task_id[:8]}] Download failed: {e}", exc_info=True

@@ -10,12 +10,29 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-if "--server" in sys.argv:
-    from amdl.server import run_server
-    run_server()
-elif "--desktop" in sys.argv:
-    from amdl.server import run_desktop
-    run_desktop()
-else:
-    from amdl.server import run_server
-    run_server()
+try:
+    if "--server" in sys.argv:
+        from amdl.server import run_server
+        run_server()
+    elif "--desktop" in sys.argv:
+        from amdl.server import run_desktop
+        run_desktop()
+    else:
+        from amdl.server import run_server
+        run_server()
+except RuntimeError as e:
+    msg = str(e)
+    print(f"FATAL: {msg}", file=sys.stderr)
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror(
+            "Python 版本不兼容",
+            f"{msg}\n\n请在终端运行降级命令后重试:\nconda install python=3.12"
+        )
+        root.destroy()
+    except ImportError:
+        pass
+    sys.exit(1)

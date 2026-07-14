@@ -17,6 +17,23 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
+# ── Python version guard ────────────────────────────────
+_MIN_PYTHON = (3, 10)
+_MAX_PYTHON = (3, 12)  # 3.13+ has httpx_retries/anyio incompatibilities
+_pyver = sys.version_info[:2]
+
+if _pyver < _MIN_PYTHON:
+    raise RuntimeError(
+        f"Python {_pyver[0]}.{_pyver[1]} is too old. "
+        f"Requires Python {_MIN_PYTHON[0]}.{_MIN_PYTHON[1]}+"
+    )
+if _pyver > _MAX_PYTHON:
+    raise RuntimeError(
+        f"Python {_pyver[0]}.{_pyver[1]} is not supported yet. "
+        f"httpx_retries and anyio are incompatible with Python 3.13+ on Windows. "
+        f"Please downgrade to Python 3.12: conda install python=3.12"
+    )
+
 # Windows: use SelectorEventLoop instead of ProactorEventLoop
 # to avoid "cannot create weak reference to 'NoneType' object" errors
 # caused by httpx_retries + anyio incompatibility with ProactorEventLoop.
@@ -282,6 +299,11 @@ async def _download_urls_async(
 ) -> int:
     """Async implementation of download_urls using gamdl embedding API."""
     logger = _setup_logger("amdl.core", log_level, log_callback)
+    logger.info(
+        f"System: Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} "
+        f"| Platform: {sys.platform} "
+        f"| EventLoop: {type(asyncio.get_running_loop()).__name__}"
+    )
 
     # ── normalize path types ──────────────────────────────
     temp_path = Path(temp_path)
@@ -313,16 +335,16 @@ async def _download_urls_async(
         msg = str(e)
         if "weak reference" in msg and sys.platform == "win32":
             logger.critical(
-                "Failed to initialise Apple Music API on Windows due to event loop "
-                "incompatibility. Please try restarting the application. If the issue "
-                "persists, ensure you are using Python 3.10–3.12 and have the latest "
-                "versions of httpx and httpx_retries installed."
+                f"Failed to initialise AppleMusic API: {e}\n"
+                f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} "
+                f"on Windows is not compatible with httpx_retries.\n"
+                f"Please downgrade to Python 3.12: conda install python=3.12"
             )
         else:
-            logger.critical(f"Failed to initialise Apple Music API: {e}")
+            logger.critical(f"Failed to initialise AppleMusic API: {e}")
         return 1
     except Exception as e:
-        logger.critical(f"Failed to initialise Apple Music API: {e}")
+        logger.critical(f"Failed to initialise AppleMusic API: {e}")
         return 1
 
     if not apple_music_api.active_subscription:

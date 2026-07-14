@@ -322,11 +322,20 @@ python -m amdl
 > pip install pywebview[qt]
 > ```
 
-> **🍎 macOS 用户请注意**：从 Releases 下载的 .app 文件需要先解除 macOS 的隔离标记才能打开：
+> **🍎 macOS 用户请注意**：从 Releases 下载的文件会被 macOS 添上隔离标记（quarantine flag），首次运行前需要解除：
+>
+> **.app 桌面应用**：
 > ```bash
 > xattr -d com.apple.quarantine /Applications/AppleMusicDownloader.app
 > ```
 > 或者右键 → 打开（而非双击），在弹出的对话框中点击「打开」。
+>
+> **CLI 命令行二进制**：
+> ```bash
+> chmod +x ./AppleMusicDownloader
+> xattr -d com.apple.quarantine ./AppleMusicDownloader
+> ```
+> 也可用 `spctl --assess --verbose` 验证签名状态。
 
 ---
 

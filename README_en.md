@@ -321,11 +321,20 @@ The desktop app is built on pywebview and works on Windows, macOS, and Linux.
 > pip install pywebview[qt]
 > ```
 
-> **🍎 macOS users**: The .app downloaded from Releases is flagged by macOS Gatekeeper. Before opening it, run:
+> **🍎 macOS users**: Files downloaded from Releases are flagged with a quarantine attribute by macOS. Remove it before first launch:
+>
+> **.app (Desktop app)**:  
 > ```bash
 > xattr -d com.apple.quarantine /Applications/AppleMusicDownloader.app
 > ```
-> Or right-click the .app and select "Open" (instead of double-clicking).
+> Or right-click → Open (instead of double-clicking), then click "Open" in the dialog.
+>
+> **CLI binary**:  
+> ```bash
+> chmod +x ./AppleMusicDownloader
+> xattr -d com.apple.quarantine ./AppleMusicDownloader
+> ```
+> You can also use `spctl --assess --verbose` to verify the signing status.
 
 ---
 

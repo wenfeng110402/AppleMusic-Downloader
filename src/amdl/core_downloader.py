@@ -150,6 +150,53 @@ def download_urls(
     Note: mp4decrypt_path, mp4box_path, and remux_mode are no longer needed
     as gamdl handles everything internally.
     """
+    if sys.platform == "win32":
+        # Windows ProactorEventLoop is incompatible with httpx_retries + anyio.
+        # Explicitly create a SelectorEventLoop instead of relying on policy.
+        _loop = asyncio.SelectorEventLoop()
+        try:
+            return _loop.run_until_complete(_download_urls_async(
+                urls=urls,
+                cookies_path=cookies_path,
+                output_path=output_path,
+                temp_path=temp_path,
+                wvd_path=wvd_path,
+                nm3u8dlre_path=nm3u8dlre_path,
+                ffmpeg_path=ffmpeg_path,
+                download_mode=download_mode,
+                codec_song=codec_song,
+                codec_music_video=codec_music_video,
+                quality_post=quality_post,
+                synced_lyrics_format=synced_lyrics_format,
+                cover_format=cover_format,
+                cover_size=cover_size,
+                truncate=truncate,
+                audio_format=audio_format,
+                video_format=video_format,
+                template_folder_album=template_folder_album,
+                template_folder_compilation=template_folder_compilation,
+                template_file_single_disc=template_file_single_disc,
+                template_file_multi_disc=template_file_multi_disc,
+                template_folder_no_album=template_folder_no_album,
+                template_file_no_album=template_file_no_album,
+                template_file_playlist=template_file_playlist,
+                template_date=template_date,
+                exclude_tags=exclude_tags,
+                overwrite=overwrite,
+                save_cover=save_cover,
+                save_playlist=save_playlist,
+                synced_lyrics_only=synced_lyrics_only,
+                no_synced_lyrics=no_synced_lyrics,
+                disable_music_video_skip=disable_music_video_skip,
+                read_urls_as_txt=read_urls_as_txt,
+                no_exceptions=no_exceptions,
+                language=language,
+                log_callback=log_callback,
+                log_level=log_level,
+                progress_callback=progress_callback,
+            ))
+        finally:
+            _loop.close()
     return asyncio.run(
         _download_urls_async(
             urls=urls,

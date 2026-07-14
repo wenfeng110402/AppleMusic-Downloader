@@ -6,3 +6,4 @@ fastapi
 uvicorn
 pydantic
 pywebview
+certifi

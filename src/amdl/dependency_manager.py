@@ -434,6 +434,8 @@ def _extract_from_zip(data: bytes, dep: DependencyDef, dest: Path) -> None:
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         for name in zf.namelist():
             p = Path(name)
+            if name.endswith("/"):
+                continue
             if dep.extract_filter and dep.extract_filter(name):
                 member = zf.read(name)
                 dest.write_bytes(member)
@@ -453,6 +455,8 @@ def _extract_from_tar(data: bytes, dep: DependencyDef, dest: Path, mode: str = "
         mode = "r:xz"
     with tarfile.open(fileobj=io.BytesIO(data), mode=mode) as tf:
         for member in tf.getmembers():
+            if member.isdir():
+                continue
             if dep.extract_filter and dep.extract_filter(member.name):
                 tf.extract(member, path=dest.parent)
                 extracted = dest.parent / member.name

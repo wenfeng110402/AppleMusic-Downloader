@@ -65,6 +65,11 @@ case "$PLATFORM" in
       if [[ -f "/tmp/N_m3u8DL-RE.tar.gz" ]]; then
         tar xzf "/tmp/N_m3u8DL-RE.tar.gz" -C "$BIN_DIR" 2>/dev/null
         rm -f "/tmp/N_m3u8DL-RE.tar.gz"
+        # GitHub tar is N_m3u8DL-RE/N_m3u8DL-RE (subdir) — move file up
+        if [[ -f "$BIN_DIR/N_m3u8DL-RE/N_m3u8DL-RE" ]]; then
+          mv "$BIN_DIR/N_m3u8DL-RE/N_m3u8DL-RE" "$DEST"
+          rmdir "$BIN_DIR/N_m3u8DL-RE" 2>/dev/null || true
+        fi
       fi
     fi
     if [[ -f "$DEST" ]]; then
@@ -83,6 +88,11 @@ case "$PLATFORM" in
       if [[ -f "/tmp/N_m3u8DL-RE.tar.gz" ]]; then
         tar xzf "/tmp/N_m3u8DL-RE.tar.gz" -C "$BIN_DIR" 2>/dev/null
         rm -f "/tmp/N_m3u8DL-RE.tar.gz"
+        # GitHub tar is N_m3u8DL-RE/N_m3u8DL-RE (subdir) — move file up
+        if [[ -f "$BIN_DIR/N_m3u8DL-RE/N_m3u8DL-RE" ]]; then
+          mv "$BIN_DIR/N_m3u8DL-RE/N_m3u8DL-RE" "$DEST"
+          rmdir "$BIN_DIR/N_m3u8DL-RE" 2>/dev/null || true
+        fi
       fi
     fi
     if [[ -f "$DEST" ]]; then

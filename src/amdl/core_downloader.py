@@ -472,7 +472,7 @@ async def _download_urls_async(
             args = [
                 "yt-dlp",
                 "--quiet", "--no-warnings",
-                "--overwrites",
+                "--overwrite",
                 "--allow-unplayable-formats",
                 "--concurrent-fragments", "8",
                 "-o", download_path,

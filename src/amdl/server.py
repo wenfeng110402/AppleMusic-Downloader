@@ -11,6 +11,12 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# ── Windows: hide cmd window for subprocess calls ───────────
+if sys.platform == "win32":
+    _SUBPROCESS_FLAGS = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
+else:
+    _SUBPROCESS_FLAGS = 0
+
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -280,6 +286,7 @@ def _find_executable(name: str, custom_path: str | None = None) -> DependencyChe
                 capture_output=True,
                 text=True,
                 timeout=5,
+                creationflags=_SUBPROCESS_FLAGS,
             )
             version_line = (result.stdout or result.stderr).split("\n")[0]
         except Exception:

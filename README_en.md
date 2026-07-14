@@ -329,14 +329,11 @@ The desktop app is built on pywebview and works on Windows, macOS, and Linux.
 > ```
 > Or right-click → Open (instead of double-clicking), then click "Open" in the dialog.
 >
-> **CLI binary**:  
+> If you see "is damaged and can't be opened", run this command and retry:
 > ```bash
-> chmod +x ./AppleMusicDownloader
-> xattr -d com.apple.quarantine ./AppleMusicDownloader
+> sudo xattr -rd com.apple.quarantine /Applications/AppleMusicDownloader.app
 > ```
-> You can also use `spctl --assess --verbose` to verify the signing status.
-
----
+>
 
 ## Requirements
 

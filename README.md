@@ -330,6 +330,11 @@ python -m amdl
 > ```
 > 或者右键 → 打开（而非双击），在弹出的对话框中点击「打开」。
 >
+> 若提示"已损坏，无法打开"，执行以下命令后重试：
+> ```bash
+> sudo xattr -rd com.apple.quarantine /Applications/AppleMusicDownloader.app
+> ```
+>
 > **CLI 命令行二进制**：
 > ```bash
 > chmod +x ./AppleMusicDownloader

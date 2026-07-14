@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -12,15 +13,38 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-# ── Windows: use SelectorEventLoop + anyio asyncio backend ──
-# httpx_retries.RetryTransport is incompatible with ProactorEventLoop.
+# ── Windows: ensure anyio uses asyncio backend ──────────────
 if sys.platform == "win32":
     os.environ.setdefault("ANYIO_BACKEND", "asyncio")
-    import asyncio as _asyncio
-    try:
-        _asyncio.set_event_loop_policy(_asyncio.WindowsSelectorEventLoopPolicy())
-    except Exception:
-        pass
+
+    # ── nuclear option: bypass httpx_retries on Windows ────
+    # httpx_retries.RetryTransport 在 Windows 上无论用什么事件循环
+    # 都可能触发 weakref 错误。直接去掉 retry 层，用原生 httpx。
+    import gamdl.api.apple_music as _gamdl_apple
+    import httpx as _httpx
+
+    async def _win_create(cls, storefront="us", language="en-US", token=None, media_user_token=None):
+        token = token or await _gamdl_apple.AppleMusicApi.get_token()
+        account_info = (
+            await _gamdl_apple.AppleMusicApi.get_account_info(token, media_user_token)
+            if media_user_token else None
+        )
+        sf = (
+            account_info["meta"]["subscription"]["storefront"]
+            if account_info else storefront
+        )
+        if not sf:
+            raise ValueError("Storefront must be provided if it cannot be determined from account info")
+        client = _httpx.AsyncClient(headers={
+            "authorization": f"Bearer {token}",
+            "origin": "https://music.apple.com",
+        })
+        if media_user_token:
+            client.headers.update({"cookie": f"media-user-token={media_user_token}"})
+        return cls(client=client, token=token, storefront=sf, language=language,
+                   media_user_token=media_user_token, account_info=account_info)
+
+    _gamdl_apple.AppleMusicApi.create = classmethod(_win_create)
 
 # ── Windows: hide cmd window for subprocess calls ───────────
 if sys.platform == "win32":
@@ -570,6 +594,12 @@ def _find_free_port(start: int = 8000, max_attempts: int = 20) -> int:
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8000, log_level: str = "info"):
+    # Windows: httpx_retries + anyio 不兼容 ProactorEventLoop，
+    # 强行创建 SelectorEventLoop 绕过策略和 uvicorn 的内部循环创建。
+    if sys.platform == "win32":
+        _loop = asyncio.SelectorEventLoop()
+        asyncio.set_event_loop(_loop)
+
     import uvicorn
 
     port = _find_free_port(port)

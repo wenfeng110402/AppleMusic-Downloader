@@ -326,21 +326,15 @@ python -m amdl
 >
 > **.app 桌面应用**：
 > ```bash
-> xattr -d com.apple.quarantine /Applications/AppleMusicDownloader.app
+> sudo xattr -cr /Applications/AppleMusicDownloader.app
 > ```
 > 或者右键 → 打开（而非双击），在弹出的对话框中点击「打开」。
->
-> 若提示"已损坏，无法打开"，执行以下命令后重试：
-> ```bash
-> sudo xattr -rd com.apple.quarantine /Applications/AppleMusicDownloader.app
-> ```
 >
 > **CLI 命令行二进制**：
 > ```bash
 > chmod +x ./AppleMusicDownloader
-> xattr -d com.apple.quarantine ./AppleMusicDownloader
+> sudo xattr -cr ./AppleMusicDownloader
 > ```
-> 也可用 `spctl --assess --verbose` 验证签名状态。
 
 ---
 

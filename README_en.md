@@ -321,19 +321,32 @@ The desktop app is built on pywebview and works on Windows, macOS, and Linux.
 > pip install pywebview[qt]
 > ```
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 > **🍎 macOS users**: Files downloaded from Releases are flagged with a quarantine attribute by macOS. Remove it before first launch:
 >
-> **.app (Desktop app)**:  
+> **.app (Desktop app)**:
 > ```bash
-> xattr -d com.apple.quarantine /Applications/AppleMusicDownloader.app
+> sudo xattr -cr /Applications/AppleMusicDownloader.app
 > ```
 > Or right-click → Open (instead of double-clicking), then click "Open" in the dialog.
 >
-> If you see "is damaged and can't be opened", run this command and retry:
+> **CLI binary**:
 > ```bash
-> sudo xattr -rd com.apple.quarantine /Applications/AppleMusicDownloader.app
+> chmod +x ./AppleMusicDownloader
+> sudo xattr -cr ./AppleMusicDownloader
 > ```
->
 
 ## Requirements
 

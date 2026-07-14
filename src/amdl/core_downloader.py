@@ -27,15 +27,13 @@ if _pyver < _MIN_PYTHON:
         f"Requires Python {_MIN_PYTHON[0]}.{_MIN_PYTHON[1]}+"
     )
 
-# Windows: use SelectorEventLoop instead of ProactorEventLoop
-# to avoid "cannot create weak reference to 'NoneType' object" errors
-# caused by httpx_retries + anyio incompatibility with ProactorEventLoop.
-# Must be set at module level, before any async operation.
+# ── anyio backend hint (Windows) ────────────────────────
+# Ensure anyio explicitly uses the asyncio backend on Windows,
+# avoiding issues with event loop detection (sniffio) when
+# using a non-default event loop policy.
 if sys.platform == "win32":
-    try:
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    except Exception:
-        pass
+    import os as _os
+    _os.environ.setdefault("ANYIO_BACKEND", "asyncio")
 
 from gamdl.api import AppleMusicApi
 from gamdl.downloader import (
@@ -161,52 +159,70 @@ def download_urls(
     as gamdl handles everything internally.
     """
     if sys.platform == "win32":
-        # Windows ProactorEventLoop is incompatible with httpx_retries + anyio.
-        # Explicitly create a SelectorEventLoop instead of relying on policy.
-        _loop = asyncio.SelectorEventLoop()
-        try:
-            return _loop.run_until_complete(_download_urls_async(
-                urls=urls,
-                cookies_path=cookies_path,
-                output_path=output_path,
-                temp_path=temp_path,
-                wvd_path=wvd_path,
-                nm3u8dlre_path=nm3u8dlre_path,
-                ffmpeg_path=ffmpeg_path,
-                download_mode=download_mode,
-                codec_song=codec_song,
-                codec_music_video=codec_music_video,
-                quality_post=quality_post,
-                synced_lyrics_format=synced_lyrics_format,
-                cover_format=cover_format,
-                cover_size=cover_size,
-                truncate=truncate,
-                audio_format=audio_format,
-                video_format=video_format,
-                template_folder_album=template_folder_album,
-                template_folder_compilation=template_folder_compilation,
-                template_file_single_disc=template_file_single_disc,
-                template_file_multi_disc=template_file_multi_disc,
-                template_folder_no_album=template_folder_no_album,
-                template_file_no_album=template_file_no_album,
-                template_file_playlist=template_file_playlist,
-                template_date=template_date,
-                exclude_tags=exclude_tags,
-                overwrite=overwrite,
-                save_cover=save_cover,
-                save_playlist=save_playlist,
-                synced_lyrics_only=synced_lyrics_only,
-                no_synced_lyrics=no_synced_lyrics,
-                disable_music_video_skip=disable_music_video_skip,
-                read_urls_as_txt=read_urls_as_txt,
-                no_exceptions=no_exceptions,
-                language=language,
-                log_callback=log_callback,
-                log_level=log_level,
-                progress_callback=progress_callback,
-            ))
-        finally:
-            _loop.close()
+        # On Windows, httpx_retries + anyio can have event loop compatibility
+        # issues on certain Python versions. Try SelectorEventLoop first,
+        # fall back to ProactorEventLoop if needed.
+        _loop_types = [asyncio.SelectorEventLoop, asyncio.ProactorEventLoop]
+        _last_exc = None
+        for _loop_cls in _loop_types:
+            try:
+                _loop = _loop_cls()
+                try:
+                    return _loop.run_until_complete(_download_urls_async(
+                        urls=urls,
+                        cookies_path=cookies_path,
+                        output_path=output_path,
+                        temp_path=temp_path,
+                        wvd_path=wvd_path,
+                        nm3u8dlre_path=nm3u8dlre_path,
+                        ffmpeg_path=ffmpeg_path,
+                        download_mode=download_mode,
+                        codec_song=codec_song,
+                        codec_music_video=codec_music_video,
+                        quality_post=quality_post,
+                        synced_lyrics_format=synced_lyrics_format,
+                        cover_format=cover_format,
+                        cover_size=cover_size,
+                        truncate=truncate,
+                        audio_format=audio_format,
+                        video_format=video_format,
+                        template_folder_album=template_folder_album,
+                        template_folder_compilation=template_folder_compilation,
+                        template_file_single_disc=template_file_single_disc,
+                        template_file_multi_disc=template_file_multi_disc,
+                        template_folder_no_album=template_folder_no_album,
+                        template_file_no_album=template_file_no_album,
+                        template_file_playlist=template_file_playlist,
+                        template_date=template_date,
+                        exclude_tags=exclude_tags,
+                        overwrite=overwrite,
+                        save_cover=save_cover,
+                        save_playlist=save_playlist,
+                        synced_lyrics_only=synced_lyrics_only,
+                        no_synced_lyrics=no_synced_lyrics,
+                        disable_music_video_skip=disable_music_video_skip,
+                        read_urls_as_txt=read_urls_as_txt,
+                        no_exceptions=no_exceptions,
+                        language=language,
+                        log_callback=log_callback,
+                        log_level=log_level,
+                        progress_callback=progress_callback,
+                    ))
+                finally:
+                    _loop.close()
+            except TypeError as _e:
+                msg = str(_e)
+                if "weak reference" in msg:
+                    _last_exc = _e
+                    continue  # try next loop type
+                raise
+        # Both loop types failed — raise the last weakref error
+        raise RuntimeError(
+            f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} "
+            f"on Windows is not fully compatible with httpx_retries.\n"
+            f"Please downgrade to Python 3.10 or 3.11, "
+            f"or use WSL (Windows Subsystem for Linux)."
+        ) from _last_exc
     return asyncio.run(
         _download_urls_async(
             urls=urls,
@@ -331,9 +347,9 @@ async def _download_urls_async(
             logger.critical(
                 f"Failed to initialise AppleMusic API: {e}\n"
                 f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} "
-                f"on Windows is not compatible with httpx_retries.\n"
-                f"Please install Python 3.12 from https://python.org/downloads/ "
-                f"and try again, or use a virtual environment with Python 3.12."
+                f"on Windows is not compatible with httpx_retries + anyio.\n"
+                f"Please use Python 3.10 or 3.11 on Windows, "
+                f"or use WSL (Windows Subsystem for Linux)."
             )
         else:
             logger.critical(f"Failed to initialise AppleMusic API: {e}")

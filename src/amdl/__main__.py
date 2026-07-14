@@ -1,14 +1,10 @@
 """python -m amdl → 启动服务或桌面应用"""
-import asyncio
 import sys
 
-# Windows: use SelectorEventLoop to avoid "cannot create weak reference
-# to NoneType" errors from httpx_retries + anyio on ProactorEventLoop.
+# Ensure anyio uses the asyncio backend (avoids event-loop detection issues).
 if sys.platform == "win32":
-    try:
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    except Exception:
-        pass
+    import os as _os
+    _os.environ.setdefault("ANYIO_BACKEND", "asyncio")
 
 try:
     if "--server" in sys.argv:

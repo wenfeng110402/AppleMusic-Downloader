@@ -128,8 +128,13 @@ PYI_ARGS=(
   --add-data "$ROOT_DIR/icon.png:."
   --add-data "$ROOT_DIR/icon.icns:."
   --collect-all gamdl
+  --collect-binaries gamdl
   --collect-all pywebview
   --hidden-import amdl.dependency_manager
+  --hidden-import gamdl._ammuxer
+  --hidden-import gamdl.api.apple_music
+  --hidden-import gamdl.downloader.amdecrypt
+  --hidden-import gamdl.downloader.song
   --clean
   --noconfirm
 )

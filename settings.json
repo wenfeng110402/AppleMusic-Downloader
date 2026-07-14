@@ -7,7 +7,7 @@
   "nm3u8dlre_path": "N_m3u8DL-RE",
   "audio_format": "",
   "codec_song": "atmos",
-  "download_mode": "nm3u8dlre",
+  "download_mode": "ytdlp",
   "cover_format": "jpg",
   "cover_size": 1200,
   "language": "zh-CN",

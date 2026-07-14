@@ -1,4 +1,5 @@
-gamdl>=3.7
+gamdl>=3.8.3
+httpx-retries>=0.6.0
 click
 colorama
 pillow

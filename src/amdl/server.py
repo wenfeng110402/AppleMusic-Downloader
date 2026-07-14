@@ -11,6 +11,10 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# ── Windows: ensure anyio uses asyncio backend ──────────────
+if sys.platform == "win32":
+    os.environ.setdefault("ANYIO_BACKEND", "asyncio")
+
 # ── Windows: hide cmd window for subprocess calls ───────────
 if sys.platform == "win32":
     _SUBPROCESS_FLAGS = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]

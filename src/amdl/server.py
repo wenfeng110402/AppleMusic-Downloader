@@ -518,33 +518,36 @@ class PywebviewApi:
 # ── single-instance lock ────────────────────────────────────
 # Prevent multiple `run_server()` / `run_desktop()` calls
 # from spawning duplicate uvicorn processes and windows.
+# Uses BOTH a threading lock (thread-safe) and a TCP port bind (process-safe).
 _LOCK_PORT = 51_999
 _LOCK_SOCKET: list[socket.socket | None] = [None]
+_LOCK_THREAD = threading.Lock()
 
 
 def _acquire_instance_lock() -> bool:
-    """Try to bind a lock port; return True if we got the lock (first instance).
-
-    Returns False if the port is already in use (another instance is running).
-    """
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("127.0.0.1", _LOCK_PORT))
-        s.listen(1)
-        _LOCK_SOCKET[0] = s
-        return True
-    except OSError:
-        return False
+    with _LOCK_THREAD:
+        if _LOCK_SOCKET[0] is not None:
+            # Already locked in this process
+            return False
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("127.0.0.1", _LOCK_PORT))
+            s.listen(1)
+            _LOCK_SOCKET[0] = s
+            return True
+        except OSError:
+            return False
 
 
 def _release_instance_lock() -> None:
-    if _LOCK_SOCKET[0] is not None:
-        try:
-            _LOCK_SOCKET[0].close()
-        except Exception:
-            pass
-        _LOCK_SOCKET[0] = None
+    with _LOCK_THREAD:
+        if _LOCK_SOCKET[0] is not None:
+            try:
+                _LOCK_SOCKET[0].close()
+            except Exception:
+                pass
+            _LOCK_SOCKET[0] = None
 
 
 def _find_free_port(start: int = 8000, max_attempts: int = 20) -> int:
@@ -561,11 +564,6 @@ def _find_free_port(start: int = 8000, max_attempts: int = 20) -> int:
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8000, log_level: str = "info"):
-    # Single-instance guard: if another server is already running, bail out.
-    if not _acquire_instance_lock():
-        logger.warning("Another AMDL server instance is already running — skipping")
-        return
-
     import uvicorn
 
     port = _find_free_port(port)
@@ -576,13 +574,18 @@ def run_server(host: str = "127.0.0.1", port: int = 8000, log_level: str = "info
         level=getattr(logging, log_level.upper(), logging.INFO),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    try:
-        uvicorn.run(app, host=host, port=int(port), log_level=log_level)
-    finally:
-        _release_instance_lock()
+    uvicorn.run(app, host=host, port=int(port), log_level=log_level)
 
 
 def run_desktop():
+    # Single-instance guard: only one desktop window allowed.
+    # Acquires the lock BEFORE starting the server thread, so that
+    # any concurrent call to run_desktop() (e.g. from a forked process
+    # or re-import) will bail immediately.
+    if not _acquire_instance_lock():
+        logger.warning("Another AMDL desktop instance is already running — skipping")
+        return
+
     import webview
 
     host = "127.0.0.1"

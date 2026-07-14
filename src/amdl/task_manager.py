@@ -16,18 +16,16 @@ import asyncio
 import logging
 import threading
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from fastapi import WebSocket
 
-# Lazy import: core_downloader does a Python version guard at import time,
-# so we catch ImportError here and propagate as a clear error message.
+# Lazy import: core_downloader does a Python version guard at import time.
 try:
-    from amdl.core_downloader import download_urls
+    from amdl.core_downloader import _download_urls_async
 except Exception as _import_err:
-    download_urls = _import_err  # type: ignore[assignment]
+    _download_urls_async = _import_err  # type: ignore[assignment]
 
 # ── Global singleton ─────────────────────────────────────────
 _task_manager: TaskManager | None = None
@@ -96,29 +94,25 @@ class TaskManager:
     def __init__(self, max_concurrent: int = 1):
         self._tasks: dict[str, DownloadTask] = {}
         self._queue: asyncio.Queue[str] = asyncio.Queue()
-        self._max_concurrent = max_concurrent
-        self._loop: asyncio.AbstractEventLoop | None = None
+        self._semaphore = asyncio.Semaphore(max_concurrent)
         self._worker_task: asyncio.Task | None = None
-        self._thread_pool = ThreadPoolExecutor(max_workers=max_concurrent)
         self._lock = threading.Lock()
 
     # ── Lifecycle ────────────────────────────────────────
 
-    def start(self, loop: asyncio.AbstractEventLoop | None = None):
-        """Start the background worker coroutine. Call this on FastAPI startup."""
-        self._loop = loop or asyncio.get_event_loop()
-        self._worker_task = self._loop.create_task(self._worker_loop())
+    def start(self) -> None:
+        """Start the background worker. Call on FastAPI startup."""
+        loop = asyncio.get_running_loop()
+        self._worker_task = loop.create_task(self._worker_loop())
 
-    async def stop(self):
-        """Stop the background worker. Call this on FastAPI shutdown."""
+    async def stop(self) -> None:
+        """Stop the background worker. Call on FastAPI shutdown."""
         if self._worker_task:
             self._worker_task.cancel()
             try:
                 await self._worker_task
             except asyncio.CancelledError:
                 pass
-        self._thread_pool.shutdown(wait=False)
-        # Close all remaining WebSocket connections
         for task in self._tasks.values():
             for ws in task.websockets:
                 try:
@@ -171,7 +165,6 @@ class TaskManager:
     # ── Background worker loop ───────────────────────────
 
     async def _worker_loop(self):
-        """Continuously pick tasks from the queue and execute them in a thread pool."""
         while True:
             task_id = await self._queue.get()
             task = self.get_task(task_id)
@@ -179,113 +172,128 @@ class TaskManager:
                 self._queue.task_done()
                 continue
 
-            # Mark as RUNNING
-            task.status = TaskStatus.RUNNING
-            task.updated_at = datetime.now(timezone.utc).isoformat()
-            await self._broadcast_status(task)
+            async with self._semaphore:
+                if task.cancelled:
+                    self._queue.task_done()
+                    continue
 
-            loop = asyncio.get_running_loop()
-            try:
-                await loop.run_in_executor(
-                    self._thread_pool,
-                    self._execute_download,
-                    task_id,
-                )
-            except Exception as e:
-                task.status = TaskStatus.FAILED
-                task.message = f"Internal error: {e}"
+                task.status = TaskStatus.RUNNING
                 task.updated_at = datetime.now(timezone.utc).isoformat()
                 await self._broadcast_status(task)
-            finally:
-                self._queue.task_done()
 
-    def _execute_download(self, task_id: str):
-        """Execute the download in a worker thread (no async code here)."""
+                task._future = asyncio.ensure_future(self._execute_download(task_id))
+                try:
+                    await task._future
+                except asyncio.CancelledError:
+                    task.status = TaskStatus.CANCELLED
+                    task.message = "已取消"
+                    task.updated_at = datetime.now(timezone.utc).isoformat()
+                    await self._broadcast_status(task)
+                except Exception as e:
+                    task.status = TaskStatus.FAILED
+                    task.message = str(e)
+                    task.updated_at = datetime.now(timezone.utc).isoformat()
+                    await self._broadcast_status(task)
+                finally:
+                    self._queue.task_done()
+
+    async def _execute_download(self, task_id: str) -> None:
+        """Execute download directly in uvicorn's event loop — no threads."""
         task = self.get_task(task_id)
         if not task or task.cancelled:
             return
 
-        # ── Check for import-time error (Python version guard) ──
-        if not callable(download_urls):
-            msg = str(download_urls)
+        if not callable(_download_urls_async):
+            msg = str(_download_urls_async)
             task.status = TaskStatus.FAILED
             task.message = msg
             task.logs.append(f"[FATAL] {msg}")
             task.updated_at = datetime.now(timezone.utc).isoformat()
+            await self._broadcast_status(task)
             return
 
-        # ── Build progress callback ──────────────────────
-        def on_progress(completed: int, total: int):
-            """Called by core_downloader.download_urls from the worker thread."""
+        async def on_progress(completed: int, total: int):
             if task.cancelled:
-                raise InterruptedError("Task cancelled")
+                raise asyncio.CancelledError("Task cancelled")
             task.progress = (completed, total)
-            # Bridge: worker thread → event loop → WebSocket
-            if self._loop and not self._loop.is_closed():
-                asyncio.run_coroutine_threadsafe(
-                    self._broadcast_progress(task_id, completed, total),
-                    self._loop,
-                )
+            await self._broadcast_progress(task_id, completed, total)
 
-        # ── Build log callback ───────────────────────────
         def on_log(msg: str):
             task.logs.append(msg)
             logging.getLogger("amdl.task").info(f"[{task_id[:8]}] {msg}")
 
-        # ── Execute download ─────────────────────────────
+        from amdl.dependency_manager import DATA_DIR as _data_dir
+        kwargs: dict = task.kwargs.copy()
+
+        for key in ("cookies_path", "output_path", "temp_path"):
+            val = kwargs.get(key)
+            if isinstance(val, str):
+                p = Path(val)
+                kwargs[key] = p if p.is_absolute() else _data_dir / val
+
+        wvd = kwargs.get("wvd_path")
+        if isinstance(wvd, str) and wvd:
+            p = Path(wvd)
+            kwargs["wvd_path"] = p if p.is_absolute() else _data_dir / p
+
         try:
-            kwargs = task.kwargs.copy()
-            kwargs["progress_callback"] = on_progress
-            kwargs["log_callback"] = on_log
-            kwargs["no_exceptions"] = True  # always handle internally
-
-            # Convert string paths to Path objects
-            for key in ("cookies_path", "output_path", "temp_path"):
-                val = kwargs.get(key)
-                if isinstance(val, str):
-                    kwargs[key] = Path(val)
-
-            wvd = kwargs.get("wvd_path")
-            if isinstance(wvd, str):
-                kwargs["wvd_path"] = Path(wvd) if wvd else None
-
-            err_count = download_urls(**kwargs)
-
-            if not task.cancelled:
-                task.error_count = err_count
-                url_count = len(task.kwargs.get("urls", []))
-                if err_count == 0:
-                    task.status = TaskStatus.COMPLETED
-                    task.message = "全部完成"
-                elif err_count >= url_count:
-                    task.status = TaskStatus.FAILED
-                    task.message = f"全部失败（{err_count} 个错误）"
-                else:
-                    task.status = TaskStatus.COMPLETED
-                    task.message = f"部分完成（{err_count} 个错误）"
-                task.updated_at = datetime.now(timezone.utc).isoformat()
-
-        except InterruptedError:
-            task.status = TaskStatus.CANCELLED
-            task.message = "已取消"
-            task.updated_at = datetime.now(timezone.utc).isoformat()
-        except Exception as e:
-            task.status = TaskStatus.FAILED
-            task.message = str(e)
-            task.logs.append(f"[ERROR] {e}")
-            task.updated_at = datetime.now(timezone.utc).isoformat()
-            logging.getLogger("amdl.task").error(f"[{task_id[:8]}] Task failed: {e}")
-            task.updated_at = datetime.now(timezone.utc).isoformat()
-            logging.getLogger("amdl.task").error(
-                f"[{task_id[:8]}] Download failed: {e}", exc_info=True
+            err_count = await _download_urls_async(
+                urls=kwargs.get("urls", []),
+                cookies_path=kwargs["cookies_path"],
+                output_path=kwargs.get("output_path", Path("./Apple Music")),
+                temp_path=kwargs.get("temp_path", Path("./temp")),
+                wvd_path=kwargs.get("wvd_path"),
+                nm3u8dlre_path=kwargs.get("nm3u8dlre_path", "N_m3u8DL-RE"),
+                ffmpeg_path=kwargs.get("ffmpeg_path", "ffmpeg"),
+                download_mode=kwargs.get("download_mode"),
+                codec_song=kwargs.get("codec_song"),
+                codec_music_video=kwargs.get("codec_music_video"),
+                quality_post=kwargs.get("quality_post"),
+                synced_lyrics_format=kwargs.get("synced_lyrics_format"),
+                cover_format=kwargs.get("cover_format"),
+                cover_size=kwargs.get("cover_size", 1200),
+                truncate=kwargs.get("truncate"),
+                audio_format=kwargs.get("audio_format"),
+                video_format=kwargs.get("video_format"),
+                template_folder_album=kwargs.get("template_folder_album"),
+                template_folder_compilation=kwargs.get("template_folder_compilation"),
+                template_file_single_disc=kwargs.get("template_file_single_disc"),
+                template_file_multi_disc=kwargs.get("template_file_multi_disc"),
+                template_folder_no_album=kwargs.get("template_folder_no_album"),
+                template_file_no_album=kwargs.get("template_file_no_album"),
+                template_file_playlist=kwargs.get("template_file_playlist"),
+                template_date=kwargs.get("template_date"),
+                exclude_tags=kwargs.get("exclude_tags"),
+                overwrite=kwargs.get("overwrite", False),
+                save_cover=kwargs.get("save_cover", False),
+                save_playlist=kwargs.get("save_playlist", False),
+                synced_lyrics_only=kwargs.get("synced_lyrics_only", False),
+                no_synced_lyrics=kwargs.get("no_synced_lyrics", False),
+                disable_music_video_skip=kwargs.get("disable_music_video_skip", False),
+                read_urls_as_txt=kwargs.get("read_urls_as_txt", False),
+                no_exceptions=True,
+                language=kwargs.get("language", "en-US"),
+                log_callback=on_log,
+                log_level=kwargs.get("log_level", "INFO"),
+                progress_callback=on_progress,
             )
+        except asyncio.CancelledError:
+            raise
 
-        # Broadcast final status to subscribers
-        if self._loop and not self._loop.is_closed():
-            asyncio.run_coroutine_threadsafe(
-                self._broadcast_status(task),
-                self._loop,
+        if not task.cancelled:
+            task.error_count = err_count
+            url_count = len(task.kwargs.get("urls", []))
+            task.status = (
+                TaskStatus.COMPLETED if err_count < url_count or err_count == 0
+                else TaskStatus.FAILED
             )
+            task.message = (
+                "全部完成" if err_count == 0
+                else f"全部失败（{err_count} 个错误）" if err_count >= url_count
+                else f"部分完成（{err_count} 个错误）"
+            )
+            task.updated_at = datetime.now(timezone.utc).isoformat()
+            await self._broadcast_status(task)
 
     # ── WebSocket broadcasting ──────────────────────────
 

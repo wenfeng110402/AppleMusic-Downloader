@@ -30,7 +30,7 @@ except RuntimeError as e:
         root.withdraw()
         messagebox.showerror(
             "Python 版本不兼容",
-            f"{msg}\n\n请在终端运行降级命令后重试:\nconda install python=3.12"
+            f"{msg}"
         )
         root.destroy()
     except ImportError:

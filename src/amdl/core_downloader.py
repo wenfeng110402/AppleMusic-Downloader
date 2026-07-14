@@ -19,19 +19,12 @@ from typing import Callable
 
 # ── Python version guard ────────────────────────────────
 _MIN_PYTHON = (3, 10)
-_MAX_PYTHON = (3, 12)  # 3.13+ has httpx_retries/anyio incompatibilities
 _pyver = sys.version_info[:2]
 
 if _pyver < _MIN_PYTHON:
     raise RuntimeError(
         f"Python {_pyver[0]}.{_pyver[1]} is too old. "
         f"Requires Python {_MIN_PYTHON[0]}.{_MIN_PYTHON[1]}+"
-    )
-if _pyver > _MAX_PYTHON:
-    raise RuntimeError(
-        f"Python {_pyver[0]}.{_pyver[1]} is not supported yet. "
-        f"httpx_retries and anyio are incompatible with Python 3.13+ on Windows. "
-        f"Please downgrade to Python 3.12: conda install python=3.12"
     )
 
 # Windows: use SelectorEventLoop instead of ProactorEventLoop
@@ -339,7 +332,8 @@ async def _download_urls_async(
                 f"Failed to initialise AppleMusic API: {e}\n"
                 f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} "
                 f"on Windows is not compatible with httpx_retries.\n"
-                f"Please downgrade to Python 3.12: conda install python=3.12"
+                f"Please install Python 3.12 from https://python.org/downloads/ "
+                f"and try again, or use a virtual environment with Python 3.12."
             )
         else:
             logger.critical(f"Failed to initialise AppleMusic API: {e}")

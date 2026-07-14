@@ -177,6 +177,12 @@ case "$PLATFORM" in
         plist="$DST_BUNDLE/Contents/Info.plist"
         /usr/libexec/PlistBuddy -c "Set :CFBundleIconFile icon.icns" "$plist" 2>/dev/null || true
       fi
+      # 清除框架签名冲突（Anaconda Python 自带 Team ID 跟 ad-hoc 冲突）
+      if [[ -d "$DST_BUNDLE/Contents/Frameworks/Python.framework" ]]; then
+        codesign --remove-signature "$DST_BUNDLE/Contents/Frameworks/Python.framework" 2>/dev/null || true
+      fi
+      # 统一 ad-hoc 重签整个 .app
+      codesign --deep --force --sign - "$DST_BUNDLE" 2>/dev/null || true
     fi
     # Create DMG for distribution
     if command -v hdiutil &>/dev/null && [[ -d "$DST_BUNDLE" ]]; then

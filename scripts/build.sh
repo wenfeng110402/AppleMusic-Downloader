@@ -32,49 +32,74 @@ mv next.config.ts.bak next.config.ts
 echo ">>> Frontend built:"
 ls -la out/
 
-# ── Step 2: Download N_m3u8DL-RE for bundling ────────────────
+# ── Step 2: Download N_m3u8DL-RE for bundling (best-effort) ──
 echo ">>> Downloading N_m3u8DL-RE for $PLATFORM..."
 BIN_DIR="$ROOT_DIR/bin"
 mkdir -p "$BIN_DIR"
+BINARY_FLAG=""
+
+# Temporarily disable set -e so a failed download doesn't kill the build.
+# The binary will be auto-downloaded at runtime via dependency_manager.py.
+set +e
+set +o pipefail
 
 case "$PLATFORM" in
   windows)
-    # R2 CDN — fast direct download
-    NMDLRE_URL="https://pub-e4955324bbd043d79465a5231bec51f6.r2.dev/N_m3u8DL-RE.exe"
-    NMDLRE_DEST="$BIN_DIR/N_m3u8DL-RE.exe"
-    if [[ ! -f "$NMDLRE_DEST" ]]; then
-      curl -#fL "$NMDLRE_URL" -o "$NMDLRE_DEST"
+    DEST="$BIN_DIR/N_m3u8DL-RE.exe"
+    if [[ ! -f "$DEST" ]]; then
+      curl -#fL "https://pub-e4955324bbd043d79465a5231bec51f6.r2.dev/N_m3u8DL-RE.exe" -o "$DEST" 2>&1
     fi
-    BINARY_FLAG="bin/N_m3u8DL-RE.exe;bin"  # Windows uses ;
+    if [[ -f "$DEST" ]]; then
+      BINARY_FLAG="bin/N_m3u8DL-RE.exe;bin"
+    fi
     ;;
   macos)
-    # GitHub release (arm64)
-    NMDLRE_URL=$(curl -sL "https://api.github.com/repos/nilaoda/N_m3u8DL-RE/releases/latest" \
-      | grep "browser_download_url.*macos-arm64.tar.gz" | cut -d'"' -f4)
-    NMDLRE_DEST="$BIN_DIR/N_m3u8DL-RE.tar.gz"
-    if [[ -n "$NMDLRE_URL" && ! -f "$BIN_DIR/N_m3u8DL-RE" ]]; then
-      curl -#fL "$NMDLRE_URL" -o "$NMDLRE_DEST"
-      tar xzf "$NMDLRE_DEST" -C "$BIN_DIR" N_m3u8DL-RE 2>/dev/null || \
-      tar xzf "$NMDLRE_DEST" -C "$BIN_DIR" --strip-components=1 "*/N_m3u8DL-RE" 2>/dev/null || true
-      rm -f "$NMDLRE_DEST"
+    DEST="$BIN_DIR/N_m3u8DL-RE"
+    if [[ ! -f "$DEST" ]]; then
+      # R2 only has Windows exe — macOS goes straight to GitHub
+      GHLATEST=$(curl -sL https://api.github.com/repos/nilaoda/N_m3u8DL-RE/releases/latest)
+      GHURL=$(echo "$GHLATEST" | grep browser_download_url | grep -E 'macos-(arm64|x64)\.tar\.gz' | head -1 | cut -d'"' -f4)
+      if [[ -n "$GHURL" ]]; then
+        curl -#fL "$GHURL" -o "/tmp/N_m3u8DL-RE.tar.gz" 2>&1
+      fi
+      if [[ -f "/tmp/N_m3u8DL-RE.tar.gz" ]]; then
+        tar xzf "/tmp/N_m3u8DL-RE.tar.gz" -C "$BIN_DIR" 2>/dev/null
+        rm -f "/tmp/N_m3u8DL-RE.tar.gz"
+      fi
     fi
-    BINARY_FLAG="bin/N_m3u8DL-RE:bin"
+    if [[ -f "$DEST" ]]; then
+      chmod +x "$DEST"
+      BINARY_FLAG="bin/N_m3u8DL-RE:bin"
+    fi
     ;;
   linux)
-    NMDLRE_URL=$(curl -sL "https://api.github.com/repos/nilaoda/N_m3u8DL-RE/releases/latest" \
-      | grep "browser_download_url.*linux-x64.tar.gz" | cut -d'"' -f4)
-    NMDLRE_DEST="$BIN_DIR/N_m3u8DL-RE.tar.gz"
-    if [[ -n "$NMDLRE_URL" && ! -f "$BIN_DIR/N_m3u8DL-RE" ]]; then
-      curl -#fL "$NMDLRE_URL" -o "$NMDLRE_DEST"
-      tar xzf "$NMDLRE_DEST" -C "$BIN_DIR" N_m3u8DL-RE 2>/dev/null || \
-      tar xzf "$NMDLRE_DEST" -C "$BIN_DIR" --strip-components=1 "*/N_m3u8DL-RE" 2>/dev/null || true
-      rm -f "$NMDLRE_DEST"
+    DEST="$BIN_DIR/N_m3u8DL-RE"
+    if [[ ! -f "$DEST" ]]; then
+      GHLATEST=$(curl -sL https://api.github.com/repos/nilaoda/N_m3u8DL-RE/releases/latest)
+      GHURL=$(echo "$GHLATEST" | grep browser_download_url | grep 'linux-x64.tar.gz' | head -1 | cut -d'"' -f4)
+      if [[ -n "$GHURL" ]]; then
+        curl -#fL "$GHURL" -o "/tmp/N_m3u8DL-RE.tar.gz" 2>&1
+      fi
+      if [[ -f "/tmp/N_m3u8DL-RE.tar.gz" ]]; then
+        tar xzf "/tmp/N_m3u8DL-RE.tar.gz" -C "$BIN_DIR" 2>/dev/null
+        rm -f "/tmp/N_m3u8DL-RE.tar.gz"
+      fi
     fi
-    BINARY_FLAG="bin/N_m3u8DL-RE:bin"
+    if [[ -f "$DEST" ]]; then
+      chmod +x "$DEST"
+      BINARY_FLAG="bin/N_m3u8DL-RE:bin"
+    fi
     ;;
 esac
 
-echo ">>> N_m3u8DL-RE ready: $(ls -lh "$BIN_DIR"/N_m3u8DL-RE* 2>/dev/null | awk '{print $5, $NF}')"
+set -o pipefail
+set -e
+
+if [[ -n "$BINARY_FLAG" ]]; then
+  echo ">>> N_m3u8DL-RE bundled: $(ls -lh "$BIN_DIR"/N_m3u8DL-RE* 2>/dev/null | awk '{print $5, $NF}')"
+else
+  echo ">>> N_m3u8DL-RE skipped (will be auto-downloaded at runtime)"
+fi
 
 # ── Step 3: Install Python deps + PyInstaller ──────────────────
 echo ">>> Installing Python dependencies..."
@@ -92,10 +117,14 @@ PYI_ARGS=(
   --add-data "$ROOT_DIR/icon.ico:."
   --add-data "$ROOT_DIR/icon.png:."
   --add-data "$ROOT_DIR/icon.icns:."
-  --add-binary "$BINARY_FLAG"
   --clean
   --noconfirm
 )
+
+# Only add --add-binary if we successfully downloaded N_m3u8DL-RE
+if [[ -n "$BINARY_FLAG" ]]; then
+  PYI_ARGS+=(--add-binary "$BINARY_FLAG")
+fi
 
 # Platform-specific flags
 case "$PLATFORM" in
@@ -126,7 +155,7 @@ esac
 
 pyinstaller "${PYI_ARGS[@]}" src/amdl/desktop_entry.py
 
-# ── Step 4: Collect output ─────────────────────────────────────
+# ── Step 5: Collect output ─────────────────────────────────────
 echo ">>> Build complete! Output:"
 DIST_DIR="$ROOT_DIR/dist"
 mkdir -p "$DIST_DIR"

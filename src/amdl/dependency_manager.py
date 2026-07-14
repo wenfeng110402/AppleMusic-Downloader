@@ -160,14 +160,11 @@ def _nm3u8dlre_urls() -> list[str]:
     arch = _arch()
     urls: list[str] = []
 
-    # 1) R2 direct download (Windows: raw .exe; others: archive)
+    # 1) R2 direct download (Windows .exe only — macOS/Linux not hosted)
     if os_ == "windows":
         urls.append(f"{_R2_BASE}/N_m3u8DL-RE.exe")
-    else:
-        ext = ".tar.gz"
-        urls.append(f"{_R2_BASE}/N_m3u8DL-RE_{os_}-{arch}{ext}")
 
-    # 2) GitHub fallback
+    # 2) GitHub fallback (all platforms)
     ext = ".tar.gz" if os_ != "windows" else ".zip"
     urls.append(f"{_NM3U8DLRE_RELEASE}/N_m3u8DL-RE_{os_}-{arch}{ext}")
 

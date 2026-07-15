@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import traceback
@@ -38,46 +39,6 @@ if sys.platform == "win32":
     _os.environ.setdefault("ANYIO_BACKEND", "asyncio")
 
 from gamdl.api import AppleMusicApi
-
-# ── Windows nuclear patch: bypass httpx_retries ──────────
-# httpx_retries.RetryTransport is incompatible with ANY event loop on Windows.
-# Replace AppleMusicApi.create with a version that uses plain httpx.
-if sys.platform == "win32":
-    import httpx as _httpx
-
-    _orig_create = AppleMusicApi.create
-
-    async def _win_create(
-        cls,
-        storefront: str | None = "us",
-        language: str = "en-US",
-        token: str | None = None,
-        media_user_token: str | None = None,
-    ):
-        import httpx as _httpx2
-        token = token or await AppleMusicApi.get_token()
-        account_info = (
-            await AppleMusicApi.get_account_info(token, media_user_token)
-            if media_user_token else None
-        )
-        sf = (
-            account_info["meta"]["subscription"]["storefront"]
-            if account_info else storefront
-        )
-        if not sf:
-            raise ValueError("Storefront must be provided if it cannot be determined from account info")
-        client = _httpx2.AsyncClient(headers={
-            "authorization": f"Bearer {token}",
-            "origin": "https://music.apple.com",
-        })
-        if media_user_token:
-            client.headers.update({"cookie": f"media-user-token={media_user_token}"})
-        return cls(
-            client=client, token=token, storefront=sf, language=language,
-            media_user_token=media_user_token, account_info=account_info,
-        )
-
-    AppleMusicApi.create = classmethod(_win_create)
 
 from gamdl.downloader import (
     AppleMusicBaseDownloader,
@@ -392,26 +353,50 @@ async def _download_urls_async(
         exclude_tags_list = [t.strip().lower() for t in exclude_tags.split(",") if t.strip()]
 
     # ── initialise gamdl API ─────────────────────────────
-    try:
-        apple_music_api = await AppleMusicApi.create_from_netscape_cookies(
-            cookies_path=str(cookies_path),
-            language=language,
+    if sys.platform == "win32":
+        # Windows: httpx_retries.RetryTransport 与 ProactorEventLoop 不兼容，
+        # 直接绕过 gamdl 的 AppleMusicApi.create()，手动构造。
+        import http.cookiejar as _jar
+        import httpx as _httpx
+
+        _cj = _jar.MozillaCookieJar(str(cookies_path))
+        _cj.load(ignore_discard=True, ignore_expires=True)
+        _media_token = next(
+            (c.value for c in _cj if c.name == "media-user-token"
+             and c.domain == "music.apple.com"),
+            None,
         )
-    except TypeError as e:
-        msg = str(e)
-        if "weak reference" in msg and sys.platform == "win32":
-            logger.critical(
-                f"Failed to initialise AppleMusic API: {e}\n"
-                f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} "
-                f"on Windows needs SelectorEventLoop but ProactorEventLoop is active.\n"
-                f"Restart the application — the event loop policy should be set automatically."
+        if not _media_token:
+            logger.critical('"media-user-token" cookie not found in cookies file')
+            return 1
+
+        _token = await AppleMusicApi.get_token()
+        _account_info = await AppleMusicApi.get_account_info(_token, _media_token)
+        _sf = _account_info.get("meta", {}).get("subscription", {}).get("storefront")
+        if not _sf:
+            logger.critical("Could not determine storefront from account info")
+            return 1
+
+        _client = _httpx.AsyncClient(headers={
+            "authorization": f"Bearer {_token}",
+            "origin": "https://music.apple.com",
+            "cookie": f"media-user-token={_media_token}",
+        })
+        apple_music_api = AppleMusicApi(
+            client=_client, token=_token, storefront=_sf,
+            language=language, media_user_token=_media_token,
+            account_info=_account_info,
+        )
+        logger.info("AppleMusicApi initialized on Windows (bypassing httpx_retries)")
+    else:
+        try:
+            apple_music_api = await AppleMusicApi.create_from_netscape_cookies(
+                cookies_path=str(cookies_path),
+                language=language,
             )
-        else:
+        except Exception as e:
             logger.critical(f"Failed to initialise AppleMusic API: {e}")
-        return 1
-    except Exception as e:
-        logger.critical(f"Failed to initialise AppleMusic API: {e}")
-        return 1
+            return 1
 
     if not apple_music_api.active_subscription:
         logger.critical("No active Apple Music subscription found — cannot download")
@@ -489,13 +474,40 @@ async def _download_urls_async(
         _dl_kwargs["truncate"] = truncate
     base_downloader = AppleMusicBaseDownloader(**_dl_kwargs)  # type: ignore[arg-type]
 
-    # ── patch: replace gamdl's multiprocess-based download with direct yt-dlp ──
-    # gamdl 3.8.3 uses multiprocessing.Process for yt-dlp downloads, which fails
-    # silently inside PyInstaller bundles (fork issues on macOS).  We bypass it
-    # with an async subprocess call so the file is guaranteed to be on disk.
-    _dl_mode = download_mode
-    _silent = False  # base_downloader.silent is not directly exposed
+    # ── patch: resolve binary paths from dependency_manager ──
+    # Finder-launched .app has an empty PATH, so subprocess calls
+    # with bare names ("yt-dlp", "ffmpeg", etc.) will fail.
+    # We resolve every binary to an absolute path so subprocess works.
+    from amdl.dependency_manager import BIN_DIR as _BIN_DIR
 
+    def _resolve_bin(name: str) -> str:
+        p = shutil.which(name)
+        if p:
+            return p
+        candidate = _BIN_DIR / name
+        if candidate.exists():
+            return str(candidate)
+        if getattr(sys, "frozen", False):
+            try:
+                meipass = Path(sys._MEIPASS)  # type: ignore[attr-defined]
+                candidate2 = meipass / "bin" / name
+                if candidate2.exists():
+                    return str(candidate2)
+            except Exception:
+                pass
+        return name
+
+    _resolved_ffmpeg = _resolve_bin("ffmpeg")
+    _resolved_nm3u8dlre = _resolve_bin(Path(nm3u8dlre_path).name)
+    _resolved_ytdlp = _resolve_bin("yt-dlp")
+
+    # Override the base_downloader's binary paths so gamdl internal
+    # subprocess calls (ffmpeg remux, N_m3u8DL-RE) also use absolute paths.
+    base_downloader.full_ffmpeg_path = _resolved_ffmpeg  # type: ignore[attr-defined]
+    base_downloader.full_nm3u8dlre_path = _resolved_nm3u8dlre  # type: ignore[attr-defined]
+    _dl_mode = download_mode
+
+    # ── patch: replace gamdl's multiprocess-based download ──
     async def _patched_download_stream(
         stream_url: str,
         download_path: str,
@@ -505,12 +517,10 @@ async def _download_urls_async(
         use_nm3u8 = _dl_mode == DownloadMode.NM3U8DLRE and is_m3u8
 
         if use_nm3u8:
-            # N_m3u8DL-RE mode — delegate to gamdl's existing subprocess impl
             await base_downloader._download_nm3u8dlre(stream_url, download_path)
         else:
-            # yt-dlp via subprocess (bypasses gamdl's multiprocessing.Process)
             args = [
-                "yt-dlp",
+                _resolved_ytdlp,
                 "--quiet", "--no-warnings",
                 "--allow-unplayable-formats",
                 "--concurrent-fragments", "8",

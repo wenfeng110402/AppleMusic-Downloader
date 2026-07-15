@@ -38,6 +38,47 @@ if sys.platform == "win32":
     _os.environ.setdefault("ANYIO_BACKEND", "asyncio")
 
 from gamdl.api import AppleMusicApi
+
+# ── Windows nuclear patch: bypass httpx_retries ──────────
+# httpx_retries.RetryTransport is incompatible with ANY event loop on Windows.
+# Replace AppleMusicApi.create with a version that uses plain httpx.
+if sys.platform == "win32":
+    import httpx as _httpx
+
+    _orig_create = AppleMusicApi.create
+
+    async def _win_create(
+        cls,
+        storefront: str | None = "us",
+        language: str = "en-US",
+        token: str | None = None,
+        media_user_token: str | None = None,
+    ):
+        import httpx as _httpx2
+        token = token or await AppleMusicApi.get_token()
+        account_info = (
+            await AppleMusicApi.get_account_info(token, media_user_token)
+            if media_user_token else None
+        )
+        sf = (
+            account_info["meta"]["subscription"]["storefront"]
+            if account_info else storefront
+        )
+        if not sf:
+            raise ValueError("Storefront must be provided if it cannot be determined from account info")
+        client = _httpx2.AsyncClient(headers={
+            "authorization": f"Bearer {token}",
+            "origin": "https://music.apple.com",
+        })
+        if media_user_token:
+            client.headers.update({"cookie": f"media-user-token={media_user_token}"})
+        return cls(
+            client=client, token=token, storefront=sf, language=language,
+            media_user_token=media_user_token, account_info=account_info,
+        )
+
+    AppleMusicApi.create = classmethod(_win_create)
+
 from gamdl.downloader import (
     AppleMusicBaseDownloader,
     AppleMusicDownloader,

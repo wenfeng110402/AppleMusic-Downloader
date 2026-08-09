@@ -318,15 +318,16 @@ class TaskManager:
 
         if not task.cancelled:
             task.error_count = err_count
-            url_count = len(task.kwargs.get("urls", []))
+            completed_count, _ = task.progress
             task.status = (
-                TaskStatus.COMPLETED if err_count < url_count or err_count == 0
+                TaskStatus.COMPLETED
+                if completed_count > 0 or err_count == 0
                 else TaskStatus.FAILED
             )
             task.message = (
                 "全部完成" if err_count == 0
-                else f"全部失败（{err_count} 个错误）" if err_count >= url_count
-                else f"部分完成（{err_count} 个错误）"
+                else f"部分完成（{err_count} 个错误）" if completed_count > 0
+                else f"全部失败（{err_count} 个错误）"
             )
             task.updated_at = datetime.now(timezone.utc).isoformat()
             await self._broadcast_status(task)

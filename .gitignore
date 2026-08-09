@@ -45,6 +45,7 @@ htmlcov/
 coverage.xml
 
 # ── IDE / Editor ───────────────────────────────────────────
+.qoder/
 .vscode/
 .idea/
 *.sublime-*

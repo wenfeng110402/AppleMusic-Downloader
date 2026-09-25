@@ -305,7 +305,12 @@ async def _download_urls_async(
                 "overwrites": True,
                 "noprogress": True,
                 "allow_unplayable_formats": True,
-                "concurrent_fragment_downloads": 8,
+                "concurrent_fragment_downloads": 4,
+                "retries": 10,
+                "fragment_retries": 10,
+                "file_access_retries": 5,
+                "buffersize": 1024 * 64,
+                "http_chunk_size": 10485760,
             }
         ) as ydl:
             if stream_url.split("?")[0].endswith(".m3u8"):
@@ -397,24 +402,32 @@ async def _download_urls_async(
 
         title = item.media.media_metadata.get("attributes", {}).get("name", "?") if isinstance(item.media.media_metadata, dict) else "?"
         log.info('Downloading "%s"', title)
-        try:
-            await dl.download(item)
-            completed += 1
-            done_files.append(str(item.final_path))
-            if progress_callback:
-                r = progress_callback(completed, total)
-                if asyncio.iscoroutine(r):
-                    await r
-        except GamdlDownloaderMediaFileExistsError:
-            completed += 1
-            log.info('Skipped "%s": exists', title)
-            if progress_callback:
-                r = progress_callback(completed, total)
-                if asyncio.iscoroutine(r):
-                    await r
-        except Exception as e:
-            errors += 1
-            log.error('Failed "%s": %s\n%s', title, e, traceback.format_exc())
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                await dl.download(item)
+                completed += 1
+                done_files.append(str(item.final_path))
+                if progress_callback:
+                    r = progress_callback(completed, total)
+                    if asyncio.iscoroutine(r):
+                        await r
+                break
+            except GamdlDownloaderMediaFileExistsError:
+                completed += 1
+                log.info('Skipped "%s": exists', title)
+                if progress_callback:
+                    r = progress_callback(completed, total)
+                    if asyncio.iscoroutine(r):
+                        await r
+                break
+            except Exception as e:
+                if attempt < max_retries:
+                    log.warning('Retrying "%s" (attempt %d/%d) after error: %s', title, attempt, max_retries, e)
+                    await asyncio.sleep(1.5)
+                    continue
+                errors += 1
+                log.error('Failed "%s": %s\n%s', title, e, traceback.format_exc())
 
     # ── format conversion ───────────────────────────────
     if (audio_format or video_format) and done_files:

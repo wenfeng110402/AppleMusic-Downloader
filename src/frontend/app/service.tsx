@@ -14,14 +14,19 @@ export interface FormState {
   nm3u8dlre_path: string;
   audio_format: string;
   codec_song: string;
+  codec_music_video: string;
   download_mode: string;
   cover_format: string;
   cover_size: number;
+  synced_lyrics_format: string;
+  synced_lyrics_only: boolean;
   language: string;
   overwrite: boolean;
   save_cover: boolean;
   save_playlist: boolean;
   no_synced_lyrics: boolean;
+  template_folder_album: string;
+  template_file_single_disc: string;
 }
 
 export interface TaskInfo {
@@ -86,14 +91,19 @@ export const DEFAULT_FORM: FormState = {
   nm3u8dlre_path: "N_m3u8DL-RE",
   audio_format: "",
   codec_song: "aac-web",
+  codec_music_video: "h264",
   download_mode: "ytdlp",
   cover_format: "jpg",
   cover_size: 1200,
+  synced_lyrics_format: "lrc",
+  synced_lyrics_only: false,
   language: "en-US",
   overwrite: false,
   save_cover: false,
   save_playlist: false,
   no_synced_lyrics: false,
+  template_folder_album: "{album_artist}/{album}",
+  template_file_single_disc: "{track:02d} {title}",
 };
 
 // ── 状态映射 ──────────────────────────────────────────────────
@@ -144,14 +154,17 @@ export function useBackendStatus() {
 
 // ── 提交下载任务 ──────────────────────────────────────────────
 
+/**
+ * Returns an async submit function.
+ * On failure it throws an Error so the caller can catch and show a toast.
+ */
 export function useSubmitTask(onSuccess?: () => void) {
   return async (form: FormState) => {
-    const urlList = form.urls.split("\n").map((s) => s.trim()).filter(Boolean);
+    // 自动去重并剔除空行
+    const urlList = Array.from(
+      new Set(form.urls.split("\n").map((s) => s.trim()).filter(Boolean))
+    );
     if (urlList.length === 0) return;
-    if (!form.cookies_path.trim()) {
-      alert("cookies.txt path is required");
-      return;
-    }
 
     const body = {
       urls: urlList,
@@ -161,40 +174,45 @@ export function useSubmitTask(onSuccess?: () => void) {
       ffmpeg_path: form.ffmpeg_path.trim(),
       nm3u8dlre_path: form.nm3u8dlre_path.trim(),
       codec_song: form.codec_song,
+      codec_music_video: form.codec_music_video,
       download_mode: form.download_mode,
       cover_format: form.cover_format,
       cover_size: form.cover_size,
+      synced_lyrics_format: form.synced_lyrics_format,
+      synced_lyrics_only: form.synced_lyrics_only,
       language: form.language,
       overwrite: form.overwrite,
       save_cover: form.save_cover,
       save_playlist: form.save_playlist,
       no_synced_lyrics: form.no_synced_lyrics,
       audio_format: form.audio_format || null,
+      template_folder_album: form.template_folder_album || "{album_artist}/{album}",
+      template_file_single_disc: form.template_file_single_disc || "{track:02d} {title}",
     };
 
+    let res: Response;
     try {
-      const res = await fetch("/api/tasks", {
+      res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
-      if (!res.ok) {
-        const err = await res.json();
-        let msg = res.statusText;
-        if (typeof err.detail === "string") {
-          msg = err.detail;
-        } else if (Array.isArray(err.detail)) {
-          msg = err.detail.map((e: { msg?: string }) => e.msg || String(e)).join("; ");
-        }
-        alert(`submit failed: ${msg}`);
-        return;
-      }
-
-      onSuccess?.();
     } catch {
-      alert("submit failed, check if backend is running");
+      throw new Error("NETWORK_ERROR");
     }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      let msg = res.statusText;
+      if (typeof err.detail === "string") {
+        msg = err.detail;
+      } else if (Array.isArray(err.detail)) {
+        msg = err.detail.map((e: { msg?: string }) => e.msg || String(e)).join("; ");
+      }
+      throw new Error(msg);
+    }
+
+    onSuccess?.();
   };
 }
 
@@ -249,4 +267,38 @@ export function useDependencyCheck() {
   }, []);
 
   return { deps, check };
+}
+
+// ── 检查更新 ──────────────────────────────────────────────────
+
+export interface UpdateInfo {
+  has_update: boolean;
+  current_version: string;
+  latest_version: string;
+  release_notes: string;
+  release_url: string;
+}
+
+export function useCheckUpdate() {
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  const check = useCallback(async (force = false) => {
+    setChecking(true);
+    try {
+      const res = await fetch(`/api/system/check-update${force ? "?force=true" : ""}`);
+      if (res.ok) {
+        const data = (await res.json()) as UpdateInfo;
+        setUpdateInfo(data);
+        return data;
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setChecking(false);
+    }
+    return null;
+  }, []);
+
+  return { updateInfo, checking, check };
 }

@@ -542,6 +542,13 @@ async def _download_urls_async(
         # avoids multiprocessing (broken under PyInstaller without
         # freeze_support) and `sys.executable -m yt_dlp` (frozen exe
         # would relaunch AMDL itself).
+        #
+        # Delete any stale/empty file first — yt-dlp's HlsFD will
+        # report "has already been downloaded" and return 0 bytes if
+        # it finds an existing file at dl_path (even a 0-byte one).
+        _p = Path(dl_path)
+        if _p.exists():
+            _p.unlink()
         from yt_dlp import YoutubeDL
         from yt_dlp.downloader.hls import HlsFD
         from yt_dlp.downloader.http import HttpFD

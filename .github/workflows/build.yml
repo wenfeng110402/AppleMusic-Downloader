@@ -2,7 +2,8 @@
 # AppleMusic Downloader — Build & CI
 #
 # Triggers:
-#   - push / pull_request to main
+#   - push to any branch (uses code from that specific commit/branch)
+#   - pull_request to any branch
 #   - manual trigger via workflow_dispatch
 # ─────────────────────────────────────────────────────────────────
 
@@ -11,9 +12,9 @@ name: Build & Test
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
-    branches: [main]
+    branches: ["**"]
 
 env:
   PYTHON_VERSION: "3.12"

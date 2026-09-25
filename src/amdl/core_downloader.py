@@ -6,6 +6,7 @@ import asyncio
 import datetime
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -99,6 +100,83 @@ def _resolve_bin(name: str) -> str:
         if c.exists():
             return str(c)
     return name
+
+
+def _format_ttml(raw_ttml: str) -> str:
+    """Format TTML XML cleanly while strictly preserving spaces between words and keeping <p> on one line.
+
+    gamdl's default minidom.parseString().toprettyxml() breaks mixed content inside <p>, converting spaces
+    between <span> tags into newlines and tabs ('\\n\\t\\t\\t\\t \\n\\t\\t\\t\\t'), which causes standard TTML
+    parsers (AMLL, Lyricify, Salt Player) to strip the whitespace and render all words glued together without spaces.
+    """
+    if not raw_ttml or not isinstance(raw_ttml, str):
+        return raw_ttml
+
+    xml_str = raw_ttml.strip()
+    if xml_str.startswith("<?xml"):
+        xml_str = re.sub(r"^\<\?xml.*?\?\>\s*", "", xml_str, flags=re.DOTALL)
+
+    # Separate elements so placeholders and structural blocks each start on a new line
+    xml_str = re.sub(r"(<p\b)", r"\n\1", xml_str)
+    xml_str = re.sub(r"(</p>)", r"\1\n", xml_str)
+    xml_str = re.sub(r"(<div\b)", r"\n\1\n", xml_str)
+    xml_str = re.sub(r"(</div>)", r"\n\1\n", xml_str)
+
+    p_placeholders: list[str] = []
+
+    def _clean_p(match: re.Match) -> str:
+        p_content = match.group(0)
+        # Normalize any whitespace or newline sequence between </span> and <span to exactly one space
+        p_content = re.sub(r"</span>\s+<span", "</span> <span", p_content)
+        # Remove any leading whitespace directly after <p ...>
+        p_content = re.sub(r"(<p\b[^>]*>)\s+", r"\1", p_content)
+        # Remove any trailing whitespace directly before </p>
+        p_content = re.sub(r"\s+(</p>)", r"\1", p_content)
+        idx = len(p_placeholders)
+        p_placeholders.append(p_content)
+        return f"___TTML_P_PLACEHOLDER_{idx}___"
+
+    protected = re.sub(r"<p\b[^>]*>.*?</p>", _clean_p, xml_str, flags=re.DOTALL)
+
+    text_placeholders: list[str] = []
+
+    def _clean_text(match: re.Match) -> str:
+        t_content = match.group(0).strip()
+        idx = len(text_placeholders)
+        text_placeholders.append(t_content)
+        return f"___TTML_TEXT_PLACEHOLDER_{idx}___"
+
+    protected = re.sub(r"<text\b[^>]*>.*?</text>", _clean_text, protected, flags=re.DOTALL)
+
+    # Format structural tags with indentation
+    protected = re.sub(r">\s*<", ">\n<", protected)
+
+    lines = protected.splitlines()
+    indent = 0
+    formatted_lines: list[str] = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        if line.startswith("</"):
+            indent = max(0, indent - 1)
+
+        formatted_lines.append("  " * indent + line)
+
+        if line.startswith("<") and not line.startswith("</") and not line.endswith("/>"):
+            if "</" not in line:
+                indent += 1
+
+    result = "\n".join(formatted_lines)
+
+    for i, p in enumerate(p_placeholders):
+        result = result.replace(f"___TTML_P_PLACEHOLDER_{i}___", p)
+    for i, t in enumerate(text_placeholders):
+        result = result.replace(f"___TTML_TEXT_PLACEHOLDER_{i}___", t)
+
+    return '<?xml version="1.0" encoding="utf-8"?>\n' + result
 
 
 # ── sync entry point ────────────────────────────────────
@@ -225,6 +303,17 @@ async def _download_urls_async(
         codec_priority=song_priority,
         skip_stream_info=synced_lyrics_only,
     )
+
+    # ── fix TTML formatting: prevent minidom from mutilating spaces between words ──
+    _orig_internal_get_lyrics = song_iface._get_lyrics
+
+    def _safe_internal_get_lyrics(lyrics_ttml: str):
+        lyrics = _orig_internal_get_lyrics(lyrics_ttml)
+        if lyrics and lyrics.synced and synced_lyrics_format == SyncedLyricsFormat.TTML:
+            lyrics.synced = _format_ttml(lyrics_ttml)
+        return lyrics
+
+    song_iface._get_lyrics = _safe_internal_get_lyrics
 
     # ── enhance lyrics fetch: retrieve syllable-level and translated TTML ──
     _orig_get_lyrics = song_iface.get_lyrics

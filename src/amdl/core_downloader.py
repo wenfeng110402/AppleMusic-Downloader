@@ -173,6 +173,16 @@ async def _download_urls_async(
             _u.extend(p.read_text("utf-8").splitlines() if p.exists() else [u])
         urls = _u
 
+    # ── deduplicate urls while preserving order ────────
+    seen_urls: set[str] = set()
+    deduped_urls: list[str] = []
+    for u in urls:
+        clean_u = u.strip()
+        if clean_u and clean_u not in seen_urls:
+            seen_urls.add(clean_u)
+            deduped_urls.append(clean_u)
+    urls = deduped_urls
+
     exclude_list = [t.strip().lower() for t in (exclude_tags or "").split(",") if t.strip()]
 
     # ── API client ──────────────────────────────────────
@@ -191,8 +201,53 @@ async def _download_urls_async(
         wvd_path=str(wvd_path) if wvd_path else None,
     )
     log.info("AppleMusicBaseInterface created, building AppleMusicInterface...")
+    song_iface = AppleMusicSongInterface(base=base_iface, synced_lyrics_format=synced_lyrics_format, codec_priority=[codec_song])
+
+    # ── enhance lyrics fetch: retrieve syllable-level and translated TTML ──
+    _orig_get_lyrics = song_iface.get_lyrics
+
+    async def _enhanced_get_lyrics(song_metadata: dict):
+        song_id = song_metadata.get("id")
+        if not song_id or song_metadata.get("attributes", {}).get("playParams", {}).get("isLibrary"):
+            return await _orig_get_lyrics(song_metadata)
+
+        if not song_metadata.get("attributes", {}).get("hasLyrics"):
+            return None
+
+        # 1. Try Apple Music Sing / syllable-lyrics endpoint for word-level & translated TTML
+        try:
+            res = await api._amp_request(
+                f"/v1/catalog/{api.storefront}/songs/{song_id}/syllable-lyrics",
+                params={"l": language, "extend": "ttmlLocalizations"},
+            )
+            if res and "data" in res and len(res["data"]) > 0:
+                attrs = res["data"][0].get("attributes", {})
+                ttml = attrs.get("ttml")
+                if ttml:
+                    localizations = attrs.get("ttmlLocalizations")
+                    if isinstance(localizations, dict) and localizations:
+                        lang_key = None
+                        for k in localizations.keys():
+                            if k.lower() in language.lower() or language.lower() in k.lower():
+                                lang_key = k
+                                break
+                        if not lang_key and "zh-Hans" in localizations:
+                            lang_key = "zh-Hans"
+                        if lang_key and localizations[lang_key]:
+                            ttml = localizations[lang_key]
+
+                    log.info('Retrieved syllable/translated TTML for song %s', song_id)
+                    return song_iface._get_lyrics(ttml)
+        except Exception as err:
+            log.debug("Syllable-lyrics unavailable for %s: %s; falling back to standard lyrics", song_id, err)
+
+        # 2. Fall back to standard catalog lyrics
+        return await _orig_get_lyrics(song_metadata)
+
+    song_iface.get_lyrics = _enhanced_get_lyrics
+
     iface = AppleMusicInterface(
-        song=AppleMusicSongInterface(base=base_iface, synced_lyrics_format=synced_lyrics_format, codec_priority=[codec_song]),
+        song=song_iface,
         music_video=AppleMusicMusicVideoInterface(base=base_iface, codec_priority=[codec_music_video]),
         uploaded_video=AppleMusicUploadedVideoInterface(base=base_iface, quality=quality_post),
     )

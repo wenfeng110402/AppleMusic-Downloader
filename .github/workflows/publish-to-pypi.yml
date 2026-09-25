@@ -6,8 +6,6 @@ on:
       tag:
         description: 'Version tag to publish (e.g., v1.0.0). The leading v is stripped.'
         required: true
-  push:
-    tags: ["v*"]
 
 jobs:
   publish:

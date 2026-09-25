@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import TagInput from "./TagInput";
 import { FormState, DEFAULT_FORM, useSubmitTask } from "../service";
 import { useI18n } from "../i18n";
+import { useToast } from "./Toast";
 
 const AUDIO_FORMATS = [
   { value: "", label: "None" },
@@ -35,6 +36,7 @@ declare global {
 
 export default function Download({ onNavigate }: { onNavigate?: (id: string) => void }) {
   const { t, locale } = useI18n();
+  const toast = useToast();
   const submitTask = useSubmitTask();
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [hover, setHover] = useState(false);
@@ -77,23 +79,30 @@ export default function Download({ onNavigate }: { onNavigate?: (id: string) => 
 
   const handleSubmit = async () => {
     if (!form.cookies_path || !form.cookies_path.trim()) {
-      alert(t("download.cookies_empty"));
+      toast.error(t("download.cookies_empty"));
       return;
     }
-    // 直接用当前 form 的全部状态提交，无需读 localStorage
-    // form 已在 useEffect 中从 /api/settings 加载，set() 实时更新
-    await submitTask(form);
-    // 提交成功后清空暂存
-    sessionStorage.removeItem("amdl_pending_urls");
-    onNavigate?.("queue");
+    try {
+      await submitTask(form);
+      // 提交成功后清空暂存
+      sessionStorage.removeItem("amdl_pending_urls");
+      onNavigate?.("queue");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === "NETWORK_ERROR") {
+        toast.error(t("download.failed.backend"));
+      } else {
+        toast.error(`${t("download.failed")}: ${msg}`);
+      }
+    }
   };
 
   const browseFile = () => {
     if (window.pywebview?.api) {
       window.pywebview.api.open_file().then((path: string) => { if (path) set("cookies_path", path); });
     } else {
-      const p = prompt("Cookies file path:");
-      if (p) set("cookies_path", p);
+      // 浏览器模式：聚焦到对应 input，无需 prompt
+      document.querySelector<HTMLInputElement>("input[placeholder]")?.focus();
     }
   };
 
@@ -101,8 +110,9 @@ export default function Download({ onNavigate }: { onNavigate?: (id: string) => 
     if (window.pywebview?.api) {
       window.pywebview.api.open_folder().then((path: string) => { if (path) set("output_path", path); });
     } else {
-      const p = prompt("Output folder path:");
-      if (p) set("output_path", p);
+      // 浏览器模式：聚焦到输出路径 input
+      const inputs = document.querySelectorAll<HTMLInputElement>("input.input");
+      inputs[1]?.focus();
     }
   };
 
@@ -210,20 +220,36 @@ export default function Download({ onNavigate }: { onNavigate?: (id: string) => 
           </div>
         </div>
 
-        {/* ── Audio format ── */}
-        <div className="mb-5">
-          <label className="mb-1.5 block text-[10.5px] font-medium" style={{ color: "var(--text-dim)" }}>
-            {t("download.audio_format")}
-          </label>
-          <select
-            className="input"
-            value={form.audio_format}
-            onChange={(e) => set("audio_format", e.target.value)}
-          >
-            {(locale === "zh" ? AUDIO_FORMATS_ZH : AUDIO_FORMATS).map((fmt) => (
-              <option key={fmt.value} value={fmt.value}>{fmt.label}</option>
-            ))}
-          </select>
+        {/* ── Format selection: Audio conversion & Lyrics format ── */}
+        <div className="mb-5 grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1.5 block text-[10.5px] font-medium" style={{ color: "var(--text-dim)" }}>
+              {t("download.audio_format")}
+            </label>
+            <select
+              className="input"
+              value={form.audio_format}
+              onChange={(e) => set("audio_format", e.target.value)}
+            >
+              {(locale === "zh" ? AUDIO_FORMATS_ZH : AUDIO_FORMATS).map((fmt) => (
+                <option key={fmt.value} value={fmt.value}>{fmt.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[10.5px] font-medium" style={{ color: "var(--text-dim)" }}>
+              {t("settings.lyrics_format")}
+            </label>
+            <select
+              className="input"
+              value={form.synced_lyrics_format}
+              onChange={(e) => set("synced_lyrics_format", e.target.value)}
+            >
+              <option value="lrc">LRC ({locale === "zh" ? "标准" : "Standard"})</option>
+              <option value="ttml">TTML ({locale === "zh" ? "逐字" : "Word-by-word"})</option>
+              <option value="srt">SRT ({locale === "zh" ? "字幕" : "Subtitles"})</option>
+            </select>
+          </div>
         </div>
 
         {/* ── Submit ── */}

@@ -1,18 +1,17 @@
 # ─────────────────────────────────────────────────────────────────
-# AppleMusic Downloader — Cross-platform Build & Release
+# AppleMusic Downloader — Build & CI
 #
 # Triggers:
 #   - push / pull_request to main
-#   - pushing a tag v*  (e.g. v2.0.0) → creates a GitHub Release
+#   - manual trigger via workflow_dispatch
 # ─────────────────────────────────────────────────────────────────
 
-name: Build & Release
+name: Build & Test
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
     branches: [main]
 
@@ -105,33 +104,3 @@ jobs:
           name: ${{ matrix.artifact }}
           path: dist/${{ matrix.artifact }}*
           if-no-files-found: error
-
-  # ─────────────────────────────────────────────────────────────
-  # Release (only on tag push v*)
-  # ─────────────────────────────────────────────────────────────
-  release:
-    name: Create Release
-    needs: [build]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release-artifacts
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: "AppleMusic Downloader ${{ github.ref_name }}"
-          body_path: CHANGELOG.md
-          draft: true
-          prerelease: false
-          files: |
-            release-artifacts/**/*

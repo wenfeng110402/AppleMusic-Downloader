@@ -15,7 +15,7 @@ from amdl import __version__
 def cli(ctx: click.Context) -> None:
     """AppleMusic Downloader (amdl) — download songs, MVs, lyrics and more."""
     if ctx.invoked_subcommand is None and not ctx.args:
-        click.echo(ctx.get_help())
+        click.echo(_HELP)
 
 
 @cli.command("server")
@@ -47,7 +47,8 @@ def main() -> None:
     Routes to:
       - ``amdl server`` / ``amdl --server`` → API server
       - ``amdl desktop`` / ``amdl --desktop`` → desktop GUI
-      - anything else → passthrough to gamdl CLI
+      - ``amdl --gamdl-help`` → gamdl CLI full help
+      - anything else (flags, URLs, options) → passthrough to gamdl CLI
     """
     args = sys.argv[1:]
 
@@ -73,14 +74,9 @@ def main() -> None:
         run_desktop()
         return
 
-    # ── new sub-command style ──────────────────────────────────
-    if args and args[0] not in ("--help", "-h", "--version") and not args[0].startswith("-"):
-        # Could be a sub-command (server/desktop) or gamdl passthrough
-        if args[0] in ("server", "desktop"):
-            cli(args=args, standalone_mode=False)
-            return
-        # Otherwise passthrough to gamdl
-        _passthrough_to_gamdl(args)
+    # ── sub-command style ──────────────────────────────────
+    if args and args[0] in ("server", "desktop"):
+        cli(args=args, standalone_mode=False)
         return
 
     # ── help / version / no args ─────────────────────────────
@@ -88,7 +84,16 @@ def main() -> None:
         click.echo(_HELP)
         return
 
-    cli(args=args, standalone_mode=False)
+    if args and args[0] in ("--version", "-V"):
+        click.echo(f"amdl {__version__}")
+        return
+
+    if args and args[0] == "--gamdl-help":
+        _passthrough_to_gamdl(["--help"])
+        return
+
+    # ── anything else (flags like -c, URLs, etc.) → passthrough to gamdl ──
+    _passthrough_to_gamdl(args)
 
 
 def _passthrough_to_gamdl(args: list[str]) -> None:
@@ -102,19 +107,32 @@ _HELP = f"""\
 AppleMusic Downloader (amdl) v{__version__}
 
 Usage:
-  amdl server [--host HOST] [--port PORT]   Start API server
-  amdl desktop                               Launch desktop app
-  amdl <gamdl args...>                       Pass through to gamdl CLI
+  amdl <urls...> [options]                   Download songs, albums, playlists, MVs
+  amdl server [--host HOST] [--port PORT]    Start API server
+  amdl desktop                               Launch desktop GUI application
 
-Server options:
-  --host HOST        Listen address (default: 127.0.0.1)
-  --port PORT        Listen port (default: 8000)
-  --log-level LEVEL  Log level: debug, info, warning, error (default: info)
+Core Download Options:
+  -c, --cookies-path PATH          Path to cookies.txt file (required)
+  -o, --output-path PATH           Output directory (default: ./Apple Music)
+  --codec-song CODEC               Song codec: aac-web, atmos, etc.
+  --synced-lyrics-format FORMAT    Lyrics format: lrc, srt, ttml (default: lrc)
+  --synced-lyrics-only             Only download synced lyrics without media
+  --no-synced-lyrics               Skip downloading synced lyrics
+  --save-cover                     Save cover art image to disk
+  --cover-format FORMAT            Cover format: jpg, png, raw (default: jpg)
+  --download-mode MODE             Download engine: ytdlp, nm3u8dlre
+  -w, --overwrite                  Overwrite existing local files
+
+Server Options:
+  --host HOST                      Listen address (default: 127.0.0.1)
+  --port PORT                      Listen port (default: 8000)
+  --log-level LEVEL                Log level: debug, info, warning, error (default: info)
 
 Examples:
+  amdl -c cookies.txt "https://music.apple.com/us/album/..."
+  amdl -c cookies.txt --synced-lyrics-format ttml "https://music.apple.com/..."
+  amdl -c cookies.txt --synced-lyrics-only "https://music.apple.com/..."
   amdl server --host 0.0.0.0 --port 8000
   amdl desktop
-  amdl -c /path/to/cookies.txt "https://music.apple.com/..."
-  amdl --help
+  amdl --gamdl-help                Show full gamdl CLI options
 """
-    

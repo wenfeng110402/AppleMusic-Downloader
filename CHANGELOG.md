@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.5.0] — 2026-09-25
+
+### Added
+- Support for syllable-level word-by-word synced lyrics and localized translations via Apple Music Sing endpoint (`syllable-lyrics`)
+- Desktop UI options for synced lyrics format selection (LRC, SRT, TTML)
+- Desktop UI toggle for "Synced lyrics only" download mode
+- Desktop UI custom path and filename templates for albums and tracks
+- Integrated lightweight in-app Toast notification system replacing native modal alerts
+- Automatic deduplication for batch URL inputs
+
+### Fixed
+- Fixed CLI routing regression where passing options (e.g. `-c cookies.txt`) caused Click to crash with `NoSuchOption: -c`
+- Resolved security vulnerabilities in frontend dependencies
+
+### Changed
+- Refactored CLI `--help` with clear parameter summaries and added `--gamdl-help` flag
+- Streamlined audio codec options to verified playable formats (AAC, AAC-HE, Dolby Atmos), removing unsupported ALAC
+
 ## [2.0.0] — 2026-07-08
 
 ### Added

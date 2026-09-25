@@ -201,7 +201,12 @@ async def _download_urls_async(
         wvd_path=str(wvd_path) if wvd_path else None,
     )
     log.info("AppleMusicBaseInterface created, building AppleMusicInterface...")
-    song_iface = AppleMusicSongInterface(base=base_iface, synced_lyrics_format=synced_lyrics_format, codec_priority=[codec_song])
+    song_priority = [codec_song]
+    for c in (SongCodec.AAC_WEB, SongCodec.AAC_HE_WEB):
+        if c not in song_priority:
+            song_priority.append(c)
+
+    song_iface = AppleMusicSongInterface(base=base_iface, synced_lyrics_format=synced_lyrics_format, codec_priority=song_priority)
 
     # ── enhance lyrics fetch: retrieve syllable-level and translated TTML ──
     _orig_get_lyrics = song_iface.get_lyrics
@@ -215,40 +220,47 @@ async def _download_urls_async(
             return None
 
         # 1. Try Apple Music Sing / syllable-lyrics endpoint for word-level & translated TTML
-        try:
-            res = await api._amp_request(
-                f"/v1/catalog/{api.storefront}/songs/{song_id}/syllable-lyrics",
-                params={"l": language, "extend": "ttmlLocalizations"},
-            )
-            if res and "data" in res and len(res["data"]) > 0:
-                attrs = res["data"][0].get("attributes", {})
-                ttml = attrs.get("ttml")
-                if ttml:
-                    localizations = attrs.get("ttmlLocalizations")
-                    if isinstance(localizations, dict) and localizations:
+        if synced_lyrics_format == SyncedLyricsFormat.TTML:
+            try:
+                res = await api._amp_request(
+                    f"/v1/catalog/{api.storefront}/songs/{song_id}/syllable-lyrics",
+                    params={"l": language, "extend": "ttmlLocalizations"},
+                )
+                if res and "data" in res and len(res["data"]) > 0:
+                    attrs = res["data"][0].get("attributes", {})
+                    # When extend=ttmlLocalizations is passed, Apple returns the full syllable-timed
+                    # and translated TTML in attrs["ttmlLocalizations"].
+                    # Without extend, base syllable TTML is in attrs["ttml"].
+                    raw_ttml = attrs.get("ttmlLocalizations") or attrs.get("ttml")
+                    if isinstance(raw_ttml, dict):
                         lang_key = None
-                        for k in localizations.keys():
+                        for k in raw_ttml.keys():
                             if k.lower() in language.lower() or language.lower() in k.lower():
                                 lang_key = k
                                 break
-                        if not lang_key and "zh-Hans" in localizations:
+                        if not lang_key and "zh-Hans" in raw_ttml:
                             lang_key = "zh-Hans"
-                        if lang_key and localizations[lang_key]:
-                            ttml = localizations[lang_key]
+                        raw_ttml = raw_ttml.get(lang_key) or next(iter(raw_ttml.values()), None)
 
-                    log.info('Retrieved syllable/translated TTML for song %s', song_id)
-                    return song_iface._get_lyrics(ttml)
-        except Exception as err:
-            log.debug("Syllable-lyrics unavailable for %s: %s; falling back to standard lyrics", song_id, err)
+                    if raw_ttml and isinstance(raw_ttml, str):
+                        log.info('Retrieved syllable/translated TTML for song %s', song_id)
+                        return song_iface._get_lyrics(raw_ttml)
+            except Exception as err:
+                log.debug("Syllable-lyrics unavailable for %s: %s; falling back to standard lyrics", song_id, err)
 
         # 2. Fall back to standard catalog lyrics
         return await _orig_get_lyrics(song_metadata)
 
     song_iface.get_lyrics = _enhanced_get_lyrics
 
+    mv_priority = [codec_music_video]
+    for c in (MusicVideoCodec.H265, MusicVideoCodec.H264):
+        if c not in mv_priority:
+            mv_priority.append(c)
+
     iface = AppleMusicInterface(
         song=song_iface,
-        music_video=AppleMusicMusicVideoInterface(base=base_iface, codec_priority=[codec_music_video]),
+        music_video=AppleMusicMusicVideoInterface(base=base_iface, codec_priority=mv_priority),
         uploaded_video=AppleMusicUploadedVideoInterface(base=base_iface, quality=quality_post),
     )
     log.info("AppleMusicInterface ready")
@@ -364,13 +376,22 @@ async def _download_urls_async(
     completed = 0
     done_files: list[str] = []
 
+    seen_media_ids: set[str] = set()
     for item in items:
         if item.media.error:
+            # Deduplicate error items (gamdl can yield them multiple times)
+            media_id = getattr(item.media, "media_id", None) or getattr(item, "uuid_", None)
+            if media_id:
+                if media_id in seen_media_ids:
+                    continue
+                seen_media_ids.add(media_id)
+
             errors += 1
             m = item.media.media_metadata
             n = m.get("attributes", {}).get("name", "?") if isinstance(m, dict) else "?"
-            log.error('Skip "%s": %s', n, item.media.error, exc_info=not no_exceptions)
+            log.error('Skip "%s": %s', n, item.media.error)
             continue
+
         if item.media.partial or not item.final_path:
             continue
 

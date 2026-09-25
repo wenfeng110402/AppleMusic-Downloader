@@ -9,23 +9,17 @@ import { useToast } from "./Toast";
 const AUDIO_FORMATS = [
   { value: "", label: "None" },
   { value: "mp3", label: "MP3" },
-  { value: "flac", label: "FLAC" },
   { value: "wav", label: "WAV" },
-  { value: "aac", label: "AAC" },
   { value: "m4a", label: "M4A" },
   { value: "ogg", label: "OGG" },
-  { value: "alac", label: "ALAC" },
 ];
 
 const AUDIO_FORMATS_ZH = [
   { value: "", label: "不转换" },
   { value: "mp3", label: "MP3" },
-  { value: "flac", label: "FLAC" },
   { value: "wav", label: "WAV" },
-  { value: "aac", label: "AAC" },
   { value: "m4a", label: "M4A" },
   { value: "ogg", label: "OGG" },
-  { value: "alac", label: "ALAC" },
 ];
 
 declare global {

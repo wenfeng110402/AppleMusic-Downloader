@@ -62,6 +62,30 @@ BIN_DIR = _DATA_DIR / "bin"
 # Public alias — used by server.py for settings / temp
 DATA_DIR = _DATA_DIR
 
+_SYSTEM_BIN_DIRS: list[str] = [
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+    "/usr/local/bin",
+    "/usr/local/sbin",
+    "/home/linuxbrew/.linuxbrew/bin",
+]
+
+
+def _init_env_path() -> None:
+    """Ensure BIN_DIR and system binary directories (Homebrew/Linuxbrew) are in PATH."""
+    current_paths = os.environ.get("PATH", "").split(os.pathsep)
+    paths_to_add: list[str] = [str(BIN_DIR)]
+    if sys.platform != "win32":
+        for p in _SYSTEM_BIN_DIRS:
+            if Path(p).is_dir() and p not in current_paths:
+                paths_to_add.append(p)
+    new_paths = [p for p in paths_to_add if p not in current_paths]
+    if new_paths:
+        os.environ["PATH"] = os.pathsep.join(new_paths) + os.pathsep + os.environ.get("PATH", "")
+
+
+_init_env_path()
+
 
 # ── helpers ──────────────────────────────────────────────────
 def _arch() -> str:
@@ -208,24 +232,33 @@ def _get_defs() -> list[DependencyDef]:
     os_ = _os()
     arch = _arch()
     is_win = os_ == "windows"
-    return [
-        DependencyDef(
-            name="ffmpeg",
-            exe_name=_exe("ffmpeg"),
-            download_urls=[_ffmpeg_url()],
-            archive_type="zip" if os_ != "linux" else "tarxz",
-            extract_filter=_ffmpeg_filter,
-        ),
-        DependencyDef(
-            name="N_m3u8DL-RE",
-            exe_name=_exe("N_m3u8DL-RE"),
-            # R2 direct .exe (Windows) or archive (others), then GitHub fallback
-            download_urls=_nm3u8dlre_urls(),
-            archive_type="" if is_win else "targz",  # raw .exe on Windows
-            extract_filter=_nm3u8dlre_filter,
-        ),
-        # MP4Box is optional — skipped on macOS (DMG impractical).
-    ]
+    defs: list[DependencyDef] = []
+
+    # ffmpeg: auto-download on Windows and Linux (static builds available from BtbN)
+    if os_ != "macos":
+        defs.append(
+            DependencyDef(
+                name="ffmpeg",
+                exe_name=_exe("ffmpeg"),
+                download_urls=[_ffmpeg_url()],
+                archive_type="zip" if os_ != "linux" else "tarxz",
+                extract_filter=_ffmpeg_filter,
+            )
+        )
+
+    # N_m3u8DL-RE: auto-download on Windows and Linux
+    if os_ != "macos":
+        defs.append(
+            DependencyDef(
+                name="N_m3u8DL-RE",
+                exe_name=_exe("N_m3u8DL-RE"),
+                download_urls=_nm3u8dlre_urls(),
+                archive_type="" if is_win else "targz",
+                extract_filter=_nm3u8dlre_filter,
+            )
+        )
+
+    return defs
 
 
 # ── winget support (Windows only) ────────────────────────────
@@ -479,6 +512,55 @@ def find_bundled(name: str) -> Path | None:
     return None
 
 
+def _get_custom_binary_path(name: str) -> str | None:
+    """Check settings.json for user-configured custom executable path."""
+    for settings_path in (DATA_DIR / "settings.json", BASE_DIR / "settings.json"):
+        if settings_path.exists():
+            try:
+                import json
+                data = json.loads(settings_path.read_text(encoding="utf-8"))
+                mapping = {
+                    "ffmpeg": "ffmpeg_path",
+                    "MP4Box": "mp4box_path",
+                    "N_m3u8DL-RE": "nm3u8dlre_path",
+                }
+                key = mapping.get(name)
+                if key and data.get(key):
+                    val = str(data[key]).strip()
+                    if val and val != name:
+                        return val
+            except Exception:
+                pass
+    return None
+
+
+def is_binary_available(name: str, custom_path: str | None = None) -> bool:
+    """Check if binary exists in custom path, system PATH, BIN_DIR, or bundle."""
+    target = custom_path or _get_custom_binary_path(name)
+    if target:
+        p = Path(target)
+        if p.exists() or shutil.which(target) is not None:
+            return True
+
+    exe_name = _exe(name)
+
+    # 1) System PATH (includes Homebrew paths and BIN_DIR initialized above)
+    if shutil.which(exe_name) is not None:
+        return True
+
+    # 2) BIN_DIR or PyInstaller bundle
+    if find_bundled(name) is not None:
+        return True
+
+    # 3) Direct check in system bin dirs as fallback
+    if sys.platform != "win32":
+        for d in _SYSTEM_BIN_DIRS:
+            if (Path(d) / exe_name).exists():
+                return True
+
+    return False
+
+
 def ensure_dependencies_async() -> None:
     """Check and download missing dependencies in a background thread."""
     thread = threading.Thread(target=_ensure_dependencies_sync, daemon=True)
@@ -491,20 +573,16 @@ def _ensure_dependencies_sync() -> None:
     defs = _get_defs()
     use_winget = _winget_available() if _os() == "windows" else False
 
-    for dep in defs:
-        exe_name = dep.exe_name
+    all_deps = ("ffmpeg", "MP4Box", "N_m3u8DL-RE")
+
+    for dep_name in all_deps:
+        exe_name = _exe(dep_name)
         dest = BIN_DIR / exe_name
 
-        # ── already installed system-wide? ────────────
-        if shutil.which(exe_name) is not None:
-            _progress.update(dep.name, "ok", 100)
-            logger.info("%s found in system PATH, skipping download", dep.name)
-            continue
-
-        # ── already in BIN_DIR? ──────────────────────
-        if dest.exists():
-            _progress.update(dep.name, "ok", 100)
-            logger.info("%s found at %s", dep.name, dest)
+        # ── already installed or findable? ────────────
+        if is_binary_available(dep_name):
+            _progress.update(dep_name, "ok", 100)
+            logger.info("%s found and ready", dep_name)
             continue
 
         # ── bundled in PyInstaller? copy to BIN_DIR ──
@@ -512,32 +590,36 @@ def _ensure_dependencies_sync() -> None:
         if bd:
             src = bd / "bin" / exe_name
             if src.exists():
-                _progress.update(dep.name, "ok", 100)
+                _progress.update(dep_name, "ok", 100)
                 shutil.copy2(str(src), str(dest))
                 _make_executable(dest)
-                logger.info("Copied bundled %s → %s", dep.name, dest)
+                logger.info("Copied bundled %s → %s", dep_name, dest)
                 continue
+
+        # ── macOS: advise Homebrew install instead of failing downloads ──
+        if _os() == "macos":
+            brew_hints = {
+                "ffmpeg": "Use 'brew install ffmpeg' or configure path in Settings",
+                "MP4Box": "Use 'brew install gpac' or configure path in Settings",
+                "N_m3u8DL-RE": "Use 'brew install n-m3u8dl-re' or configure path in Settings",
+            }
+            hint = brew_hints.get(dep_name, "Install manually or configure path in Settings")
+            _progress.update(dep_name, "skipped", 0, hint)
+            logger.info("Skipping auto-download for %s on macOS: %s", dep_name, hint)
+            continue
 
         # ── Windows: try winget first ─────────────────────
-        if use_winget and dep.name in _WINGET_PACKAGES:
-            logger.info("Trying winget for %s …", dep.name)
-            if _try_winget_install(dep.name):
-                # winget succeeded — binary should now be in PATH
+        if use_winget and dep_name in _WINGET_PACKAGES:
+            logger.info("Trying winget for %s …", dep_name)
+            if _try_winget_install(dep_name):
                 continue
-            # winget failed — fall through to GitHub download
-            logger.info("winget failed for %s, falling back to GitHub download", dep.name)
+            logger.info("winget failed for %s, falling back to download", dep_name)
 
-        # skip MP4Box on macOS — DMG extraction is impractical
-        if dep.name == "MP4Box" and _os() == "macos":
-            _progress.update(dep.name, "skipped", 0, "Use 'brew install gpac' or download manually")
-            logger.info("Skipping MP4Box auto-download on macOS — use 'brew install gpac'")
-            continue
-
-        # skip N_m3u8DL-RE on macOS arm64 if URL not available (pre-release)
-        if dep.name == "N_m3u8DL-RE" and _os() == "macos" and _arch() not in ("arm64", "x64"):
-            _progress.update(dep.name, "skipped", 0, "No prebuilt binary for this platform")
-            continue
-
-        result = _download_and_extract(dep)
-        if not result.ok:
-            logger.warning("Auto-download failed for %s: %s", dep.name, result.error)
+        # ── Auto-download via definitions (Windows / Linux) ──
+        dep_def = next((d for d in defs if d.name == dep_name), None)
+        if dep_def:
+            result = _download_and_extract(dep_def)
+            if not result.ok:
+                logger.warning("Auto-download failed for %s: %s", dep_name, result.error)
+        else:
+            _progress.update(dep_name, "skipped", 0, "No auto-download available for this platform")

@@ -15,7 +15,7 @@ Closes #
 ## Verification
 
 - [ ] Python modules import successfully (`python3 -c "import amdl.cli, amdl.core_downloader, amdl.server"`)
-- [ ] Frontend builds cleanly with zero TypeScript errors (`cd src/fronted && npm run build`)
+- [ ] Frontend builds cleanly with zero TypeScript errors (`cd src/frontend && npm run build`)
 - [ ] Manual verification completed (CLI or Desktop mode)
 
 ---

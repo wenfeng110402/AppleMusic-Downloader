@@ -232,7 +232,7 @@ The web frontend provides a complete graphical interface, including:
 ### Development Mode
 
 ```bash
-cd src/fronted
+cd src/frontend
 npm install
 npm run dev
 ```
@@ -248,12 +248,12 @@ python -m amdl --server
 ### Production Mode
 
 ```bash
-cd src/fronted
+cd src/frontend
 npm install
 npm run build
 ```
 
-Build output is in `src/fronted/out/`, deployable to any static file server (Nginx, Caddy, etc.).
+Build output is in `src/frontend/out/`, deployable to any static file server (Nginx, Caddy, etc.).
 
 **Nginx configuration example:**
 
@@ -263,7 +263,7 @@ server {
     server_name your-domain.com;
 
     # Frontend static files
-    root /path/to/src/fronted/out;
+    root /path/to/src/frontend/out;
     index index.html;
 
     location / {
@@ -294,7 +294,7 @@ docker run -d --name amdl-api \
 # Frontend (serve static files with Nginx)
 docker run -d --name amdl-frontend \
   -p 80:80 \
-  -v /path/to/src/fronted/out:/usr/share/nginx/html \
+  -v /path/to/src/frontend/out:/usr/share/nginx/html \
   --restart unless-stopped \
   nginx:alpine
 ```
@@ -402,7 +402,7 @@ AppleMusic-Downloader/
 │   │   ├── task_manager.py     # Task queue management
 │   │   ├── converter.py        # Format conversion
 │   │   └── ...
-│   └── fronted/           # Next.js frontend
+│   └── frontend/          # Next.js frontend
 │       ├── app/
 │       │   ├── components/  # Frontend components
 │       │   ├── service.tsx  # API client wrapper

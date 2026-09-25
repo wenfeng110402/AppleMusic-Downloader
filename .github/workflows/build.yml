@@ -38,7 +38,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
-          cache-dependency-path: src/fronted/package-lock.json
+          cache-dependency-path: src/frontend/package-lock.json
 
       - name: Install Python deps
         run: |
@@ -46,15 +46,15 @@ jobs:
           python -m pip install ".[desktop]"
 
       - name: Install frontend deps
-        working-directory: src/fronted
+        working-directory: src/frontend
         run: npm ci
 
       - name: Lint frontend
-        working-directory: src/fronted
+        working-directory: src/frontend
         run: npm run lint
 
       - name: TypeScript check
-        working-directory: src/fronted
+        working-directory: src/frontend
         run: npx tsc --noEmit
 
   # ─────────────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
-          cache-dependency-path: src/fronted/package-lock.json
+          cache-dependency-path: src/frontend/package-lock.json
 
       - name: Build
         shell: bash

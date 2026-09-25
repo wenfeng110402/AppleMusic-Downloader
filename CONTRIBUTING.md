@@ -39,7 +39,7 @@ pip install -e ".[desktop]"
 ### 3. Frontend Setup
 
 ```bash
-cd src/fronted
+cd src/frontend
 npm install
 ```
 
@@ -56,7 +56,7 @@ npm install
 
 2. **Start the Next.js dev server with hot reload (Terminal 2)**:
    ```bash
-   cd src/fronted
+   cd src/frontend
    npm run dev
    ```
    Access `http://localhost:3000` to interact with the frontend. API calls are automatically proxied to port 8000.
@@ -71,10 +71,10 @@ python3 -m amdl desktop
 
 ## Building Frontend Assets
 
-Production desktop builds and server distributions serve static files from `src/fronted/out/`. If you modify any frontend code, compile the static distribution:
+Production desktop builds and server distributions serve static files from `src/frontend/out/`. If you modify any frontend code, compile the static distribution:
 
 ```bash
-cd src/fronted
+cd src/frontend
 npm run build
 ```
 
@@ -87,7 +87,7 @@ Verify that the build completes without TypeScript or linting errors.
 - **Formatting**: Adhere to [`.editorconfig`](.editorconfig). Use 4 spaces for Python files, 2 spaces for TypeScript/CSS/JSON, and enforce `LF` line endings across all files.
 - **Python**: Follow PEP 8 guidelines and maintain comprehensive type annotations.
 - **Frontend**: Write clean, modular TypeScript components using existing Tailwind design tokens and CSS variables. Avoid unnecessary external dependencies.
-- **Internationalization**: Ensure any new user-facing strings are added to both `zh` and `en` dictionaries in `src/fronted/app/i18n.tsx`.
+- **Internationalization**: Ensure any new user-facing strings are added to both `zh` and `en` dictionaries in `src/frontend/app/i18n.tsx`.
 
 ---
 
@@ -105,6 +105,6 @@ Verify that the build completes without TypeScript or linting errors.
 3. Test both backend imports and frontend build before pushing:
    ```bash
    python3 -c "import amdl.cli, amdl.core_downloader, amdl.server"
-   cd src/fronted && npm run build
+   cd src/frontend && npm run build
    ```
 4. Push to your fork and submit a Pull Request to `main`.

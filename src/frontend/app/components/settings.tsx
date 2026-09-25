@@ -52,8 +52,12 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
           const allDone = Object.values(data.dependencies).every(
             (d) => d.status === "ok" || d.status === "error" || d.status === "skipped"
           );
-          // Recheck deps when downloads finish
+          // Recheck deps when downloads finish and stop polling
           if (allDone && Object.keys(data.dependencies).length > 0) {
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
             fetch("/api/dependencies")
               .then((r) => r.json())
               .then((d: DependencyCheckResponse) => setDeps(d.dependencies))
@@ -113,9 +117,13 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
   const activeDownloads = Object.entries(downloadProgress).filter(
     ([, v]) => v.status === "downloading" || v.status === "extracting" || v.status === "winget"
   );
-  const failedDownloads = Object.entries(downloadProgress).filter(
-    ([, v]) => v.status === "error"
-  );
+  const allDepsOk = deps.length > 0 && deps.every((d) => d.found);
+  const failedDownloads =
+    deps.length > 0 && !allDepsOk
+      ? Object.entries(downloadProgress).filter(
+          ([name, v]) => v.status === "error" && !deps.find((d) => d.name === name)?.found
+        )
+      : [];
 
   const statusLabel = (st: DepDownloadStatus) => {
     if (st.status === "winget") return t("install.winget");

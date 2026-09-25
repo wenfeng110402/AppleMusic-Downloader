@@ -232,7 +232,7 @@ Web 前端提供了一套完整的图形界面，包括：
 ### 开发模式
 
 ```bash
-cd src/fronted
+cd src/frontend
 npm install
 npm run dev
 ```
@@ -248,12 +248,12 @@ python -m amdl --server
 ### 生产模式
 
 ```bash
-cd src/fronted
+cd src/frontend
 npm install
 npm run build
 ```
 
-构建产物在 `src/fronted/out/` 目录，可直接部署到任意静态文件服务器（Nginx、Caddy 等）。
+构建产物在 `src/frontend/out/` 目录，可直接部署到任意静态文件服务器（Nginx、Caddy 等）。
 
 **Nginx 配置示例：**
 
@@ -263,7 +263,7 @@ server {
     server_name your-domain.com;
 
     # 前端静态文件
-    root /path/to/src/fronted/out;
+    root /path/to/src/frontend/out;
     index index.html;
 
     location / {
@@ -294,7 +294,7 @@ docker run -d --name amdl-api \
 # 前端（使用 Nginx 提供静态文件）
 docker run -d --name amdl-frontend \
   -p 80:80 \
-  -v /path/to/src/fronted/out:/usr/share/nginx/html \
+  -v /path/to/src/frontend/out:/usr/share/nginx/html \
   --restart unless-stopped \
   nginx:alpine
 ```
@@ -392,7 +392,7 @@ AppleMusic-Downloader/
 │   │   ├── task_manager.py     # 任务队列管理
 │   │   ├── converter.py        # 格式转换
 │   │   └── ...
-│   └── fronted/           # Next.js 前端
+│   └── frontend/          # Next.js 前端
 │       ├── app/
 │       │   ├── components/  # 前端组件
 │       │   ├── service.tsx  # API 调用封装

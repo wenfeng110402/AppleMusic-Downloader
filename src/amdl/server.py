@@ -42,7 +42,7 @@ if getattr(sys, "frozen", False):
     FRONTEND_OUT = BASE_DIR / "frontend_out"
 else:
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
-    FRONTEND_OUT = BASE_DIR / "src" / "fronted" / "out"
+    FRONTEND_OUT = BASE_DIR / "src" / "frontend" / "out"
 
 # DATA_DIR / TEMP_DIR / SETTINGS_FILE — 统一从 dependency_manager 获取
 TEMP_DIR = DATA_DIR / "temp"
@@ -346,7 +346,7 @@ async def get_api_info():
         supported_codecs_music_video=[{"value": c.value, "label": c.name} for c in MusicVideoCodec],
         supported_cover_formats=[{"value": c.value, "label": c.name} for c in CoverFormat],
         supported_download_modes=[{"value": c.value, "label": c.name} for c in DownloadMode],
-        supported_audio_conversion_formats=["mp3", "flac", "wav", "aac", "m4a", "ogg", "alac"],
+        supported_audio_conversion_formats=["mp3", "wav", "m4a", "ogg"],
         supported_video_conversion_formats=["mp4", "mov", "mkv", "avi", "webm"],
     )
 
@@ -429,7 +429,12 @@ async def check_dependencies(ffmpeg_path: str = "", nm3u8dlre_path: str = "", mp
 async def dep_download_progress():
     """Get the progress of auto-downloading missing dependencies."""
     from amdl.dependency_manager import get_progress as _get_progress
-    return {"dependencies": _get_progress()}
+    progress = _get_progress()
+    for name in ("ffmpeg", "MP4Box", "N_m3u8DL-RE"):
+        dep_item = _find_executable(name)
+        if dep_item.found:
+            progress[name] = {"status": "ok", "progress": 100, "error": ""}
+    return {"dependencies": progress}
 
 
 @app.delete("/api/temp", tags=["system"])
@@ -520,7 +525,7 @@ async def serve_index():
     if index.exists():
         return FileResponse(index)
     return HTMLResponse(
-        content="<html><body>Frontend not built. Run: cd src/fronted && npm run build</body></html>",
+        content="<html><body>Frontend not built. Run: cd src/frontend && npm run build</body></html>",
         status_code=200,
     )
 

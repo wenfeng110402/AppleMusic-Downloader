@@ -249,8 +249,8 @@ When running in desktop mode (`--desktop`), the API also serves the Next.js fron
 
 | Route | Serves |
 |---|---|
-| `GET /` | `src/fronted/out/index.html` |
-| `GET /*` | `src/fronted/out/*` (SPA fallback) |
+| `GET /` | `src/frontend/out/index.html` |
+| `GET /*` | `src/frontend/out/*` (SPA fallback) |
 
 No separate frontend dev server needed.
 

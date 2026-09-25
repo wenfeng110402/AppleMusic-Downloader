@@ -268,3 +268,37 @@ export function useDependencyCheck() {
 
   return { deps, check };
 }
+
+// ── 检查更新 ──────────────────────────────────────────────────
+
+export interface UpdateInfo {
+  has_update: boolean;
+  current_version: string;
+  latest_version: string;
+  release_notes: string;
+  release_url: string;
+}
+
+export function useCheckUpdate() {
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  const check = useCallback(async (force = false) => {
+    setChecking(true);
+    try {
+      const res = await fetch(`/api/system/check-update${force ? "?force=true" : ""}`);
+      if (res.ok) {
+        const data = (await res.json()) as UpdateInfo;
+        setUpdateInfo(data);
+        return data;
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setChecking(false);
+    }
+    return null;
+  }, []);
+
+  return { updateInfo, checking, check };
+}

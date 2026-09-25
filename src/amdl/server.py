@@ -351,6 +351,70 @@ async def get_api_info():
     )
 
 
+# ── Update Checker ──────────────────────────────────────────
+_UPDATE_CACHE: dict = {"time": 0.0, "data": None}
+
+
+def _parse_version(ver_str: str) -> tuple[int, ...]:
+    import re
+    clean = re.sub(r"[^\d.]", "", ver_str)
+    parts = []
+    for p in clean.split("."):
+        try:
+            parts.append(int(p))
+        except ValueError:
+            break
+    return tuple(parts)
+
+
+@app.get("/api/system/check-update", tags=["system"])
+async def check_update(force: bool = False):
+    import httpx
+    now = time.time()
+    if not force and _UPDATE_CACHE["data"] and (now - _UPDATE_CACHE["time"] < 600):
+        return JSONResponse(content=_UPDATE_CACHE["data"])
+
+    current_ver = __version__
+    curr_tuple = _parse_version(current_ver)
+    url = "https://api.github.com/repos/wenfeng110402/AppleMusic-Downloader/releases/latest"
+
+    res_data = {
+        "has_update": False,
+        "current_version": current_ver,
+        "latest_version": current_ver,
+        "release_notes": "",
+        "release_url": "https://github.com/wenfeng110402/AppleMusic-Downloader/releases",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
+            resp = await client.get(
+                url,
+                headers={
+                    "User-Agent": f"AppleMusicDownloader/{current_ver}",
+                    "Accept": "application/vnd.github.v3+json",
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                tag = data.get("tag_name", "").lstrip("v")
+                latest_tuple = _parse_version(tag)
+                has_update = latest_tuple > curr_tuple
+                res_data = {
+                    "has_update": has_update,
+                    "current_version": current_ver,
+                    "latest_version": tag or current_ver,
+                    "release_notes": data.get("body", ""),
+                    "release_url": data.get("html_url", res_data["release_url"]),
+                }
+    except Exception as e:
+        logger.debug("Failed to check for updates: %s", e)
+
+    _UPDATE_CACHE["time"] = now
+    _UPDATE_CACHE["data"] = res_data
+    return JSONResponse(content=res_data)
+
+
 @app.get("/api/dependencies", response_model=DependencyCheckResponse, tags=["system"])
 async def check_dependencies(ffmpeg_path: str = "", nm3u8dlre_path: str = "", mp4box_path: str = ""):
     deps = [

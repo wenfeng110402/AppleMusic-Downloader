@@ -560,12 +560,10 @@ async def _download_urls_async(
                 "overwrites": True,
                 "noprogress": True,
                 "allow_unplayable_formats": True,
-                "concurrent_fragment_downloads": 4,
-                "retries": 10,
-                "fragment_retries": 10,
-                "file_access_retries": 5,
-                "buffersize": 1024 * 64,
-                "http_chunk_size": 10485760,
+                # Match gamdl's exact params — do NOT add http_chunk_size:
+                # range-chunking on CENC HLS causes "Conflicting range"
+                # errors that exhaust retries and leave an empty file.
+                "concurrent_fragment_downloads": 8,
             }
         ) as ydl:
             if stream_url.split("?")[0].endswith(".m3u8"):

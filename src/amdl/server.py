@@ -532,6 +532,10 @@ async def serve_index():
 
 @app.get("/{full_path:path}", response_class=FileResponse)
 async def serve_static(full_path: str):
+    # API routes that were not matched above must return 404 JSON, never index.html
+    if full_path.startswith("api/"):
+        return JSONResponse({"detail": f"API endpoint not found: /{full_path}"}, status_code=404)
+
     file_path = (FRONTEND_OUT / full_path).resolve()
     root = FRONTEND_OUT.resolve()
     if file_path.is_relative_to(root) and file_path.exists() and file_path.is_file():

@@ -386,26 +386,47 @@ async def _download_urls_async(
         if media.playlist_metadata:
             media.playlist_tags = song_iface.base.get_playlist_tags(media.playlist_metadata, media.index)
 
-        media.cover = await song_iface.base.get_cover(media.media_metadata)
-        if not no_synced_lyrics:
-            media.lyrics = await song_iface.get_lyrics(media.media_metadata)
+        async def _fetch_cover():
+            try:
+                return await song_iface.base.get_cover(media.media_metadata)
+            except Exception as e:
+                log.debug("cover fetch failed for %s: %s", media.media_id, e)
+                return None
 
-        playback = None
-        webplayback = None
-        try:
-            if song_iface.base.wrapper_api:
-                playback = (
-                    await song_iface.base.wrapper_api.get_playback(media.media_id)
-                    if not media.is_library else None
-                )
-                webplayback = (
-                    await song_iface.base.apple_music_api.get_webplayback(media.media_id, media.is_library)
-                    if media.is_library or any(codec.is_web for codec in song_iface.codec_priority) else None
-                )
-            else:
-                webplayback = await song_iface.base.apple_music_api.get_webplayback(media.media_id, media.is_library)
-        except Exception as e:
-            log.debug("webplayback query failed for %s: %s", media.media_id, e)
+        async def _fetch_lyrics():
+            if no_synced_lyrics:
+                return None
+            try:
+                return await song_iface.get_lyrics(media.media_metadata)
+            except Exception as e:
+                log.debug("lyrics fetch failed for %s: %s", media.media_id, e)
+                return None
+
+        async def _fetch_playback():
+            p, wp = None, None
+            try:
+                if song_iface.base.wrapper_api:
+                    p = (
+                        await song_iface.base.wrapper_api.get_playback(media.media_id)
+                        if not media.is_library else None
+                    )
+                    wp = (
+                        await song_iface.base.apple_music_api.get_webplayback(media.media_id, media.is_library)
+                        if media.is_library or any(codec.is_web for codec in song_iface.codec_priority) else None
+                    )
+                else:
+                    wp = await song_iface.base.apple_music_api.get_webplayback(media.media_id, media.is_library)
+            except Exception as e:
+                log.debug("webplayback query failed for %s: %s", media.media_id, e)
+            return p, wp
+
+        cover_res, lyrics_res, (playback, webplayback) = await asyncio.gather(
+            _fetch_cover(),
+            _fetch_lyrics(),
+            _fetch_playback(),
+        )
+        media.cover = cover_res
+        media.lyrics = lyrics_res
 
         tags_extracted = False
         if playback and isinstance(playback.get("songList"), list) and playback["songList"]:

@@ -601,7 +601,7 @@ def _ensure_dependencies_sync() -> None:
             brew_hints = {
                 "ffmpeg": "Use 'brew install ffmpeg' or configure path in Settings",
                 "MP4Box": "Use 'brew install gpac' or configure path in Settings",
-                "N_m3u8DL-RE": "Use 'brew install n-m3u8dl-re' or configure path in Settings",
+                "N_m3u8DL-RE": "Use 'brew install nilaoda/n-m3u8dl-re/n-m3u8dl-re' or configure path in Settings",
             }
             hint = brew_hints.get(dep_name, "Install manually or configure path in Settings")
             _progress.update(dep_name, "skipped", 0, hint)

@@ -387,7 +387,8 @@ async def _download_urls_async(
             media.playlist_tags = song_iface.base.get_playlist_tags(media.playlist_metadata, media.index)
 
         media.cover = await song_iface.base.get_cover(media.media_metadata)
-        media.lyrics = await song_iface.get_lyrics(media.media_metadata)
+        if not no_synced_lyrics:
+            media.lyrics = await song_iface.get_lyrics(media.media_metadata)
 
         playback = None
         webplayback = None

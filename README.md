@@ -111,6 +111,10 @@ amdl -c /path/to/cookies.txt "https://music.apple.com/cn/album/left-and-right/16
 # 下载整张专辑
 amdl -c /path/to/cookies.txt "https://music.apple.com/cn/album/left-and-right/1630451412"
 
+# 下载完整播放列表（自动展开并下载全部可用歌曲）
+amdl -c /path/to/cookies.txt \
+  "https://music.apple.com/cn/playlist/playlist-name/pl.1234567890abcdef1234567890abcdef"
+
 # 指定输出目录
 amdl -c /path/to/cookies.txt -o "./My Music" "https://music.apple.com/..."
 

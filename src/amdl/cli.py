@@ -84,7 +84,11 @@ def main() -> None:
         click.echo(_HELP)
         return
 
-    if args and args[0] in ("--version", "-V"):
+    if args and args[0] == "--version":
+        cli(args=args, standalone_mode=False)
+        return
+
+    if args and args[0] == "-V":
         click.echo(f"amdl {__version__}")
         return
 

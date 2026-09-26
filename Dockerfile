@@ -2,7 +2,7 @@
 FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
-COPY src/fronted/ ./
+COPY src/frontend/ ./
 RUN npm ci && npm run build
 
 # ── 运行阶段 ──────────────────────────────────────────────
@@ -21,7 +21,7 @@ COPY src/amdl/ ./src/amdl/
 RUN pip install --no-cache-dir .
 
 # 复制前端构建产物
-COPY --from=frontend-builder /app/out/ ./src/fronted/out/
+COPY --from=frontend-builder /app/out/ ./src/frontend/out/
 
 EXPOSE 8000
 

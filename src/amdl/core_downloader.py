@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,19 +32,31 @@ from gamdl.downloader import (
     AppleMusicUploadedVideoDownloader,
     DownloadMode,
 )
-from gamdl.downloader.exceptions import GamdlDownloaderMediaFileExistsError
+from gamdl.downloader.exceptions import (
+    GamdlDownloaderMediaFileExistsError,
+    GamdlDownloaderSyncedLyricsOnlyError,
+)
 from gamdl.interface import (
     AppleMusicBaseInterface,
     AppleMusicInterface,
+    AppleMusicMedia,
     AppleMusicMusicVideoInterface,
     AppleMusicSongInterface,
     AppleMusicUploadedVideoInterface,
     CoverFormat,
+    MediaRating,
+    MediaTags,
+    MediaType,
     MusicVideoCodec,
     SongCodec,
     SyncedLyricsFormat,
     UploadedVideoQuality,
 )
+from gamdl.interface.exceptions import (
+    GamdlInterfaceDecryptionNotAvailableError,
+    GamdlInterfaceMediaNotStreamableError,
+)
+from gamdl.interface.types import DecryptionKeyAv
 
 LogCallback = Callable[[str], None]
 
@@ -86,6 +100,83 @@ def _resolve_bin(name: str) -> str:
         if c.exists():
             return str(c)
     return name
+
+
+def _format_ttml(raw_ttml: str) -> str:
+    """Format TTML XML cleanly while strictly preserving spaces between words and keeping <p> on one line.
+
+    gamdl's default minidom.parseString().toprettyxml() breaks mixed content inside <p>, converting spaces
+    between <span> tags into newlines and tabs ('\\n\\t\\t\\t\\t \\n\\t\\t\\t\\t'), which causes standard TTML
+    parsers (AMLL, Lyricify, Salt Player) to strip the whitespace and render all words glued together without spaces.
+    """
+    if not raw_ttml or not isinstance(raw_ttml, str):
+        return raw_ttml
+
+    xml_str = raw_ttml.strip()
+    if xml_str.startswith("<?xml"):
+        xml_str = re.sub(r"^\<\?xml.*?\?\>\s*", "", xml_str, flags=re.DOTALL)
+
+    # Separate elements so placeholders and structural blocks each start on a new line
+    xml_str = re.sub(r"(<p\b)", r"\n\1", xml_str)
+    xml_str = re.sub(r"(</p>)", r"\1\n", xml_str)
+    xml_str = re.sub(r"(<div\b)", r"\n\1\n", xml_str)
+    xml_str = re.sub(r"(</div>)", r"\n\1\n", xml_str)
+
+    p_placeholders: list[str] = []
+
+    def _clean_p(match: re.Match) -> str:
+        p_content = match.group(0)
+        # Normalize any whitespace or newline sequence between </span> and <span to exactly one space
+        p_content = re.sub(r"</span>\s+<span", "</span> <span", p_content)
+        # Remove any leading whitespace directly after <p ...>
+        p_content = re.sub(r"(<p\b[^>]*>)\s+", r"\1", p_content)
+        # Remove any trailing whitespace directly before </p>
+        p_content = re.sub(r"\s+(</p>)", r"\1", p_content)
+        idx = len(p_placeholders)
+        p_placeholders.append(p_content)
+        return f"___TTML_P_PLACEHOLDER_{idx}___"
+
+    protected = re.sub(r"<p\b[^>]*>.*?</p>", _clean_p, xml_str, flags=re.DOTALL)
+
+    text_placeholders: list[str] = []
+
+    def _clean_text(match: re.Match) -> str:
+        t_content = match.group(0).strip()
+        idx = len(text_placeholders)
+        text_placeholders.append(t_content)
+        return f"___TTML_TEXT_PLACEHOLDER_{idx}___"
+
+    protected = re.sub(r"<text\b[^>]*>.*?</text>", _clean_text, protected, flags=re.DOTALL)
+
+    # Format structural tags with indentation
+    protected = re.sub(r">\s*<", ">\n<", protected)
+
+    lines = protected.splitlines()
+    indent = 0
+    formatted_lines: list[str] = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        if line.startswith("</"):
+            indent = max(0, indent - 1)
+
+        formatted_lines.append("  " * indent + line)
+
+        if line.startswith("<") and not line.startswith("</") and not line.endswith("/>"):
+            if "</" not in line:
+                indent += 1
+
+    result = "\n".join(formatted_lines)
+
+    for i, p in enumerate(p_placeholders):
+        result = result.replace(f"___TTML_P_PLACEHOLDER_{i}___", p)
+    for i, t in enumerate(text_placeholders):
+        result = result.replace(f"___TTML_TEXT_PLACEHOLDER_{i}___", t)
+
+    return '<?xml version="1.0" encoding="utf-8"?>\n' + result
 
 
 # ── sync entry point ────────────────────────────────────
@@ -173,6 +264,16 @@ async def _download_urls_async(
             _u.extend(p.read_text("utf-8").splitlines() if p.exists() else [u])
         urls = _u
 
+    # ── deduplicate urls while preserving order ────────
+    seen_urls: set[str] = set()
+    deduped_urls: list[str] = []
+    for u in urls:
+        clean_u = u.strip()
+        if clean_u and clean_u not in seen_urls:
+            seen_urls.add(clean_u)
+            deduped_urls.append(clean_u)
+    urls = deduped_urls
+
     exclude_list = [t.strip().lower() for t in (exclude_tags or "").split(",") if t.strip()]
 
     # ── API client ──────────────────────────────────────
@@ -191,9 +292,245 @@ async def _download_urls_async(
         wvd_path=str(wvd_path) if wvd_path else None,
     )
     log.info("AppleMusicBaseInterface created, building AppleMusicInterface...")
+    song_priority = [codec_song]
+    for c in (SongCodec.AAC_WEB, SongCodec.AAC_HE_WEB):
+        if c not in song_priority:
+            song_priority.append(c)
+
+    song_iface = AppleMusicSongInterface(
+        base=base_iface,
+        synced_lyrics_format=synced_lyrics_format,
+        codec_priority=song_priority,
+        skip_stream_info=synced_lyrics_only,
+    )
+
+    # ── fix TTML formatting: prevent minidom from mutilating spaces between words ──
+    _orig_internal_get_lyrics = song_iface._get_lyrics
+
+    def _safe_internal_get_lyrics(lyrics_ttml: str):
+        lyrics = _orig_internal_get_lyrics(lyrics_ttml)
+        if lyrics and lyrics.synced and synced_lyrics_format == SyncedLyricsFormat.TTML:
+            lyrics.synced = _format_ttml(lyrics_ttml)
+        return lyrics
+
+    song_iface._get_lyrics = _safe_internal_get_lyrics
+
+    # ── enhance lyrics fetch: retrieve syllable-level and translated TTML ──
+    _orig_get_lyrics = song_iface.get_lyrics
+
+    async def _enhanced_get_lyrics(song_metadata: dict):
+        song_id = song_metadata.get("id")
+        if not song_id or song_metadata.get("attributes", {}).get("playParams", {}).get("isLibrary"):
+            return await _orig_get_lyrics(song_metadata)
+
+        if not song_metadata.get("attributes", {}).get("hasLyrics"):
+            return None
+
+        # 1. Try Apple Music Sing / syllable-lyrics endpoint for word-level & translated TTML
+        if synced_lyrics_format == SyncedLyricsFormat.TTML:
+            try:
+                res = await api._amp_request(
+                    f"/v1/catalog/{api.storefront}/songs/{song_id}/syllable-lyrics",
+                    params={"l": language, "extend": "ttmlLocalizations"},
+                )
+                if res and "data" in res and len(res["data"]) > 0:
+                    attrs = res["data"][0].get("attributes", {})
+                    # When extend=ttmlLocalizations is passed, Apple returns the full syllable-timed
+                    # and translated TTML in attrs["ttmlLocalizations"].
+                    # Without extend, base syllable TTML is in attrs["ttml"].
+                    raw_ttml = attrs.get("ttmlLocalizations") or attrs.get("ttml")
+                    if isinstance(raw_ttml, dict):
+                        lang_key = None
+                        for k in raw_ttml.keys():
+                            if k.lower() in language.lower() or language.lower() in k.lower():
+                                lang_key = k
+                                break
+                        if not lang_key and "zh-Hans" in raw_ttml:
+                            lang_key = "zh-Hans"
+                        raw_ttml = raw_ttml.get(lang_key) or next(iter(raw_ttml.values()), None)
+
+                    if raw_ttml and isinstance(raw_ttml, str):
+                        log.info('Retrieved syllable/translated TTML for song %s', song_id)
+                        return song_iface._get_lyrics(raw_ttml)
+            except Exception as err:
+                log.debug("Syllable-lyrics unavailable for %s: %s; falling back to standard lyrics", song_id, err)
+
+        # 2. Fall back to standard catalog lyrics
+        return await _orig_get_lyrics(song_metadata)
+
+    song_iface.get_lyrics = _enhanced_get_lyrics
+
+    # ── enhance get_media: safe webplayback tags & graceful catalog fallback ──
+    async def _safe_get_media(media: AppleMusicMedia):
+        if not media.media_metadata:
+            media.media_metadata = (
+                await (
+                    song_iface.base.apple_music_api.get_library_song(media.media_id)
+                    if media.is_library
+                    else song_iface.base.apple_music_api.get_song(media.media_id)
+                )
+            )["data"][0]
+
+        if media.media_metadata.get("attributes", {}).get("playParams", {}).get("isLibrary"):
+            catalog_metadata = song_iface.base.get_catalog_metadata_from_library(media.media_metadata)
+            if catalog_metadata:
+                media.media_id = catalog_metadata["id"]
+                media.is_library = False
+                media.media_metadata = catalog_metadata
+
+        yield media
+
+        if not song_iface.base.is_media_streamable(media.media_metadata):
+            raise GamdlInterfaceMediaNotStreamableError(media_id=media.media_id)
+
+        if media.playlist_metadata:
+            media.playlist_tags = song_iface.base.get_playlist_tags(media.playlist_metadata, media.index)
+
+        async def _fetch_cover():
+            try:
+                return await song_iface.base.get_cover(media.media_metadata)
+            except Exception as e:
+                log.debug("cover fetch failed for %s: %s", media.media_id, e)
+                return None
+
+        async def _fetch_lyrics():
+            if no_synced_lyrics:
+                return None
+            try:
+                return await song_iface.get_lyrics(media.media_metadata)
+            except Exception as e:
+                log.debug("lyrics fetch failed for %s: %s", media.media_id, e)
+                return None
+
+        async def _fetch_playback():
+            p, wp = None, None
+            try:
+                if song_iface.base.wrapper_api:
+                    p = (
+                        await song_iface.base.wrapper_api.get_playback(media.media_id)
+                        if not media.is_library else None
+                    )
+                    wp = (
+                        await song_iface.base.apple_music_api.get_webplayback(media.media_id, media.is_library)
+                        if media.is_library or any(codec.is_web for codec in song_iface.codec_priority) else None
+                    )
+                else:
+                    wp = await song_iface.base.apple_music_api.get_webplayback(media.media_id, media.is_library)
+            except Exception as e:
+                log.debug("webplayback query failed for %s: %s", media.media_id, e)
+            return p, wp
+
+        cover_res, lyrics_res, (playback, webplayback) = await asyncio.gather(
+            _fetch_cover(),
+            _fetch_lyrics(),
+            _fetch_playback(),
+        )
+        media.cover = cover_res
+        media.lyrics = lyrics_res
+
+        tags_extracted = False
+        if playback and isinstance(playback.get("songList"), list) and playback["songList"]:
+            try:
+                media.tags = await song_iface.base.get_tags_from_asset_info(
+                    playback["songList"][0]["assets"][0]["metadata"],
+                    media.lyrics.unsynced if media.lyrics else None,
+                    song_iface.use_album_date,
+                )
+                tags_extracted = True
+            except Exception as e:
+                log.debug("Failed extracting tags from playback: %s", e)
+
+        if not tags_extracted and webplayback and isinstance(webplayback.get("songList"), list) and webplayback["songList"]:
+            try:
+                media.tags = await song_iface.base.get_tags_from_asset_info(
+                    webplayback["songList"][0]["assets"][0]["metadata"],
+                    media.lyrics.unsynced if media.lyrics else None,
+                    song_iface.use_album_date,
+                )
+                tags_extracted = True
+            except Exception as e:
+                log.debug("Failed extracting tags from webplayback: %s", e)
+
+        if not tags_extracted:
+            # Fall back to creating tags directly from catalog metadata so songList is never required
+            attrs = media.media_metadata.get("attributes", {})
+            rel_date = None
+            if attrs.get("releaseDate"):
+                try:
+                    rel_date = datetime.datetime.strptime(attrs["releaseDate"], "%Y-%m-%d")
+                except Exception:
+                    pass
+            media.tags = MediaTags(
+                album=attrs.get("albumName"),
+                album_artist=attrs.get("albumArtistName") or attrs.get("artistName"),
+                album_id=None,
+                album_sort=None,
+                artist=attrs.get("artistName", "Unknown Artist"),
+                artist_id=None,
+                artist_sort=None,
+                comment=None,
+                compilation=False,
+                composer=attrs.get("composerName"),
+                composer_id=None,
+                composer_sort=None,
+                copyright=attrs.get("copyright"),
+                date=rel_date,
+                disc=attrs.get("discNumber", 1),
+                disc_total=1,
+                gapless=False,
+                genre=attrs.get("genreNames", ["Unknown"])[0] if attrs.get("genreNames") else "Unknown",
+                genre_id=None,
+                lyrics=media.lyrics.unsynced if media.lyrics else None,
+                media_type=MediaType.SONG,
+                rating=MediaRating.EXPLICIT if attrs.get("contentRating") == "explicit" else MediaRating.CLEAN,
+                storefront=None,
+                title=attrs.get("name", "Unknown Title"),
+                title_id=int(media.media_id) if str(media.media_id).isdigit() else 0,
+                title_sort=None,
+                track=attrs.get("trackNumber", 1),
+                track_total=1,
+                xid=attrs.get("isrc"),
+            )
+
+        if not song_iface.skip_stream_info:
+            media.stream_info = await song_iface.get_stream_info(
+                media.media_id,
+                media.is_library,
+                webplayback,
+                playback,
+            )
+            if media.stream_info.audio_track.drm_free:
+                pass
+            elif (
+                not song_iface.base.wrapper_api
+                and not media.stream_info.audio_track.widevine_pssh
+            ) or (
+                song_iface.base.wrapper_api
+                and not media.stream_info.audio_track.fairplay_key
+                and not media.stream_info.audio_track.use_cenc
+            ):
+                raise GamdlInterfaceDecryptionNotAvailableError(media_id=media.media_id)
+            elif media.stream_info.audio_track.widevine_pssh:
+                media.decryption_key = DecryptionKeyAv(
+                    audio_track=await song_iface.base.get_decryption_key(
+                        media.stream_info.audio_track.widevine_pssh,
+                        media.media_id,
+                    )
+                )
+
+        media.partial = False
+        yield media
+
+    song_iface.get_media = _safe_get_media
+
+    mv_priority = [codec_music_video]
+    for c in (MusicVideoCodec.H265, MusicVideoCodec.H264):
+        if c not in mv_priority:
+            mv_priority.append(c)
+
     iface = AppleMusicInterface(
-        song=AppleMusicSongInterface(base=base_iface, synced_lyrics_format=synced_lyrics_format, codec_priority=[codec_song]),
-        music_video=AppleMusicMusicVideoInterface(base=base_iface, codec_priority=[codec_music_video]),
+        song=song_iface,
+        music_video=AppleMusicMusicVideoInterface(base=base_iface, codec_priority=mv_priority),
         uploaded_video=AppleMusicUploadedVideoInterface(base=base_iface, quality=quality_post),
     )
     log.info("AppleMusicInterface ready")
@@ -227,6 +564,13 @@ async def _download_urls_async(
         # avoids multiprocessing (broken under PyInstaller without
         # freeze_support) and `sys.executable -m yt_dlp` (frozen exe
         # would relaunch AMDL itself).
+        #
+        # Delete any stale/empty file first — yt-dlp's HlsFD will
+        # report "has already been downloaded" and return 0 bytes if
+        # it finds an existing file at dl_path (even a 0-byte one).
+        _p = Path(dl_path)
+        if _p.exists():
+            _p.unlink()
         from yt_dlp import YoutubeDL
         from yt_dlp.downloader.hls import HlsFD
         from yt_dlp.downloader.http import HttpFD
@@ -238,6 +582,9 @@ async def _download_urls_async(
                 "overwrites": True,
                 "noprogress": True,
                 "allow_unplayable_formats": True,
+                # Match gamdl's exact params — do NOT add http_chunk_size:
+                # range-chunking on CENC HLS causes "Conflicting range"
+                # errors that exhaust retries and leave an empty file.
                 "concurrent_fragment_downloads": 8,
             }
         ) as ydl:
@@ -309,46 +656,75 @@ async def _download_urls_async(
     completed = 0
     done_files: list[str] = []
 
+    seen_media_ids: set[str] = set()
     for item in items:
         if item.media.error:
+            # Deduplicate error items (gamdl can yield them multiple times)
+            media_id = getattr(item.media, "media_id", None) or getattr(item, "uuid_", None)
+            if media_id:
+                if media_id in seen_media_ids:
+                    continue
+                seen_media_ids.add(media_id)
+
             errors += 1
             m = item.media.media_metadata
             n = m.get("attributes", {}).get("name", "?") if isinstance(m, dict) else "?"
-            log.error('Skip "%s": %s', n, item.media.error, exc_info=not no_exceptions)
+            log.error('Skip "%s": %s', n, item.media.error)
             continue
+
         if item.media.partial or not item.final_path:
             continue
 
         title = item.media.media_metadata.get("attributes", {}).get("name", "?") if isinstance(item.media.media_metadata, dict) else "?"
         log.info('Downloading "%s"', title)
-        try:
-            await dl.download(item)
-            completed += 1
-            done_files.append(str(item.final_path))
-            if progress_callback:
-                r = progress_callback(completed, total)
-                if asyncio.iscoroutine(r):
-                    await r
-        except GamdlDownloaderMediaFileExistsError:
-            completed += 1
-            log.info('Skipped "%s": exists', title)
-            if progress_callback:
-                r = progress_callback(completed, total)
-                if asyncio.iscoroutine(r):
-                    await r
-        except Exception as e:
-            errors += 1
-            log.error('Failed "%s": %s\n%s', title, e, traceback.format_exc())
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                await dl.download(item)
+                completed += 1
+                done_files.append(str(item.final_path))
+                if progress_callback:
+                    r = progress_callback(completed, total)
+                    if asyncio.iscoroutine(r):
+                        await r
+                break
+            except GamdlDownloaderSyncedLyricsOnlyError:
+                completed += 1
+                if item.synced_lyrics_path:
+                    done_files.append(str(item.synced_lyrics_path))
+                log.info('Synced lyrics saved for "%s"', title)
+                if progress_callback:
+                    r = progress_callback(completed, total)
+                    if asyncio.iscoroutine(r):
+                        await r
+                break
+            except GamdlDownloaderMediaFileExistsError:
+                completed += 1
+                log.info('Skipped "%s": exists', title)
+                if progress_callback:
+                    r = progress_callback(completed, total)
+                    if asyncio.iscoroutine(r):
+                        await r
+                break
+            except Exception as e:
+                if attempt < max_retries:
+                    log.warning('Retrying "%s" (attempt %d/%d) after error: %s', title, attempt, max_retries, e)
+                    await asyncio.sleep(1.5)
+                    continue
+                errors += 1
+                log.error('Failed "%s": %s\n%s', title, e, traceback.format_exc())
 
     # ── format conversion ───────────────────────────────
-    if (audio_format or video_format) and done_files:
+    if (audio_format or video_format) and done_files and not synced_lyrics_only:
         try:
             from amdl.converter import convert_file_list, resolve_ffmpeg_executable
             exe = resolve_ffmpeg_executable(ffmpeg_path)
             if exe:
-                log.info("Converting…")
-                convert_file_list([Path(p) for p in done_files], audio_format, video_format, exe,
-                                  log_callback or (lambda m: None))
+                media_files = [Path(p) for p in done_files if not p.endswith((".ttml", ".lrc"))]
+                if media_files:
+                    log.info("Converting…")
+                    convert_file_list(media_files, audio_format, video_format, exe,
+                                      log_callback or (lambda m: None))
         except Exception as e:
             log.error("Conversion failed: %s", e, exc_info=not no_exceptions)
 

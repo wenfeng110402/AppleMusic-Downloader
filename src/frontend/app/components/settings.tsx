@@ -27,7 +27,7 @@ interface DepDownloadStatus {
 }
 
 export default function Settings({ onNavigate }: { onNavigate?: (id: string) => void }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [form, setForm] = useState<FormState>(loadSettings);
   const [loaded, setLoaded] = useState(false);
   const [deps, setDeps] = useState<DependencyCheckItem[]>([]);
@@ -52,8 +52,12 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
           const allDone = Object.values(data.dependencies).every(
             (d) => d.status === "ok" || d.status === "error" || d.status === "skipped"
           );
-          // Recheck deps when downloads finish
+          // Recheck deps when downloads finish and stop polling
           if (allDone && Object.keys(data.dependencies).length > 0) {
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
             fetch("/api/dependencies")
               .then((r) => r.json())
               .then((d: DependencyCheckResponse) => setDeps(d.dependencies))
@@ -113,9 +117,13 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
   const activeDownloads = Object.entries(downloadProgress).filter(
     ([, v]) => v.status === "downloading" || v.status === "extracting" || v.status === "winget"
   );
-  const failedDownloads = Object.entries(downloadProgress).filter(
-    ([, v]) => v.status === "error"
-  );
+  const allDepsOk = deps.length > 0 && deps.every((d) => d.found);
+  const failedDownloads =
+    deps.length > 0 && !allDepsOk
+      ? Object.entries(downloadProgress).filter(
+          ([name, v]) => v.status === "error" && !deps.find((d) => d.name === name)?.found
+        )
+      : [];
 
   const statusLabel = (st: DepDownloadStatus) => {
     if (st.status === "winget") return t("install.winget");
@@ -186,7 +194,21 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
           <Row label={t("settings.codec")}>
             <select className="input" value={form.codec_song} onChange={(e) => set("codec_song", e.target.value)}>
               <option value="aac-web">AAC (web)</option>
-              <option value="atmos">Atmos</option>
+              <option value="aac-he-web">AAC-HE (web)</option>
+              <option value="atmos">Dolby Atmos</option>
+            </select>
+          </Row>
+          <Row label={t("settings.codec_mv")}>
+            <select className="input" value={form.codec_music_video} onChange={(e) => set("codec_music_video", e.target.value)}>
+              <option value="h264">H.264 / AVC</option>
+              <option value="h265">H.265 / HEVC</option>
+            </select>
+          </Row>
+          <Row label={t("settings.lyrics_format")}>
+            <select className="input" value={form.synced_lyrics_format} onChange={(e) => set("synced_lyrics_format", e.target.value)}>
+              <option value="lrc">LRC ({locale === "zh" ? "标准歌词" : "Standard"})</option>
+              <option value="ttml">TTML ({locale === "zh" ? "逐字及富文本" : "Word-by-word"})</option>
+              <option value="srt">SRT ({locale === "zh" ? "字幕格式" : "Subtitles"})</option>
             </select>
           </Row>
           <Row label={t("settings.mode")}>
@@ -222,6 +244,7 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
             <ToggleRow label={t("settings.save_cover")} checked={form.save_cover} onChange={(v) => set("save_cover", v)} />
             <ToggleRow label={t("settings.save_playlist")} checked={form.save_playlist} onChange={(v) => set("save_playlist", v)} />
             <ToggleRow label={t("settings.no_synced_lyrics")} checked={form.no_synced_lyrics} onChange={(v) => set("no_synced_lyrics", v)} />
+            <ToggleRow label={t("settings.synced_lyrics_only")} checked={form.synced_lyrics_only} onChange={(v) => set("synced_lyrics_only", v)} />
           </div>
         </Section>
 
@@ -278,6 +301,22 @@ export default function Settings({ onNavigate }: { onNavigate?: (id: string) => 
               label={t("settings.output_path")}
               value={form.output_path}
               onChange={(v) => set("output_path", v)}
+              dep={null}
+              checking={false}
+              onCheck={() => {}}
+            />
+            <DepRow
+              label={t("settings.template_folder_album")}
+              value={form.template_folder_album}
+              onChange={(v) => set("template_folder_album", v)}
+              dep={null}
+              checking={false}
+              onCheck={() => {}}
+            />
+            <DepRow
+              label={t("settings.template_file_single_disc")}
+              value={form.template_file_single_disc}
+              onChange={(v) => set("template_file_single_disc", v)}
               dep={null}
               checking={false}
               onCheck={() => {}}

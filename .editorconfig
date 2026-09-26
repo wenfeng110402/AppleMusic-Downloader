@@ -1,0 +1,29 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+root = true
+
+# All files
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Python files
+[*.py]
+indent_size = 4
+
+# Web frontend files
+[*.{js,jsx,ts,tsx,css,scss,html,json,yaml,yml}]
+indent_size = 2
+
+# Markdown
+[*.md]
+trim_trailing_whitespace = false
+
+# Shell scripts
+[*.sh]
+end_of_line = lf
+indent_size = 2

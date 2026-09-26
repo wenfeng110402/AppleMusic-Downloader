@@ -42,7 +42,7 @@ if getattr(sys, "frozen", False):
     FRONTEND_OUT = BASE_DIR / "frontend_out"
 else:
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
-    FRONTEND_OUT = BASE_DIR / "src" / "fronted" / "out"
+    FRONTEND_OUT = BASE_DIR / "src" / "frontend" / "out"
 
 # DATA_DIR / TEMP_DIR / SETTINGS_FILE — 统一从 dependency_manager 获取
 TEMP_DIR = DATA_DIR / "temp"
@@ -346,9 +346,73 @@ async def get_api_info():
         supported_codecs_music_video=[{"value": c.value, "label": c.name} for c in MusicVideoCodec],
         supported_cover_formats=[{"value": c.value, "label": c.name} for c in CoverFormat],
         supported_download_modes=[{"value": c.value, "label": c.name} for c in DownloadMode],
-        supported_audio_conversion_formats=["mp3", "flac", "wav", "aac", "m4a", "ogg", "alac"],
+        supported_audio_conversion_formats=["mp3", "wav", "m4a", "ogg"],
         supported_video_conversion_formats=["mp4", "mov", "mkv", "avi", "webm"],
     )
+
+
+# ── Update Checker ──────────────────────────────────────────
+_UPDATE_CACHE: dict = {"time": 0.0, "data": None}
+
+
+def _parse_version(ver_str: str) -> tuple[int, ...]:
+    import re
+    clean = re.sub(r"[^\d.]", "", ver_str)
+    parts = []
+    for p in clean.split("."):
+        try:
+            parts.append(int(p))
+        except ValueError:
+            break
+    return tuple(parts)
+
+
+@app.get("/api/system/check-update", tags=["system"])
+async def check_update(force: bool = False):
+    import httpx
+    now = time.time()
+    if not force and _UPDATE_CACHE["data"] and (now - _UPDATE_CACHE["time"] < 600):
+        return JSONResponse(content=_UPDATE_CACHE["data"])
+
+    current_ver = __version__
+    curr_tuple = _parse_version(current_ver)
+    url = "https://api.github.com/repos/wenfeng110402/AppleMusic-Downloader/releases/latest"
+
+    res_data = {
+        "has_update": False,
+        "current_version": current_ver,
+        "latest_version": current_ver,
+        "release_notes": "",
+        "release_url": "https://github.com/wenfeng110402/AppleMusic-Downloader/releases",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
+            resp = await client.get(
+                url,
+                headers={
+                    "User-Agent": f"AppleMusicDownloader/{current_ver}",
+                    "Accept": "application/vnd.github.v3+json",
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                tag = data.get("tag_name", "").lstrip("v")
+                latest_tuple = _parse_version(tag)
+                has_update = latest_tuple > curr_tuple
+                res_data = {
+                    "has_update": has_update,
+                    "current_version": current_ver,
+                    "latest_version": tag or current_ver,
+                    "release_notes": data.get("body", ""),
+                    "release_url": data.get("html_url", res_data["release_url"]),
+                }
+    except Exception as e:
+        logger.debug("Failed to check for updates: %s", e)
+
+    _UPDATE_CACHE["time"] = now
+    _UPDATE_CACHE["data"] = res_data
+    return JSONResponse(content=res_data)
 
 
 @app.get("/api/dependencies", response_model=DependencyCheckResponse, tags=["system"])
@@ -365,7 +429,12 @@ async def check_dependencies(ffmpeg_path: str = "", nm3u8dlre_path: str = "", mp
 async def dep_download_progress():
     """Get the progress of auto-downloading missing dependencies."""
     from amdl.dependency_manager import get_progress as _get_progress
-    return {"dependencies": _get_progress()}
+    progress = _get_progress()
+    for name in ("ffmpeg", "MP4Box", "N_m3u8DL-RE"):
+        dep_item = _find_executable(name)
+        if dep_item.found:
+            progress[name] = {"status": "ok", "progress": 100, "error": ""}
+    return {"dependencies": progress}
 
 
 @app.delete("/api/temp", tags=["system"])
@@ -456,13 +525,17 @@ async def serve_index():
     if index.exists():
         return FileResponse(index)
     return HTMLResponse(
-        content="<html><body>Frontend not built. Run: cd src/fronted && npm run build</body></html>",
+        content="<html><body>Frontend not built. Run: cd src/frontend && npm run build</body></html>",
         status_code=200,
     )
 
 
 @app.get("/{full_path:path}", response_class=FileResponse)
 async def serve_static(full_path: str):
+    # API routes that were not matched above must return 404 JSON, never index.html
+    if full_path.startswith("api/"):
+        return JSONResponse({"detail": f"API endpoint not found: /{full_path}"}, status_code=404)
+
     file_path = (FRONTEND_OUT / full_path).resolve()
     root = FRONTEND_OUT.resolve()
     if file_path.is_relative_to(root) and file_path.exists() and file_path.is_file():

@@ -22,6 +22,16 @@ The project offers three usage modes:
 
 ---
 
+## 🎧 Sister Project: amll-PiP-player
+
+> **A minimalist, beautiful desktop picture-in-picture music companion built with Vue 3 and the Apple Music Lyrics rendering engine (AMLL).**
+
+Designed to work hand-in-hand with your `amdl` (Apple Music Downloader) download directory, it scans artists, albums, and songs in one click, automatically pairs audio with `.ttml` word-by-word lyrics, and uses the browser's Document Picture-in-Picture API to pin a stunning fluid-light effect and spring-animated lyrics stage to any corner of your desktop.
+
+👉 **[View amll-PiP-player on GitHub](https://github.com/wenfeng110402/amll-pip-player)**
+
+---
+
 ## Acknowledgments
 
 This project uses code from [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) and [yt-dlp](https://github.com/yt-dlp/yt-dlp). We sincerely thank all contributors to gamdl and yt-dlp for their outstanding work in the open-source community.
@@ -47,6 +57,7 @@ This project uses code from [gamdl (Glomatico's Apple Music Downloader)](https:/
 - [Requirements](#requirements)
 - [Supported Link Types](#supported-link-types)
 - [Project Structure](#project-structure)
+- [Community](#community)
 - [Disclaimer](#disclaimer)
 
 ---
@@ -99,10 +110,6 @@ amdl -c /path/to/cookies.txt "https://music.apple.com/us/album/left-and-right/16
 
 # Download an entire album
 amdl -c /path/to/cookies.txt "https://music.apple.com/us/album/left-and-right/1630451412"
-
-# Download a complete playlist (automatically expands and downloads all available tracks)
-amdl -c /path/to/cookies.txt \
-  "https://music.apple.com/us/playlist/playlist-name/pl.1234567890abcdef1234567890abcdef"
 
 # Specify output directory
 amdl -c /path/to/cookies.txt -o "./My Music" "https://music.apple.com/..."
@@ -236,7 +243,7 @@ The web frontend provides a complete graphical interface, including:
 ### Development Mode
 
 ```bash
-cd src/fronted
+cd src/frontend
 npm install
 npm run dev
 ```
@@ -252,12 +259,12 @@ python -m amdl --server
 ### Production Mode
 
 ```bash
-cd src/fronted
+cd src/frontend
 npm install
 npm run build
 ```
 
-Build output is in `src/fronted/out/`, deployable to any static file server (Nginx, Caddy, etc.).
+Build output is in `src/frontend/out/`, deployable to any static file server (Nginx, Caddy, etc.).
 
 **Nginx configuration example:**
 
@@ -267,7 +274,7 @@ server {
     server_name your-domain.com;
 
     # Frontend static files
-    root /path/to/src/fronted/out;
+    root /path/to/src/frontend/out;
     index index.html;
 
     location / {
@@ -298,7 +305,7 @@ docker run -d --name amdl-api \
 # Frontend (serve static files with Nginx)
 docker run -d --name amdl-frontend \
   -p 80:80 \
-  -v /path/to/src/fronted/out:/usr/share/nginx/html \
+  -v /path/to/src/frontend/out:/usr/share/nginx/html \
   --restart unless-stopped \
   nginx:alpine
 ```
@@ -406,7 +413,7 @@ AppleMusic-Downloader/
 │   │   ├── task_manager.py     # Task queue management
 │   │   ├── converter.py        # Format conversion
 │   │   └── ...
-│   └── fronted/           # Next.js frontend
+│   └── frontend/          # Next.js frontend
 │       ├── app/
 │       │   ├── components/  # Frontend components
 │       │   ├── service.tsx  # API client wrapper
@@ -418,6 +425,15 @@ AppleMusic-Downloader/
 ├── requirements.txt
 └── README.md
 ```
+
+---
+
+## Community
+
+Join our QQ group to report issues and share your experience:
+
+- QQ Group 1: **1076281801**
+- QQ Group 2: **758470209**
 
 ---
 

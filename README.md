@@ -22,6 +22,16 @@ AppleMusic Downloader 是一个功能强大的 Apple Music 下载工具，支持
 
 ---
 
+## 🎧 姊妹项目：amll-PiP-player
+
+> **基于 Vue 3 与 Apple Music 歌词渲染引擎（AMLL）打造的极简高颜值桌面画中画音乐伴侣。**
+
+专为与 `amdl`（Apple Music Downloader）下载目录联动设计，支持一键扫描歌手、专辑与歌曲，自动配对音频与 `.ttml` 逐字歌词，并通过浏览器的 Document Picture-in-Picture API 将极致美感的流体光效与弹簧歌词舞台置顶在桌面任意角落。
+
+👉 **[前往 GitHub 查看 amll-PiP-player](https://github.com/wenfeng110402/amll-pip-player)**
+
+---
+
 ## 致谢
 
 本项目使用了 [gamdl (Glomatico&#39;s Apple Music Downloader)](https://github.com/glomatico/gamdl) 和 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 的代码。衷心感谢 gamdl 和 yt-dlp 的所有贡献者在开源社区做出的杰出贡献。
@@ -47,6 +57,7 @@ AppleMusic Downloader 是一个功能强大的 Apple Music 下载工具，支持
 - [环境要求](#环境要求)
 - [支持的链接类型](#支持的链接类型)
 - [项目结构](#项目结构)
+- [交流群](#交流群)
 - [免责声明](#免责声明)
 
 ---
@@ -236,7 +247,7 @@ Web 前端提供了一套完整的图形界面，包括：
 ### 开发模式
 
 ```bash
-cd src/fronted
+cd src/frontend
 npm install
 npm run dev
 ```
@@ -252,12 +263,12 @@ python -m amdl --server
 ### 生产模式
 
 ```bash
-cd src/fronted
+cd src/frontend
 npm install
 npm run build
 ```
 
-构建产物在 `src/fronted/out/` 目录，可直接部署到任意静态文件服务器（Nginx、Caddy 等）。
+构建产物在 `src/frontend/out/` 目录，可直接部署到任意静态文件服务器（Nginx、Caddy 等）。
 
 **Nginx 配置示例：**
 
@@ -267,7 +278,7 @@ server {
     server_name your-domain.com;
 
     # 前端静态文件
-    root /path/to/src/fronted/out;
+    root /path/to/src/frontend/out;
     index index.html;
 
     location / {
@@ -298,7 +309,7 @@ docker run -d --name amdl-api \
 # 前端（使用 Nginx 提供静态文件）
 docker run -d --name amdl-frontend \
   -p 80:80 \
-  -v /path/to/src/fronted/out:/usr/share/nginx/html \
+  -v /path/to/src/frontend/out:/usr/share/nginx/html \
   --restart unless-stopped \
   nginx:alpine
 ```
@@ -396,7 +407,7 @@ AppleMusic-Downloader/
 │   │   ├── task_manager.py     # 任务队列管理
 │   │   ├── converter.py        # 格式转换
 │   │   └── ...
-│   └── fronted/           # Next.js 前端
+│   └── frontend/          # Next.js 前端
 │       ├── app/
 │       │   ├── components/  # 前端组件
 │       │   ├── service.tsx  # API 调用封装
@@ -408,6 +419,15 @@ AppleMusic-Downloader/
 ├── requirements.txt
 └── README.md
 ```
+
+---
+
+## 交流群
+
+欢迎加入 QQ 交流群，反馈问题、交流使用心得：
+
+- QQ 群 1：**1076281801**
+- QQ 群 2：**758470209**
 
 ---
 

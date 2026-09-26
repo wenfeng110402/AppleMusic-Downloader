@@ -22,6 +22,16 @@ AppleMusic Downloader 是一个功能强大的 Apple Music 下载工具，支持
 
 ---
 
+## 🎧 姊妹项目：amll-PiP-player
+
+> **基于 Vue 3 与 Apple Music 歌词渲染引擎（AMLL）打造的极简高颜值桌面画中画音乐伴侣。**
+
+专为与 `amdl`（Apple Music Downloader）下载目录联动设计，支持一键扫描歌手、专辑与歌曲，自动配对音频与 `.ttml` 逐字歌词，并通过浏览器的 Document Picture-in-Picture API 将极致美感的流体光效与弹簧歌词舞台置顶在桌面任意角落。
+
+👉 **[前往 GitHub 查看 amll-PiP-player](https://github.com/wenfeng110402/amll-pip-player)**
+
+---
+
 ## 致谢
 
 本项目使用了 [gamdl (Glomatico&#39;s Apple Music Downloader)](https://github.com/glomatico/gamdl) 和 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 的代码。衷心感谢 gamdl 和 yt-dlp 的所有贡献者在开源社区做出的杰出贡献。
@@ -47,6 +57,7 @@ AppleMusic Downloader 是一个功能强大的 Apple Music 下载工具，支持
 - [环境要求](#环境要求)
 - [支持的链接类型](#支持的链接类型)
 - [项目结构](#项目结构)
+- [交流群](#交流群)
 - [免责声明](#免责声明)
 
 ---
@@ -404,6 +415,15 @@ AppleMusic-Downloader/
 ├── requirements.txt
 └── README.md
 ```
+
+---
+
+## 交流群
+
+欢迎加入 QQ 交流群，反馈问题、交流使用心得：
+
+- QQ 群 1：**1076281801**
+- QQ 群 2：**758470209**
 
 ---
 

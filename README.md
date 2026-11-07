@@ -16,6 +16,8 @@
   </a>
   <br>
   <strong>本项目由 <a href="https://hackclub.com" target="_blank">Hack Club</a> 赞助支持</strong>
+  <br>
+  <sub>Hack Club 是一个全球性的高中生与青年黑客非营利开源社区，致力于为年轻开发者提供项目资助与硬件支持。</sub>
 </p>
 
 ---
@@ -44,7 +46,7 @@ AppleMusic Downloader 是一个功能强大的 Apple Music 下载工具，支持
 
 ## 致谢与赞助
 
-- 💖 **[Hack Club](https://hackclub.com)**：本项目由 Hack Club 赞助支持，特别鸣谢 Hack Club 对学生开源创作者的鼎力支持！
+- 💖 **[Hack Club](https://hackclub.com)**：本项目由 Hack Club 赞助支持。**Hack Club** 是一个全球非营利的高中生与青年黑客社区，致力于为热爱技术的年轻人提供资助、工具与社群支持，帮助他们发挥想象力创造酷炫的软硬件项目。衷心感谢 Hack Club 对本项目与青年开源创作者的鼎力支持！
 - 🌟 **开源项目**：本项目使用了 [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) 和 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 的代码。衷心感谢 gamdl 和 yt-dlp 的所有贡献者在开源社区做出的杰出贡献。
 
 ---

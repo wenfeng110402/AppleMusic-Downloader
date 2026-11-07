@@ -20,7 +20,11 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+from typing import TYPE_CHECKING
 from fastapi import WebSocket
+
+if TYPE_CHECKING:
+    from amdl.core_downloader import PlaylistParseProgress
 
 # Lazy import: core_downloader does a Python version guard at import time.
 try:
@@ -70,6 +74,7 @@ class DownloadTask:
         self.kwargs = kwargs  # arguments to pass to download_urls
         self.status = TaskStatus.PENDING
         self.progress: tuple[int, int] = (0, 0)  # (completed, total)
+        self.parsing: PlaylistParseProgress | None = None
         self.error_count: int = 0
         self.message: str = ""
         self.logs: list[str] = []
@@ -100,6 +105,7 @@ class DownloadTask:
                 "total": total,
                 "percent": round(completed / total * 100, 1) if total > 0 else 0,
             },
+            "parsing": self.parsing,
             "error_count": self.error_count,
             "message": self.message,
             "logs": self.get_logs(),
@@ -254,6 +260,18 @@ class TaskManager:
             task.progress = (completed, total)
             await self._broadcast_progress(task_id, completed, total)
 
+        async def on_parse_progress(parsing: PlaylistParseProgress | None) -> None:
+            if task.cancelled:
+                raise asyncio.CancelledError("Task cancelled")
+            if parsing is None and task.parsing is None:
+                return
+            task.parsing = parsing
+            await self._send_to_subscribers(task, {
+                "type": "parsing",
+                "task_id": task_id,
+                "parsing": parsing,
+            })
+
         def on_log(msg: str):
             task.append_log(msg)
             logging.getLogger("amdl.task").info(f"[{task_id[:8]}] {msg}")
@@ -312,6 +330,7 @@ class TaskManager:
                 log_callback=on_log,
                 log_level=kwargs.get("log_level", "INFO"),
                 progress_callback=on_progress,
+                parse_progress_callback=on_parse_progress,
             )
         except asyncio.CancelledError:
             raise
@@ -347,6 +366,8 @@ class TaskManager:
         await self._send_to_subscribers(task, message)
 
     async def _broadcast_status(self, task: DownloadTask):
+        if task.status != TaskStatus.RUNNING:
+            task.parsing = None
         completed, total = task.progress[0], task.progress[1]
         message = {
             "type": "status",
@@ -359,6 +380,7 @@ class TaskManager:
             },
             "error_count": task.error_count,
             "message": task.message,
+            "parsing": task.parsing,
             "logs": task.get_logs(),
             "updated_at": task.updated_at,
         }
@@ -398,6 +420,7 @@ class TaskManager:
                     "total": total,
                     "percent": round(completed / total * 100, 1) if total > 0 else 0,
                 },
+                "parsing": task.parsing,
                 "error_count": task.error_count,
                 "message": task.message,
             })

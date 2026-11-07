@@ -16,6 +16,8 @@
   </a>
   <br>
   <strong>This project is proudly sponsored by <a href="https://hackclub.com" target="_blank">Hack Club</a></strong>
+  <br>
+  <sub>Hack Club is a global nonprofit network of student makers and coders, empowering youth to think big and build cool things.</sub>
 </p>
 
 ---
@@ -44,7 +46,7 @@ Designed to work hand-in-hand with your `amdl` (Apple Music Downloader) download
 
 ## Acknowledgments & Sponsorship
 
-- 💖 **[Hack Club](https://hackclub.com)**: This project is proudly sponsored by Hack Club. Special thanks to Hack Club for supporting student makers and open-source creators!
+- 💖 **[Hack Club](https://hackclub.com)**: This project is proudly sponsored by Hack Club. **Hack Club** is a global nonprofit network of high school makers and student-led coding clubs, empowering young people to build the agency, the network, and the technical talent to think big and do big things in the world. Special thanks to Hack Club for their generous support of student creators and open-source software!
 - 🌟 **Open Source Projects**: This project uses code from [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) and [yt-dlp](https://github.com/yt-dlp/yt-dlp). We sincerely thank all contributors to gamdl and yt-dlp for their outstanding work in the open-source community.
 
 ---

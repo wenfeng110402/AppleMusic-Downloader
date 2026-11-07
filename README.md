@@ -10,6 +10,16 @@
 
 ---
 
+<p align="center">
+  <a href="https://hackclub.com" target="_blank">
+    <img src="assets/flag-orpheus-top.png" alt="Supported by Hack Club" width="160" />
+  </a>
+  <br>
+  <strong>本项目由 <a href="https://hackclub.com" target="_blank">Hack Club</a> 赞助支持</strong>
+</p>
+
+---
+
 AppleMusic Downloader 是一个功能强大的 Apple Music 下载工具，支持下载歌曲、音乐视频、歌词和封面。
 
 项目提供三种使用方式：
@@ -32,9 +42,10 @@ AppleMusic Downloader 是一个功能强大的 Apple Music 下载工具，支持
 
 ---
 
-## 致谢
+## 致谢与赞助
 
-本项目使用了 [gamdl (Glomatico&#39;s Apple Music Downloader)](https://github.com/glomatico/gamdl) 和 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 的代码。衷心感谢 gamdl 和 yt-dlp 的所有贡献者在开源社区做出的杰出贡献。
+- 💖 **[Hack Club](https://hackclub.com)**：本项目由 Hack Club 赞助支持，特别鸣谢 Hack Club 对学生开源创作者的鼎力支持！
+- 🌟 **开源项目**：本项目使用了 [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) 和 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 的代码。衷心感谢 gamdl 和 yt-dlp 的所有贡献者在开源社区做出的杰出贡献。
 
 ---
 

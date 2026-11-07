@@ -10,6 +10,16 @@
 
 ---
 
+<p align="center">
+  <a href="https://hackclub.com" target="_blank">
+    <img src="assets/flag-orpheus-top.png" alt="Supported by Hack Club" width="160" />
+  </a>
+  <br>
+  <strong>This project is proudly sponsored by <a href="https://hackclub.com" target="_blank">Hack Club</a></strong>
+</p>
+
+---
+
 AppleMusic Downloader is a powerful Apple Music download tool that supports downloading songs, music videos, lyrics, and cover art.
 
 The project offers three usage modes:
@@ -32,9 +42,10 @@ Designed to work hand-in-hand with your `amdl` (Apple Music Downloader) download
 
 ---
 
-## Acknowledgments
+## Acknowledgments & Sponsorship
 
-This project uses code from [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) and [yt-dlp](https://github.com/yt-dlp/yt-dlp). We sincerely thank all contributors to gamdl and yt-dlp for their outstanding work in the open-source community.
+- 💖 **[Hack Club](https://hackclub.com)**: This project is proudly sponsored by Hack Club. Special thanks to Hack Club for supporting student makers and open-source creators!
+- 🌟 **Open Source Projects**: This project uses code from [gamdl (Glomatico's Apple Music Downloader)](https://github.com/glomatico/gamdl) and [yt-dlp](https://github.com/yt-dlp/yt-dlp). We sincerely thank all contributors to gamdl and yt-dlp for their outstanding work in the open-source community.
 
 ---
 

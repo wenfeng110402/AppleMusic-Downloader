@@ -33,6 +33,7 @@ export interface TaskInfo {
   id: string;
   status: string;
   progress: Record<string, unknown>;
+  parsing?: { completed: number; total: number | null; current_title: string } | null;
   error_count: number;
   message: string;
   logs: string[];

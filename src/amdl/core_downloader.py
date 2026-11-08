@@ -11,8 +11,9 @@ import shutil
 import subprocess
 import sys
 import traceback
+from collections.abc import AsyncIterator, Awaitable
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TypedDict
 
 # ── Python version guard ────────────────────────────────
 _MIN_PYTHON = (3, 10)
@@ -36,6 +37,7 @@ from gamdl.downloader.exceptions import (
     GamdlDownloaderMediaFileExistsError,
     GamdlDownloaderSyncedLyricsOnlyError,
 )
+from gamdl.downloader.types import DownloadItem
 from gamdl.interface import (
     AppleMusicBaseInterface,
     AppleMusicInterface,
@@ -59,6 +61,52 @@ from gamdl.interface.exceptions import (
 from gamdl.interface.types import DecryptionKeyAv
 
 LogCallback = Callable[[str], None]
+
+
+class PlaylistParseProgress(TypedDict):
+    completed: int
+    total: int | None
+    current_title: str
+
+
+ParseProgressCallback = Callable[[PlaylistParseProgress | None], Awaitable[None]]
+
+
+async def iter_playlist_items(
+    items: AsyncIterator[DownloadItem],
+    url: str,
+    report: ParseProgressCallback | None,
+) -> AsyncIterator[DownloadItem]:
+    """Observe playlist metadata resolution without altering gamdl's item stream."""
+    url_info = AppleMusicInterface.get_url_info(url) if report else None
+    if report is None or url_info is None or url_info.sub_id or not (
+        url_info.type == "playlist" or url_info.library_type == "playlist"
+    ):
+        async for item in items:
+            yield item
+        return
+
+    total = None
+    resolved: set[int] = set()
+    await report({"completed": 0, "total": total, "current_title": ""})
+    async for item in items:
+        media = item.media
+        metadata = media.media_metadata or {}
+        if metadata.get("type") in {"playlists", "library-playlists"} and not media.error:
+            tracks = metadata.get("relationships", {}).get("tracks", {}).get("data")
+            if tracks is not None:
+                total = len(tracks)
+                await report({"completed": 0, "total": total, "current_title": ""})
+        elif media.playlist_metadata and media.index not in resolved:
+            # Repeated songs occupy different positions in the same playlist.
+            if not media.partial or media.error:
+                resolved.add(media.index)
+            await report({
+                "completed": len(resolved),
+                "total": total,
+                "current_title": metadata.get("attributes", {}).get("name", ""),
+            })
+        yield item
 
 
 # ── logger ──────────────────────────────────────────────
@@ -238,6 +286,7 @@ async def _download_urls_async(
     log_callback: LogCallback | None = None,
     log_level: str = "INFO",
     progress_callback: Callable[[int, int], None] | None = None,
+    parse_progress_callback: ParseProgressCallback | None = None,
 ) -> int:
     log = _get_logger("amdl.core", log_level, log_callback)
     log.info("System: Python %s.%s.%s | Platform: %s | EventLoop: %s",
@@ -646,11 +695,15 @@ async def _download_urls_async(
     for url in urls:
         log.info('Parsing "%s"', url)
         try:
-            async for it in dl.get_download_item_from_url(url):
-                items.append(it)
+            async for item in iter_playlist_items(
+                dl.get_download_item_from_url(url), url, parse_progress_callback,
+            ):
+                items.append(item)
         except Exception as e:
             errors += 1
             log.error('Failed to parse "%s": %s', url, e, exc_info=not no_exceptions)
+        if parse_progress_callback:
+            await parse_progress_callback(None)
 
     total = len(items) or 1
     completed = 0

@@ -114,11 +114,16 @@ function TaskRow({
   const [copied, setCopied] = useState(false);
   const progress = task.progress as Record<string, number>;
   const { completed = 0, total = 0, percent } = progress;
-  const pct = task.status === "completed"
+  const parsing = task.status === "running" ? task.parsing : null;
+  const parseTotal = parsing?.total ?? 0;
+  const downloadPct = task.status === "completed"
     ? 1
     : total > 0
       ? (percent ?? (completed / total * 100)) / 100
       : 0;
+  const pct = parsing
+    ? (parseTotal > 0 ? Math.min(parsing.completed / parseTotal, 1) : 0)
+    : downloadPct;
   const isRunning = task.status === "running" || task.status === "pending";
 
   const handleCopyLogs = useCallback(async () => {
@@ -147,6 +152,18 @@ function TaskRow({
               {t(`status.${task.status}`)}
             </span>
           </div>
+          {parsing && (
+            <p
+              className="mt-1 truncate text-[10.5px]"
+              style={{ color: "var(--text-body)" }}
+              title={parsing.current_title}
+            >
+              {parsing.total === null
+                ? t("queue.parsing_playlist")
+                : t("queue.parsing_progress", { completed: parsing.completed, total: parsing.total })}
+              {parsing.current_title && ` · ${parsing.current_title}`}
+            </p>
+          )}
           {pct > 0 && (
             <div className="mt-1.5 h-[3px] w-full overflow-hidden rounded-full" style={{ background: "var(--card-border)" }}>
               <div

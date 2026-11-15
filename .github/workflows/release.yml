@@ -7,7 +7,7 @@
 #
 # Phase 2 (push to master after that PR is merged):
 #   Detects the version change, builds all platforms, creates the tag at
-#   that exact master commit and publishes the GitHub Release.
+#   that exact master commit, publishes the GitHub Release, then uploads PyPI.
 #
 # If branch protection requires CI checks on the bot-created PR, set a
 # RELEASE_TOKEN secret (fine-grained PAT with Contents + Pull requests write).
@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Bump from __version__ in src/amdl/__init__.py"
+        description: "Version increment when mode=bump (ignored for publish-current)"
         required: true
         default: patch
         type: choice
@@ -28,6 +28,14 @@ on:
           - patch
           - minor
           - major
+      mode:
+        description: "Version bump, or publish the version already in master"
+        required: true
+        default: bump
+        type: choice
+        options:
+          - bump
+          - publish-current
   push:
     branches: [master]
     paths:
@@ -51,7 +59,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   prepare-pr:
     name: Create release PR
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'bump'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -171,7 +179,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   inspect:
     name: Inspect master
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-current')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -182,7 +190,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event_name == 'push' && github.sha || 'master' }}
           fetch-depth: 0
 
       - name: Detect version bump
@@ -194,6 +202,14 @@ jobs:
           VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/amdl/__init__.py)"
           TAG="v$VERSION"
           SHA="$(git rev-parse HEAD)"
+
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            git fetch --force origin master --tags
+            if [[ "$SHA" != "$(git rev-parse origin/master)" ]]; then
+              echo "::error::Current-version publishing must be started from the latest master."
+              exit 1
+            fi
+          fi
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
@@ -231,9 +247,14 @@ jobs:
           - os: linux
             runner: ubuntu-latest
             artifact: AppleMusicDownloader-linux-x64
-          - os: macos
-            runner: macos-14
+          - os: macos-arm64
+            runner: macos-latest
+            build_platform: macos-arm64
             artifact: AppleMusicDownloader-macos-arm64.dmg
+          - os: macos-x64
+            runner: macos-26-intel
+            build_platform: macos-x64
+            artifact: AppleMusicDownloader-macos-x64.dmg
           - os: windows
             runner: windows-latest
             artifact: AppleMusicDownloader-windows-x64.exe
@@ -267,7 +288,7 @@ jobs:
       - name: Build
         shell: bash
         env:
-          BUILD_OS: ${{ matrix.os }}
+          BUILD_OS: ${{ matrix.build_platform || matrix.os }}
         run: bash scripts/build.sh "$BUILD_OS"
 
       - name: Upload release artifact
@@ -328,3 +349,45 @@ jobs:
             --verify-tag \
             --title "AppleMusic Downloader $TAG" \
             --generate-notes
+
+  pypi:
+    name: Publish to PyPI
+    needs: [inspect, build, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.inspect.outputs.tag }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build flit_core twine
+
+      - name: Verify package version
+        env:
+          EXPECTED_VERSION: ${{ needs.inspect.outputs.version }}
+        run: |
+          VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/amdl/__init__.py)"
+          if [[ "$VERSION" != "$EXPECTED_VERSION" ]]; then
+            echo "::error::Version mismatch: expected $EXPECTED_VERSION, got $VERSION"
+            exit 1
+          fi
+
+      - name: Build and check package
+        run: |
+          python -m build
+          twine check dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

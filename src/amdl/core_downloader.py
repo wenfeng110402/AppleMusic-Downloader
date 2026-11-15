@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 import logging
 import os
 import re
@@ -13,6 +14,7 @@ import sys
 import traceback
 from pathlib import Path
 from typing import Callable
+from urllib.parse import parse_qs, urlparse
 
 # ── Python version guard ────────────────────────────────
 _MIN_PYTHON = (3, 10)
@@ -80,6 +82,276 @@ def _get_logger(name: str, level: str, cb: LogCallback | None) -> logging.Logger
     h.setFormatter(logging.Formatter("%(message)s" if cb else "[%(levelname)s] %(message)s"))
     log.addHandler(h)
     return log
+
+
+class _YtdlpLogger:
+    """Forward yt-dlp diagnostics into the AMDL task log.
+
+    yt-dlp sends retry and fragment messages through ``logger.debug`` even
+    when ``quiet`` is enabled. Mapping those messages to INFO is important
+    here: a fragment failure must remain visible instead of looking like a
+    successful download.
+    """
+
+    def __init__(self, log: logging.Logger) -> None:
+        self._log = log
+
+    @staticmethod
+    def _clean(message: object) -> str:
+        return str(message).strip()
+
+    def debug(self, message: object) -> None:
+        text = self._clean(message)
+        if not text or ("[download]" in text and "%" in text):
+            return
+        self._log.info("yt-dlp: %s", text.removeprefix("[debug] "))
+
+    def info(self, message: object) -> None:
+        self.debug(message)
+
+    def warning(self, message: object) -> None:
+        text = self._clean(message)
+        if text:
+            self._log.warning("yt-dlp: %s", text)
+
+    def error(self, message: object) -> None:
+        text = self._clean(message)
+        if text:
+            self._log.error("yt-dlp: %s", text)
+
+
+def _ytdlp_options(log: logging.Logger) -> dict:
+    """Return strict yt-dlp options for Apple Music HLS downloads."""
+    return {
+        "quiet": True,
+        "no_warnings": True,
+        "overwrites": True,
+        "noprogress": True,
+        "allow_unplayable_formats": True,
+        # Match gamdl's proven fragment concurrency. Do NOT add
+        # http_chunk_size: range-chunking on CENC HLS can cause
+        # "Conflicting range" errors.
+        "concurrent_fragment_downloads": 8,
+        # yt-dlp's API defaults are too permissive for a lossless archive:
+        # fragment_retries=0 and skip_unavailable_fragments=True can produce
+        # a playable but truncated file that still returns success.
+        "retries": 10,
+        "fragment_retries": 10,
+        "skip_unavailable_fragments": False,
+        "continuedl": False,
+        "logger": _YtdlpLogger(log),
+    }
+
+
+_DURATION_TOLERANCE_SECONDS = 2.0
+
+
+def _expected_duration_seconds(media_metadata: object) -> float | None:
+    """Extract Apple Music's catalog duration without trusting other fields."""
+    if not isinstance(media_metadata, dict):
+        return None
+    attributes = media_metadata.get("attributes")
+    if not isinstance(attributes, dict):
+        return None
+    value = attributes.get("durationInMillis")
+    try:
+        duration = float(value) / 1000.0
+    except (TypeError, ValueError):
+        return None
+    return duration if duration > 0 else None
+
+
+def _probe_media_duration(path: str | Path, ffprobe_path: str) -> float | None:
+    """Read the audio stream duration, falling back to container duration."""
+    creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0  # type: ignore[attr-defined]
+    try:
+        result = subprocess.run(
+            [
+                ffprobe_path,
+                "-v", "error",
+                "-select_streams", "a:0",
+                "-show_entries", "stream=duration:format=duration",
+                "-of", "json",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            creationflags=creationflags,
+        )
+        if result.returncode != 0:
+            return None
+        probe = json.loads(result.stdout)
+        values = [
+            stream.get("duration")
+            for stream in probe.get("streams", [])
+            if isinstance(stream, dict)
+        ]
+        values.append(probe.get("format", {}).get("duration"))
+        duration = next(
+            (float(value) for value in values if value not in (None, "N/A")),
+            None,
+        )
+    except (OSError, ValueError, TypeError, json.JSONDecodeError, subprocess.SubprocessError):
+        return None
+    return duration if duration is not None and duration > 0 else None
+
+
+def _validate_media_duration(
+    path: str | Path,
+    expected_seconds: float | None,
+    ffprobe_path: str,
+    log: logging.Logger,
+) -> None:
+    """Reject a staged file when its actual duration is clearly too short."""
+    if expected_seconds is None:
+        return
+
+    actual_seconds = _probe_media_duration(path, ffprobe_path)
+    if actual_seconds is None:
+        raise RuntimeError(
+            f'could not verify duration for "{Path(path).name}": '
+            f"ffprobe ({ffprobe_path}) is unavailable or the file is unreadable"
+        )
+
+    difference = actual_seconds - expected_seconds
+    if abs(difference) > _DURATION_TOLERANCE_SECONDS:
+        Path(path).unlink(missing_ok=True)
+        raise RuntimeError(
+            f'incomplete media detected for "{Path(path).name}": '
+            f"actual {actual_seconds:.3f}s, expected {expected_seconds:.3f}s "
+            f"(difference {difference:+.3f}s, tolerance {_DURATION_TOLERANCE_SECONDS:.1f}s)"
+        )
+
+    log.info('Duration verified "%s": %.3fs (expected %.3fs)', Path(path).name, actual_seconds, expected_seconds)
+
+
+def _resolve_ffprobe(ffmpeg_path: str) -> str:
+    """Prefer ffprobe next to the configured ffmpeg, then use PATH."""
+    ffmpeg = Path(ffmpeg_path)
+    if ffmpeg.name.lower() in {"ffmpeg", "ffmpeg.exe"}:
+        sibling = ffmpeg.with_name("ffprobe.exe" if sys.platform == "win32" else "ffprobe")
+        if sibling.exists():
+            return str(sibling)
+    return _resolve_bin("ffprobe")
+
+
+def _playlist_track_count(playlist: dict) -> int | None:
+    """Return Apple Music's advertised playlist track count."""
+    try:
+        value = playlist["attributes"]["trackCount"]
+        count = int(value)
+    except (KeyError, TypeError, ValueError):
+        return None
+    return count if count >= 0 else None
+
+
+async def _fetch_playlist_page(api: AppleMusicApi, next_uri: str) -> dict:
+    """Fetch one ``next`` page using the exact URI supplied by Apple."""
+    parsed = urlparse(next_uri)
+    raw_params = parse_qs(parsed.query, keep_blank_values=True)
+    params = {
+        key: values[0] if len(values) == 1 else values
+        for key, values in raw_params.items()
+    }
+    if not parsed.path:
+        raise RuntimeError(f"Invalid playlist next URI: {next_uri}")
+    return await api._amp_request(parsed.path, params)
+
+
+async def _load_all_playlist_tracks(
+    api: AppleMusicApi,
+    playlist_response: dict,
+    log: logging.Logger,
+) -> None:
+    """Hydrate every track page before gamdl creates per-track download tasks.
+
+    Apple may cap the first *catalog* request at 100 tracks even when a larger
+    ``limit[tracks]`` is requested. gamdl 3.9.1 has an implicit loop, but this
+    explicit version uses Apple's exact ``next`` URI, detects cursor loops and
+    verifies the advertised ``trackCount``. Without that final check, a failed
+    second page can silently look like a successful short playlist download.
+    """
+    data = playlist_response.get("data") if isinstance(playlist_response, dict) else None
+    if not data or not isinstance(data[0], dict):
+        return
+
+    playlist = data[0]
+    relationships = playlist.get("relationships")
+    tracks_relation = relationships.get("tracks") if isinstance(relationships, dict) else None
+    if not isinstance(tracks_relation, dict):
+        return
+
+    tracks = tracks_relation.get("data")
+    if not isinstance(tracks, list):
+        tracks = []
+        tracks_relation["data"] = tracks
+
+    expected = _playlist_track_count(playlist)
+    log.info(
+        'Playlist "%s": first page has %d tracks (expected total: %s)',
+        playlist.get("id", "?"),
+        len(tracks),
+        expected if expected is not None else "unknown",
+    )
+
+    next_uri = tracks_relation.get("next")
+    seen_cursors: set[str] = set()
+    page_number = 1
+    while next_uri:
+        if next_uri in seen_cursors:
+            raise RuntimeError(f"Playlist pagination cursor repeated: {next_uri}")
+        seen_cursors.add(next_uri)
+
+        page = await _fetch_playlist_page(api, next_uri)
+        page_tracks = page.get("data", []) if isinstance(page, dict) else []
+        if not isinstance(page_tracks, list):
+            raise RuntimeError(f"Invalid playlist page payload at page {page_number + 1}")
+
+        tracks.extend(page_tracks)
+        page_number += 1
+        next_uri = page.get("next")
+        log.info(
+            'Playlist "%s": loaded page %d, %d tracks so far',
+            playlist.get("id", "?"),
+            page_number,
+            len(tracks),
+        )
+
+    # Keep gamdl's implicit pagination loop from requesting the same pages again.
+    tracks_relation["next"] = None
+
+    if expected is not None and len(tracks) != expected:
+        raise RuntimeError(
+            f'playlist pagination incomplete for "{playlist.get("id", "?")}": '
+            f"loaded {len(tracks)} of {expected} tracks after {page_number} page(s)"
+        )
+
+    log.info(
+        'Playlist "%s": pagination complete, %d/%s tracks loaded',
+        playlist.get("id", "?"),
+        len(tracks),
+        expected if expected is not None else "?",
+    )
+
+
+def _install_playlist_pagination(api: AppleMusicApi, log: logging.Logger) -> None:
+    """Wrap both catalog and library playlist requests with full pagination."""
+    original_catalog = api.get_playlist
+    original_library = api.get_library_playlist
+
+    async def catalog_with_all_tracks(*args, **kwargs):
+        response = await original_catalog(*args, **kwargs)
+        await _load_all_playlist_tracks(api, response, log)
+        return response
+
+    async def library_with_all_tracks(*args, **kwargs):
+        response = await original_library(*args, **kwargs)
+        await _load_all_playlist_tracks(api, response, log)
+        return response
+
+    api.get_playlist = catalog_with_all_tracks  # type: ignore[method-assign]
+    api.get_library_playlist = library_with_all_tracks  # type: ignore[method-assign]
 
 
 # ── binary resolver ─────────────────────────────────────
@@ -284,6 +556,10 @@ async def _download_urls_async(
 
     if not api.active_subscription:
         log.critical("No active subscription"); return 1
+
+    # Apple's first playlist page can be capped at 100 even when a larger
+    # limit is requested. Ensure all pages are loaded before gamdl fans out.
+    _install_playlist_pagination(api, log)
 
     # ── gamdl interface ─────────────────────────────────
     log.info("Creating AppleMusicBaseInterface...")
@@ -575,19 +851,7 @@ async def _download_urls_async(
         from yt_dlp.downloader.hls import HlsFD
         from yt_dlp.downloader.http import HttpFD
 
-        with YoutubeDL(
-            {
-                "quiet": True,
-                "no_warnings": True,
-                "overwrites": True,
-                "noprogress": True,
-                "allow_unplayable_formats": True,
-                # Match gamdl's exact params — do NOT add http_chunk_size:
-                # range-chunking on CENC HLS causes "Conflicting range"
-                # errors that exhaust retries and leave an empty file.
-                "concurrent_fragment_downloads": 8,
-            }
-        ) as ydl:
+        with YoutubeDL(_ytdlp_options(log)) as ydl:
             if stream_url.split("?")[0].endswith(".m3u8"):
                 success, _ = HlsFD(ydl, ydl.params).download(
                     dl_path, {"url": stream_url, "ext": "mp4", "protocol": "m3u8"}
@@ -638,6 +902,22 @@ async def _download_urls_async(
         overwrite=overwrite, save_cover=save_cover, save_playlist=save_playlist,
         no_synced_lyrics=no_synced_lyrics, synced_lyrics_only=synced_lyrics_only,
     )
+
+    # gamdl moves the staged file to its final path in _final_processing().
+    # Validate first so an incomplete file can never be reported as complete.
+    # Keep the default implementation used by gamdl when overwrite=False, but
+    # allow the retry below to replace a failed existing file.
+    _original_final_processing = dl._final_processing
+    _ffprobe_path = _resolve_ffprobe(base_dl.full_ffmpeg_path or _ff_path)
+
+    async def _final_processing_impl(item) -> None:
+        staged_path = Path(item.staged_path) if item.staged_path else None
+        if staged_path and staged_path.exists() and item.final_path:
+            expected = _expected_duration_seconds(item.media.media_metadata)
+            _validate_media_duration(staged_path, expected, _ffprobe_path, log)
+        await _original_final_processing(item)
+
+    dl._final_processing = _final_processing_impl  # type: ignore[method-assign]
     log.info("AppleMusicDownloader ready, starting parse...")
 
     # ── parse → download ────────────────────────────────
@@ -676,9 +956,57 @@ async def _download_urls_async(
             continue
 
         title = item.media.media_metadata.get("attributes", {}).get("name", "?") if isinstance(item.media.media_metadata, dict) else "?"
+        replace_invalid_existing = False
+        if not overwrite and not synced_lyrics_only and Path(item.final_path).exists():
+            expected = _expected_duration_seconds(item.media.media_metadata)
+            try:
+                _validate_media_duration(item.final_path, expected, _ffprobe_path, log)
+            except RuntimeError as e:
+                if Path(item.final_path).exists():
+                    errors += 1
+                    log.error('Existing "%s" cannot be verified; not treating it as successful: %s', title, e)
+                    continue
+                log.warning('Existing "%s" failed duration validation (%s); downloading again', title, e)
+                replace_invalid_existing = True
+            else:
+                log.info('Existing "%s" passed duration validation', title)
+
         log.info('Downloading "%s"', title)
         max_retries = 3
-        for attempt in range(1, max_retries + 1):
+        try:
+            if replace_invalid_existing:
+                Path(item.final_path).unlink(missing_ok=True)
+            await dl.download(item)
+            completed += 1
+            done_files.append(str(item.final_path))
+            if progress_callback:
+                r = progress_callback(completed, total)
+                if asyncio.iscoroutine(r):
+                    await r
+            continue
+        except GamdlDownloaderSyncedLyricsOnlyError:
+            completed += 1
+            if item.synced_lyrics_path:
+                done_files.append(str(item.synced_lyrics_path))
+            log.info('Synced lyrics saved for "%s"', title)
+            if progress_callback:
+                r = progress_callback(completed, total)
+                if asyncio.iscoroutine(r):
+                    await r
+            continue
+        except GamdlDownloaderMediaFileExistsError:
+            completed += 1
+            log.info('Skipped "%s": exists', title)
+            if progress_callback:
+                r = progress_callback(completed, total)
+                if asyncio.iscoroutine(r):
+                    await r
+            continue
+        except Exception as first_error:
+            log.warning('First attempt failed for "%s": %s', title, first_error)
+            await asyncio.sleep(1.5)
+
+        for attempt in range(2, max_retries + 1):
             try:
                 await dl.download(item)
                 completed += 1

@@ -1,4 +1,4 @@
-gamdl>=3.8.3
+gamdl>=3.8.3,<4
 httpx-retries>=0.6.0
 click>=8.0
 colorama

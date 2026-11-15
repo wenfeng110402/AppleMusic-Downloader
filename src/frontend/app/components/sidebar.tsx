@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useI18n } from "../i18n";
 import { useTheme } from "../theme";
-import { useCheckUpdate, type UpdateInfo } from "../service";
+import { useBackendStatus, useCheckUpdate, type UpdateInfo } from "../service";
 import { useToast } from "./Toast";
 
 const NAV_ITEMS = [
@@ -47,13 +47,15 @@ const NAV_ITEMS = [
 export default function Sidebar({ active, onNavigate }: { active: string; onNavigate: (id: string) => void }) {
   const { t, locale, setLocale } = useI18n();
   const { theme, setTheme } = useTheme();
+  const { version, check: checkBackend } = useBackendStatus();
   const { updateInfo, checking, check } = useCheckUpdate();
   const toast = useToast();
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
+    checkBackend();
     check();
-  }, [check]);
+  }, [check, checkBackend]);
 
   const handleVersionClick = async () => {
     if (updateInfo?.has_update) {
@@ -250,8 +252,10 @@ export default function Sidebar({ active, onNavigate }: { active: string; onNavi
               />
               <span className="text-[10.5px] truncate" style={{ color: "var(--text-muted)" }}>
                 {updateInfo?.has_update
-                  ? `${updateInfo.current_version} → v${updateInfo.latest_version}`
-                  : `v2.5.0`}
+                  ? `v${updateInfo.current_version} → v${updateInfo.latest_version}`
+                  : version
+                    ? `v${version}`
+                    : "AMDL"}
               </span>
               {updateInfo?.has_update && (
                 <span className="ml-auto rounded bg-amber-500/15 px-1 py-0.5 text-[8.5px] font-semibold text-amber-500 uppercase tracking-wider">

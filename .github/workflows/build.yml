@@ -1,20 +1,32 @@
 # ─────────────────────────────────────────────────────────────────
-# AppleMusic Downloader — Build & CI
+# AppleMusic Downloader — CI
 #
-# Triggers:
-#   - push to any branch (uses code from that specific commit/branch)
-#   - pull_request to any branch
-#   - manual trigger via workflow_dispatch
+# Keep routine CI cheap:
+#   - pull requests targeting master run lint/type checks only
+#   - full platform builds run on manual workflow_dispatch
+#   - documentation-only pull requests are skipped
+#   - release builds live in release.yml
 # ─────────────────────────────────────────────────────────────────
 
-name: Build & Test
+name: CI
 
 on:
   workflow_dispatch:
-  push:
-    branches: ["**"]
   pull_request:
-    branches: ["**"]
+    branches: [master]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".github/ISSUE_TEMPLATE/**"
+      - LICENSE
+      - SECURITY.md
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   PYTHON_VERSION: "3.12"
@@ -27,6 +39,7 @@ jobs:
   lint:
     name: Lint & Type Check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -57,13 +70,18 @@ jobs:
         working-directory: src/frontend
         run: npx tsc --noEmit
 
+      - name: Python tests
+        run: python -m unittest discover -s tests -v
+
   # ─────────────────────────────────────────────────────────────
   # Build matrix: Linux · macOS · Windows
   # ─────────────────────────────────────────────────────────────
   build:
     name: "Build (${{ matrix.os }})"
     needs: [lint]
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

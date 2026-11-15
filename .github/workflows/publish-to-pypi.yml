@@ -1,14 +1,14 @@
 name: Publish to PyPI
 
 on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Version tag to publish (e.g., v1.0.0). The leading v is stripped.'
-        required: true
 
 jobs:
   publish:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -16,7 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # full history for tag resolution
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -28,39 +29,30 @@ jobs:
           python -m pip install --upgrade pip
           pip install build flit_core
 
-      - name: Resolve version
+      - name: Verify version from __init__.py
         id: version
         env:
-          INPUT_TAG: ${{ github.event.inputs.tag }}
-          REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          TAG="${INPUT_TAG:-$REF_NAME}"
-          VERSION="${TAG#v}"
-          if [ -z "$VERSION" ]; then
-            echo "::error::Could not determine version"
-            exit 1
-          fi
-          # Validate version looks like a semver
-          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
-            echo "::error::Invalid version format: $VERSION"
-            exit 1
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Publishing version: $VERSION"
+          VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/amdl/__init__.py)"
 
-      - name: Update __version__ in __init__.py
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          python -c "
-          import re, pathlib, os
-          v = os.environ['VERSION']
-          p = pathlib.Path('src/amdl/__init__.py')
-          text = p.read_text()
-          text = re.sub(r'__version__\s*=\s*\"[^\"]*\"', f'__version__ = \"{v}\"', text)
-          p.write_text(text)
-          print(f'Updated __version__ to {v}')
-          "
+          if [ -z "$VERSION" ] || ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid __version__ in src/amdl/__init__.py: $VERSION"
+            exit 1
+          fi
+
+          TAG="v$VERSION"
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::Release tag $TAG does not exist"
+            exit 1
+          fi
+          if [ "$(git rev-parse "$TAG^{commit}")" != "$(git rev-parse HEAD)" ]; then
+            echo "::error::Release tag $TAG does not point to the checked-out commit"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing version from src/amdl/__init__.py: $VERSION"
 
       - name: Build package
         run: python -m build

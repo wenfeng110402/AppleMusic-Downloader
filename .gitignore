@@ -44,9 +44,15 @@ htmlcov/
 .coverage.*
 coverage.xml
 
-# ── IDE / Editor ───────────────────────────────────────────
+# ── IDE / Editor / Local AI tools ──────────────────────────
 .vscode/
 .idea/
+.qoder/
+.codex/
+.agents/
+.claude/
+.cursor/
+.windsurf/
 *.sublime-*
 
 # ── Project-specific ───────────────────────────────────────

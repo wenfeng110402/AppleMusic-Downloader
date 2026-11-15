@@ -13,7 +13,7 @@ assignees: ''
 - **OS / 操作系统**: [e.g. macOS 14.5 / Windows 11 / Ubuntu 22.04]
 - **Interface / 使用模式**: [Desktop GUI / CLI / Web API]
 - **Python Version / Python 版本**: [e.g. 3.10.12]
-- **AMDL Version / 软件版本**: [e.g. v2.5.0]
+- **AMDL Version / 软件版本**: [e.g. vX.Y.Z]
 
 ## Steps to Reproduce / 重现步骤
 1. Command run or action taken / 执行的命令或操作:

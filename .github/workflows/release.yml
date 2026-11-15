@@ -1,0 +1,330 @@
+# ─────────────────────────────────────────────────────────────────
+# AppleMusic Downloader — protected-branch release flow
+#
+# Phase 1 (workflow_dispatch):
+#   Reads the current version from src/amdl/__init__.py, opens a release PR
+#   that changes only that file, and never pushes directly to protected master.
+#
+# Phase 2 (push to master after that PR is merged):
+#   Detects the version change, builds all platforms, creates the tag at
+#   that exact master commit and publishes the GitHub Release.
+#
+# If branch protection requires CI checks on the bot-created PR, set a
+# RELEASE_TOKEN secret (fine-grained PAT with Contents + Pull requests write).
+# GitHub events created with the default GITHUB_TOKEN do not start CI runs.
+# ─────────────────────────────────────────────────────────────────
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Bump from __version__ in src/amdl/__init__.py"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+  push:
+    branches: [master]
+    paths:
+      - src/amdl/__init__.py
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: 20
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Phase 1 — open a version-bump PR (manual trigger)
+  # ─────────────────────────────────────────────────────────────
+  prepare-pr:
+    name: Create release PR
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+
+      - name: Calculate next version
+        id: version
+        shell: bash
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
+            echo "::error::Create release PR must be started from master (got $GITHUB_REF)."
+            exit 1
+          fi
+
+          git fetch --force origin master --tags
+          HEAD_SHA="$(git rev-parse HEAD)"
+          MASTER_SHA="$(git rev-parse origin/master)"
+          if [[ "$HEAD_SHA" != "$MASTER_SHA" ]]; then
+            echo "::error::Release checkout is not the latest master. Refresh and retry."
+            exit 1
+          fi
+
+          # __version__ in src/amdl/__init__.py is the single source of truth.
+          CURRENT_VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/amdl/__init__.py)"
+          if ! [[ "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid __version__ in src/amdl/__init__.py: '$CURRENT_VERSION'"
+            exit 1
+          fi
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+            *) echo "::error::Unsupported bump type: $BUMP"; exit 1 ;;
+          esac
+
+          VERSION="$MAJOR.$MINOR.$PATCH"
+          TAG="v$VERSION"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::Tag $TAG already exists."
+            exit 1
+          fi
+
+          BRANCH="release/${TAG}-${GITHUB_RUN_NUMBER}"
+          echo "sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "Preparing $TAG on branch $BRANCH"
+
+      - name: Update package version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path("src/amdl/__init__.py")
+          text = path.read_text(encoding="utf-8")
+          text, count = re.subn(
+              r'__version__\s*=\s*"[^"]*"',
+              f'__version__ = "{os.environ["VERSION"]}"',
+              text,
+          )
+          if count != 1:
+              raise SystemExit("Could not update __version__")
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Commit and open release PR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          BRANCH: ${{ steps.version.outputs.branch }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add src/amdl/__init__.py
+          git commit -m "chore: release $TAG"
+          git push origin "$BRANCH"
+
+          PR_URL="$(gh pr create \
+            --base master \
+            --head "$BRANCH" \
+            --title "chore: release $TAG" \
+            --body "Automated version bump for $TAG.
+
+          After this PR is merged, the push-triggered Release workflow will build all platforms, create the tag, and publish the GitHub Release.")"
+
+          echo "Release PR: $PR_URL"
+          {
+            echo "## Release PR created"
+            echo
+            echo "$PR_URL"
+            echo
+            echo "Merge the PR after required checks pass. The Release workflow will then build and publish **$TAG** automatically."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────────────────────
+  # Phase 2 — detect a merged version bump (push trigger)
+  # ─────────────────────────────────────────────────────────────
+  inspect:
+    name: Inspect master
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_release: ${{ steps.release.outputs.should_release }}
+      sha: ${{ steps.release.outputs.sha }}
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Detect version bump
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/amdl/__init__.py)"
+          TAG="v$VERSION"
+          SHA="$(git rev-parse HEAD)"
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::Could not read __version__ from src/amdl/__init__.py"
+            exit 1
+          fi
+
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid __version__ in src/amdl/__init__.py: '$VERSION'"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; skipping release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Detected unreleased version $VERSION at $SHA"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: "Build (${{ matrix.os }})"
+    needs: [inspect]
+    if: needs.inspect.outputs.should_release == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            runner: ubuntu-latest
+            artifact: AppleMusicDownloader-linux-x64
+          - os: macos
+            runner: macos-14
+            artifact: AppleMusicDownloader-macos-arm64.dmg
+          - os: windows
+            runner: windows-latest
+            artifact: AppleMusicDownloader-windows-x64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.inspect.outputs.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Verify release version
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ needs.inspect.outputs.version }}
+        run: |
+          ACTUAL_VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/amdl/__init__.py)"
+          if [[ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]]; then
+            echo "::error::Version mismatch: expected $EXPECTED_VERSION, got $ACTUAL_VERSION"
+            exit 1
+          fi
+
+      - name: Build
+        shell: bash
+        env:
+          BUILD_OS: ${{ matrix.os }}
+        run: bash scripts/build.sh "$BUILD_OS"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}*
+          if-no-files-found: error
+
+  publish:
+    name: Tag and publish release
+    needs: [inspect, build]
+    if: needs.inspect.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.inspect.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: AppleMusicDownloader-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create tag and publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EXPECTED_SHA: ${{ needs.inspect.outputs.sha }}
+          TAG: ${{ needs.inspect.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::Tag $TAG already exists."
+            exit 1
+          fi
+
+          git tag -a "$TAG" "$EXPECTED_SHA" -m "AppleMusic Downloader $TAG"
+          git push origin "$TAG"
+
+          gh release create "$TAG" release-assets/* \
+            --verify-tag \
+            --title "AppleMusic Downloader $TAG" \
+            --generate-notes

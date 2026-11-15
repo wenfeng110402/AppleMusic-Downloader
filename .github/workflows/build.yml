@@ -89,9 +89,14 @@ jobs:
           - os: linux
             runner: ubuntu-latest
             artifact: AppleMusicDownloader-linux-x64
-          - os: macos
-            runner: macos-14
+          - os: macos-arm64
+            runner: macos-latest
+            build_platform: macos-arm64
             artifact: AppleMusicDownloader-macos-arm64.dmg
+          - os: macos-x64
+            runner: macos-26-intel
+            build_platform: macos-x64
+            artifact: AppleMusicDownloader-macos-x64.dmg
           - os: windows
             runner: windows-latest
             artifact: AppleMusicDownloader-windows-x64.exe
@@ -114,7 +119,7 @@ jobs:
       - name: Build
         shell: bash
         env:
-          BUILD_OS: ${{ matrix.os }}
+          BUILD_OS: ${{ matrix.build_platform || matrix.os }}
         run: bash scripts/build.sh "$BUILD_OS"
 
       - name: Upload artifact

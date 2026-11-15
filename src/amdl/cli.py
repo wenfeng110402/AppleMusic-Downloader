@@ -102,9 +102,46 @@ def main() -> None:
 
 def _passthrough_to_gamdl(args: list[str]) -> None:
     """Forward arguments to gamdl CLI."""
-    from gamdl.cli.cli import main as gamdl_main
-    sys.argv = ["gamdl", *args]
-    gamdl_main()
+    from gamdl.cli import cli as gamdl_cli
+
+    original_downloader = gamdl_cli.AppleMusicDownloader
+    original_argv = sys.argv
+
+    class PlaylistProgressDownloader(original_downloader):
+        async def get_download_item_from_url(self, url: str):
+            from amdl.core_downloader import PlaylistParseProgress, iter_playlist_items
+
+            log = gamdl_cli.logger.bind(action="Parsing")
+            last_completed = 0
+
+            async def report(progress: PlaylistParseProgress | None) -> None:
+                nonlocal last_completed
+                if progress is None:
+                    return
+                completed, total = progress["completed"], progress["total"]
+                title = progress["current_title"]
+                total_label = total if total is not None else "?"
+                if completed > last_completed:
+                    log.info(f'Parsed {completed}/{total_label}: "{title}"')
+                elif title:
+                    log.info(f'Resolving track {completed + 1}/{total_label}: "{title}"')
+                elif total is None:
+                    log.info("Fetching playlist information…")
+                elif completed == 0:
+                    log.info(f"Found {total} playlist tracks")
+                last_completed = completed
+
+            items = super().get_download_item_from_url(url)
+            async for item in iter_playlist_items(items, url, report):
+                yield item
+
+    try:
+        gamdl_cli.AppleMusicDownloader = PlaylistProgressDownloader
+        sys.argv = ["gamdl", *args]
+        gamdl_cli.main()
+    finally:
+        gamdl_cli.AppleMusicDownloader = original_downloader
+        sys.argv = original_argv
 
 
 _HELP = f"""\

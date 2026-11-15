@@ -219,6 +219,7 @@ class TaskInfoResponse(BaseModel):
     id: str
     status: str
     progress: dict
+    parsing: dict | None = None
     error_count: int
     message: str
     logs: list[str] = Field(default_factory=list)

@@ -163,6 +163,7 @@ List all tasks (newest first).
       "id": "task-abc123",
       "status": "running",
       "progress": {"completed": 3, "total": 10, "percent": 30.0},
+      "parsing": null,
       "error_count": 0,
       "message": "Downloading track 4 of 10 ...",
       "created_at": "2026-07-05T12:00:00Z",
@@ -175,6 +176,13 @@ List all tasks (newest first).
 ```
 
 **Task status values:** `pending`, `running`, `completed`, `failed`, `cancelled`
+
+While resolving a playlist, `parsing` contains `completed`, `total`, and `current_title`.
+The total is `null` until the track list is available. Resolved entries include
+unavailable tracks, and repeated tracks count separately. `current_title` is
+the title of the track being resolved or just resolved, when available.
+Each playlist starts a fresh count. The field is `null` outside playlist parsing.
+`progress` continues to report download progress.
 
 ---
 
@@ -211,7 +219,7 @@ Cancel a pending or running task.
 
 ### WS /api/ws/{task_id}
 
-Real-time download progress stream.
+Real-time playlist parsing and download progress stream.
 
 Connect after submitting a task via `POST /api/tasks`.
 
@@ -219,13 +227,19 @@ Connect after submitting a task via `POST /api/tasks`.
 
 ```json
 // Initial state on connect
-{"type": "subscribed", "task_id": "task-abc123", "status": "pending", "progress": {...}}
+{"type": "subscribed", "task_id": "task-abc123", "status": "pending", "progress": {...}, "parsing": null}
+
+// Playlist parsing update
+{"type": "parsing", "task_id": "task-abc123", "parsing": {"completed": 2, "total": 10, "current_title": "Track title"}}
+
+// Playlist parsing finished
+{"type": "parsing", "task_id": "task-abc123", "parsing": null}
 
 // Progress update
 {"type": "progress", "completed": 5, "total": 10, "percent": 50.0}
 
 // Status change
-{"type": "status", "status": "completed", "message": "Done"}
+{"type": "status", "status": "completed", "message": "Done", "parsing": null}
 
 // Error
 {"type": "error", "message": "Task not found"}

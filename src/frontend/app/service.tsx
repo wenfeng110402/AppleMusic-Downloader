@@ -2,6 +2,13 @@
 
 import { useState, useCallback } from "react";
 
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+
+export function apiUrl(path: string): string {
+  if (!API_BASE) return path;
+  return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
 // ── 类型定义 ───────────────────────────────────────────────────
 
 export interface FormState {
@@ -141,7 +148,7 @@ export function useBackendStatus() {
 
   const check = useCallback(async () => {
     try {
-      const res = await fetch("/api/health");
+      const res = await fetch(apiUrl("/api/health"));
       const data = (await res.json()) as HealthResponse;
       setHealthy(true);
       setVersion(data.version);
@@ -193,7 +200,7 @@ export function useSubmitTask(onSuccess?: () => void) {
 
     let res: Response;
     try {
-      res = await fetch("/api/tasks", {
+      res = await fetch(apiUrl("/api/tasks"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -224,7 +231,7 @@ export function useTasks() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/tasks");
+      const res = await fetch(apiUrl("/api/tasks"));
       const data = (await res.json()) as TaskListResponse;
       setTasks(data.tasks);
     } catch {
@@ -240,7 +247,7 @@ export function useTasks() {
 export function useCancelTask(onDone?: () => void) {
   return async (taskId: string) => {
     try {
-      await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+      await fetch(apiUrl(`/api/tasks/${taskId}`), { method: "DELETE" });
       onDone?.();
     } catch {
       /* ignore */
@@ -259,7 +266,7 @@ export function useDependencyCheck() {
       if (ffmpegPath) params.set("ffmpeg_path", ffmpegPath);
       if (mp4boxPath) params.set("mp4box_path", mp4boxPath);
       if (nm3u8dlrePath) params.set("nm3u8dlre_path", nm3u8dlrePath);
-      const res = await fetch(`/api/dependencies?${params.toString()}`);
+      const res = await fetch(apiUrl(`/api/dependencies?${params.toString()}`));
       const data = (await res.json()) as DependencyCheckResponse;
       setDeps(data.dependencies);
     } catch {
@@ -287,7 +294,7 @@ export function useCheckUpdate() {
   const check = useCallback(async (force = false) => {
     setChecking(true);
     try {
-      const res = await fetch(`/api/system/check-update${force ? "?force=true" : ""}`);
+      const res = await fetch(apiUrl(`/api/system/check-update${force ? "?force=true" : ""}`));
       if (res.ok) {
         const data = (await res.json()) as UpdateInfo;
         setUpdateInfo(data);

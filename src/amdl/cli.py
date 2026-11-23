@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 import click
 
 from amdl import __version__
+
+
+def _default_port() -> int:
+    env_port = os.environ.get("PORT")
+    if env_port and env_port.isdigit():
+        return int(env_port)
+    return 8000
 
 
 @click.group(invoke_without_command=True)
@@ -19,26 +27,30 @@ def cli(ctx: click.Context) -> None:
 
 
 @cli.command("server")
-@click.option("--host", default="127.0.0.1", show_default=True, help="Listen address.")
-@click.option("--port", default=8000, show_default=True, type=int, help="Listen port.")
+@click.option("-h", "--host", default="127.0.0.1", show_default=True, help="Listen address.")
+@click.option("-p", "--port", default=None, type=int, help="Listen port (default: 8000 or $PORT).")
 @click.option(
+    "-l",
     "--log-level",
     default="info",
     show_default=True,
     type=click.Choice(["debug", "info", "warning", "error"], case_sensitive=False),
     help="Log level.",
 )
-def server_cmd(host: str, port: int, log_level: str) -> None:
+def server_cmd(host: str, port: int | None, log_level: str) -> None:
     """Start the API server."""
     from amdl.server import run_server
-    run_server(host=host, port=port, log_level=log_level)
+    effective_port = port if port is not None else _default_port()
+    run_server(host=host, port=effective_port, log_level=log_level, explicit_port=(port is not None))
 
 
 @cli.command("desktop")
-def desktop_cmd() -> None:
+@click.option("-h", "--host", default="127.0.0.1", show_default=True, help="Listen address.")
+@click.option("-p", "--port", default=None, type=int, help="Listen port (default: auto find free port).")
+def desktop_cmd(host: str, port: int | None) -> None:
     """Launch the desktop app."""
     from amdl.server import run_desktop
-    run_desktop()
+    run_desktop(host=host, port=port)
 
 
 def main() -> None:
@@ -52,48 +64,37 @@ def main() -> None:
     """
     args = sys.argv[1:]
 
-    # ── backward-compat: --server / --desktop flags ──────────
-    if args and args[0] == "--server":
-        from amdl.server import run_server
-        host, port, log_level = "127.0.0.1", 8000, "info"
-        i = 1
-        while i < len(args):
-            if args[i] == "--host" and i + 1 < len(args):
-                host = args[i + 1]; i += 2
-            elif args[i] == "--port" and i + 1 < len(args):
-                port = int(args[i + 1]); i += 2
-            elif args[i] == "--log-level" and i + 1 < len(args):
-                log_level = args[i + 1]; i += 2
-            else:
-                i += 1
-        run_server(host=host, port=port, log_level=log_level)
-        return
-
-    if args and args[0] == "--desktop":
-        from amdl.server import run_desktop
-        run_desktop()
-        return
-
-    # ── sub-command style ──────────────────────────────────
-    if args and args[0] in ("server", "desktop"):
-        cli(args=args, standalone_mode=False)
-        return
-
     # ── help / version / no args ─────────────────────────────
     if not args or args[0] in ("--help", "-h"):
         click.echo(_HELP)
         return
 
-    if args and args[0] == "--version":
+    if args[0] == "--version":
         cli(args=args, standalone_mode=False)
         return
 
-    if args and args[0] == "-V":
+    if args[0] == "-V":
         click.echo(f"amdl {__version__}")
         return
 
-    if args and args[0] == "--gamdl-help":
+    if args[0] == "--gamdl-help":
         _passthrough_to_gamdl(["--help"])
+        return
+
+    # ── sub-command style ──────────────────────────────────
+    if args[0] in ("server", "desktop"):
+        cli(args=args, standalone_mode=False)
+        return
+
+    # ── backward-compat / flexible flag style (--server / --desktop anywhere) ──
+    if "--server" in args:
+        converted = ["server"] + [a for a in args if a != "--server"]
+        cli(args=converted, standalone_mode=False)
+        return
+
+    if "--desktop" in args:
+        converted = ["desktop"] + [a for a in args if a != "--desktop"]
+        cli(args=converted, standalone_mode=False)
         return
 
     # ── anything else (flags like -c, URLs, etc.) → passthrough to gamdl ──
@@ -150,7 +151,7 @@ AppleMusic Downloader (amdl) v{__version__}
 Usage:
   amdl <urls...> [options]                   Download songs, albums, playlists, MVs
   amdl server [--host HOST] [--port PORT]    Start API server
-  amdl desktop                               Launch desktop GUI application
+  amdl desktop [--host HOST] [--port PORT]   Launch desktop GUI application
 
 Core Download Options:
   -c, --cookies-path PATH          Path to cookies.txt file (required)
@@ -165,9 +166,13 @@ Core Download Options:
   -w, --overwrite                  Overwrite existing local files
 
 Server Options:
-  --host HOST                      Listen address (default: 127.0.0.1)
-  --port PORT                      Listen port (default: 8000)
-  --log-level LEVEL                Log level: debug, info, warning, error (default: info)
+  -h, --host HOST                  Listen address (default: 127.0.0.1)
+  -p, --port PORT                  Listen port (default: 8000 or $PORT)
+  -l, --log-level LEVEL            Log level: debug, info, warning, error (default: info)
+
+Desktop Options:
+  -h, --host HOST                  Listen address (default: 127.0.0.1)
+  -p, --port PORT                  Listen port (default: auto find free port)
 
 Examples:
   amdl -c cookies.txt "https://music.apple.com/us/album/..."

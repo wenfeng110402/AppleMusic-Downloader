@@ -19,7 +19,7 @@ if sys.platform == "win32":
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ValidationInfo
 
 from amdl.enums import (
     CoverFormat,
@@ -29,8 +29,9 @@ from amdl.enums import (
     SyncedLyricsFormat,
     UploadedVideoQuality,
 )
+from amdl.converter import _AUDIO_PRESETS, _VIDEO_PRESETS
 from amdl import __version__
-from amdl.task_manager import get_task_manager
+from amdl.task_manager import get_task_manager, TaskStatus
 from amdl.dependency_manager import BIN_DIR, DATA_DIR, _SUBPROCESS_FLAGS
 from amdl.dependency_manager import ensure_dependencies_async
 
@@ -123,10 +124,11 @@ class DownloadRequest(BaseModel):
     wvd_path: str | None = Field(default=None)
     nm3u8dlre_path: str = Field(default="N_m3u8DL-RE")
     ffmpeg_path: str = Field(default="ffmpeg")
+    mp4box_path: str = Field(default="MP4Box")
     download_mode: DownloadMode = Field(default=DownloadMode.YTDLP)
     codec_song: SongCodec = Field(default=SongCodec.AAC_WEB)
     codec_music_video: MusicVideoCodec = Field(default=MusicVideoCodec.H264)
-    quality_post: UploadedVideoQuality = Field(default=UploadedVideoQuality.BEST)
+    quality_post: UploadedVideoQuality = Field(default=UploadedVideoQuality.BEST, alias="quality_uploaded_video")
     synced_lyrics_format: SyncedLyricsFormat = Field(default=SyncedLyricsFormat.LRC)
     cover_format: CoverFormat = Field(default=CoverFormat.JPG)
     cover_size: int = Field(default=1200, ge=50, le=5000)
@@ -152,6 +154,68 @@ class DownloadRequest(BaseModel):
     language: str = Field(default="en-US")
     log_level: str = Field(default="INFO")
 
+    model_config = {"populate_by_name": True}
+
+    @field_validator("codec_song", mode="before")
+    @classmethod
+    def _coerce_song_codec(cls, v):
+        if isinstance(v, str):
+            v_clean = v.strip().lower().replace("_", "-")
+            for c in SongCodec:
+                if c.value.lower() == v_clean or c.name.lower() == v.strip().lower():
+                    return c
+        return v
+
+    @field_validator("codec_music_video", mode="before")
+    @classmethod
+    def _coerce_mv_codec(cls, v):
+        if isinstance(v, str):
+            v_clean = v.strip().lower().replace("_", "-")
+            for c in MusicVideoCodec:
+                if c.value.lower() == v_clean or c.name.lower() == v.strip().lower():
+                    return c
+        return v
+
+    @field_validator("download_mode", mode="before")
+    @classmethod
+    def _coerce_download_mode(cls, v):
+        if isinstance(v, str):
+            v_clean = v.strip().lower().replace("_", "-")
+            for c in DownloadMode:
+                if c.value.lower() == v_clean or c.name.lower() == v.strip().lower():
+                    return c
+        return v
+
+    @field_validator("quality_post", mode="before")
+    @classmethod
+    def _coerce_quality_post(cls, v):
+        if isinstance(v, str):
+            v_clean = v.strip().lower()
+            for c in UploadedVideoQuality:
+                if c.value.lower() == v_clean or c.name.lower() == v.strip().lower():
+                    return c
+        return v
+
+    @field_validator("synced_lyrics_format", mode="before")
+    @classmethod
+    def _coerce_synced_lyrics(cls, v):
+        if isinstance(v, str):
+            v_clean = v.strip().lower()
+            for c in SyncedLyricsFormat:
+                if c.value.lower() == v_clean or c.name.lower() == v.strip().lower():
+                    return c
+        return v
+
+    @field_validator("cover_format", mode="before")
+    @classmethod
+    def _coerce_cover_format(cls, v):
+        if isinstance(v, str):
+            v_clean = v.strip().lower()
+            for c in CoverFormat:
+                if c.value.lower() == v_clean or c.name.lower() == v.strip().lower():
+                    return c
+        return v
+
     @field_validator("cookies_path")
     @classmethod
     def _validate_cookies(cls, v: str) -> str:
@@ -159,10 +223,25 @@ class DownloadRequest(BaseModel):
             raise ValueError("cookies_path must not be empty")
         v = v.strip()
         p = Path(v)
-        if not p.exists():
-            raise ValueError(f"Cookies file not found: {v}")
-        if not p.is_file():
-            raise ValueError(f"Not a file: {v}")
+        if p.exists() and p.is_file():
+            return str(p.resolve())
+        candidate = DATA_DIR / v
+        if candidate.exists() and candidate.is_file():
+            return str(candidate.resolve())
+        raise ValueError(f"Cookies file not found: {v}")
+
+    @field_validator("wvd_path", "exclude_tags")
+    @classmethod
+    def _empty_str_to_none(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            return None
+        return v.strip()
+
+    @field_validator("truncate")
+    @classmethod
+    def _validate_truncate(cls, v: int | None) -> int | None:
+        if v is not None and v <= 0:
+            return None
         return v
 
     @field_validator("log_level")
@@ -177,19 +256,51 @@ class DownloadRequest(BaseModel):
     @classmethod
     def _validate_audio_fmt(cls, v: str | None) -> str | None:
         if v is None:
-            return v
-        if v.lower() not in {"mp3", "flac", "wav", "aac", "m4a", "ogg", "wma", "alac"}:
-            raise ValueError(f"Unsupported format: {v}")
-        return v.lower()
+            return None
+        v = v.strip().lower()
+        if not v:
+            return None
+        if v not in _AUDIO_PRESETS:
+            raise ValueError(f"Unsupported audio format: {v}")
+        return v
 
     @field_validator("video_format")
     @classmethod
     def _validate_video_fmt(cls, v: str | None) -> str | None:
         if v is None:
-            return v
-        if v.lower() not in {"mp4", "mov", "mkv", "avi", "wmv", "flv", "webm"}:
-            raise ValueError(f"Unsupported format: {v}")
-        return v.lower()
+            return None
+        v = v.strip().lower()
+        if not v:
+            return None
+        if v not in _VIDEO_PRESETS:
+            raise ValueError(f"Unsupported video format: {v}")
+        return v
+
+    @field_validator(
+        "template_folder_album",
+        "template_folder_compilation",
+        "template_file_single_disc",
+        "template_file_multi_disc",
+        "template_folder_no_album",
+        "template_file_no_album",
+        "template_file_playlist",
+        "template_date",
+    )
+    @classmethod
+    def _validate_templates(cls, v: str, info: ValidationInfo) -> str:
+        if not v or not v.strip():
+            defaults = {
+                "template_folder_album": "{album_artist}/{album}",
+                "template_folder_compilation": "Compilations/{album}",
+                "template_file_single_disc": "{track:02d} {title}",
+                "template_file_multi_disc": "{disc}-{track:02d} {title}",
+                "template_folder_no_album": "{artist}/Unknown Album",
+                "template_file_no_album": "{title}",
+                "template_file_playlist": "Playlists/{playlist_artist}/{playlist_title}",
+                "template_date": "%Y-%m-%dT%H:%M:%SZ",
+            }
+            return defaults.get(info.field_name, v)
+        return v
 
 
 class HealthResponse(BaseModel):
@@ -262,38 +373,51 @@ _KNOWN_EXTENSIONS: dict[str, str | None] = {
 
 
 def _find_executable(name: str, custom_path: str | None = None) -> DependencyCheckItem:
-    """Find an executable, searching PATH → BIN_DIR → Homebrew paths."""
-    target = custom_path or name
+    """Find an executable, searching custom_path → PATH → BIN_DIR → Homebrew paths."""
+    found_path: str | None = None
+
+    if custom_path:
+        custom_p = Path(custom_path).expanduser()
+        if custom_p.exists() and custom_p.is_file():
+            found_path = str(custom_p.resolve())
+        else:
+            found_path = shutil.which(custom_path)
 
     # 1) shutil.which — respects PATH (including BIN_DIR added above)
-    found_path = shutil.which(target)
+    if not found_path:
+        found_path = shutil.which(name)
 
     # 2) BIN_DIR direct lookup (for cases where BIN_DIR isn't in PATH yet)
     if not found_path:
         ext = _KNOWN_EXTENSIONS.get(name, None) or ""
-        candidate = BIN_DIR / f"{target}{ext}"
-        if candidate.exists():
-            found_path = str(candidate)
+        candidate = BIN_DIR / f"{name}{ext}"
+        if candidate.exists() and candidate.is_file():
+            found_path = str(candidate.resolve())
 
     # 3) Homebrew fallback (macOS / Linux)
     if not found_path and sys.platform != "win32":
         for brew_dir in _HOMEBREW_PATHS:
-            candidate = Path(brew_dir) / target
-            if candidate.exists():
-                found_path = str(candidate)
+            candidate = Path(brew_dir) / name
+            if candidate.exists() and candidate.is_file():
+                found_path = str(candidate.resolve())
                 break
 
     if found_path and Path(found_path).exists():
         resolved = Path(found_path).resolve()
+        version_line = None
         try:
+            kwargs = {}
+            if sys.platform == "win32":
+                kwargs["creationflags"] = _SUBPROCESS_FLAGS
             result = subprocess.run(
                 [str(resolved), "-version"] if name in ("ffmpeg", "MP4Box") else [str(resolved), "--version"],
                 capture_output=True,
                 text=True,
                 timeout=5,
-                creationflags=_SUBPROCESS_FLAGS,
+                **kwargs,
             )
-            version_line = (result.stdout or result.stderr).split("\n")[0]
+            out = result.stdout or result.stderr or ""
+            version_line = out.split("\n")[0].strip() or None
         except Exception:
             version_line = None
         return DependencyCheckItem(
@@ -326,7 +450,7 @@ async def get_settings():
 
 @app.post("/api/settings", tags=["system"])
 async def save_settings(payload: dict):
-    # 读取已有设置，做合并而非覆盖
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
     existing: dict = {}
     if SETTINGS_FILE.exists():
         try:
@@ -334,7 +458,9 @@ async def save_settings(payload: dict):
         except Exception:
             pass
     existing.update(payload)
-    SETTINGS_FILE.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_file = SETTINGS_FILE.with_suffix(".tmp")
+    tmp_file.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_file.replace(SETTINGS_FILE)
     return JSONResponse(content={"status": "ok"})
 
 
@@ -347,8 +473,8 @@ async def get_api_info():
         supported_codecs_music_video=[{"value": c.value, "label": c.name} for c in MusicVideoCodec],
         supported_cover_formats=[{"value": c.value, "label": c.name} for c in CoverFormat],
         supported_download_modes=[{"value": c.value, "label": c.name} for c in DownloadMode],
-        supported_audio_conversion_formats=["mp3", "wav", "m4a", "ogg"],
-        supported_video_conversion_formats=["mp4", "mov", "mkv", "avi", "webm"],
+        supported_audio_conversion_formats=list(_AUDIO_PRESETS.keys()),
+        supported_video_conversion_formats=list(_VIDEO_PRESETS.keys()),
     )
 
 
@@ -408,11 +534,11 @@ async def check_update(force: bool = False):
                     "release_notes": data.get("body", ""),
                     "release_url": data.get("html_url", res_data["release_url"]),
                 }
+                _UPDATE_CACHE["time"] = now
+                _UPDATE_CACHE["data"] = res_data
     except Exception as e:
         logger.debug("Failed to check for updates: %s", e)
 
-    _UPDATE_CACHE["time"] = now
-    _UPDATE_CACHE["data"] = res_data
     return JSONResponse(content=res_data)
 
 
@@ -443,11 +569,14 @@ async def clean_temp():
     count = 0
     if TEMP_DIR.exists():
         for item in TEMP_DIR.iterdir():
-            if item.is_dir():
-                shutil.rmtree(item)
-            else:
-                item.unlink()
-            count += 1
+            try:
+                if item.is_dir():
+                    shutil.rmtree(item, ignore_errors=True)
+                else:
+                    item.unlink(missing_ok=True)
+                count += 1
+            except Exception as e:
+                logger.warning("Failed to remove temp item %s: %s", item, e)
     return {"message": f"Cleaned {count} items from temp directory"}
 
 
@@ -482,12 +611,25 @@ async def get_task(task_id: str):
 
 
 @app.delete("/api/tasks/{task_id}", tags=["tasks"])
-async def cancel_task(task_id: str):
+async def cancel_task(task_id: str, delete: bool = False):
     tm = get_task_manager()
-    ok = await tm.cancel_task(task_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail=f"Task not found or finished: {task_id}")
+    task = tm.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+
+    if delete or task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+        await tm.delete_task(task_id)
+        return {"message": "Task removed", "task_id": task_id}
+
+    await tm.cancel_task(task_id)
     return {"message": "Task cancelled", "task_id": task_id}
+
+
+@app.delete("/api/tasks", tags=["tasks"])
+async def clear_finished_tasks():
+    tm = get_task_manager()
+    count = await tm.clear_finished()
+    return {"message": f"Cleared {count} finished tasks", "cleared_count": count}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -507,10 +649,16 @@ async def task_progress_ws(websocket: WebSocket, task_id: str):
 
     try:
         while True:
-            data = await websocket.receive_text()
-            if data == '{"type":"ping"}':
-                await websocket.send_json({"type": "pong"})
+            text = await websocket.receive_text()
+            try:
+                msg = json.loads(text)
+                if isinstance(msg, dict) and msg.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except Exception:
+                pass
     except WebSocketDisconnect:
+        pass
+    except Exception:
         pass
     finally:
         await tm.unsubscribe(task_id, websocket)
@@ -623,25 +771,55 @@ def _release_instance_lock() -> None:
             _LOCK_SOCKET[0] = None
 
 
-def _find_free_port(start: int = 8000, max_attempts: int = 20) -> int:
-    """Find the first available port starting from *start*."""
+def _is_port_available(port: int, host: str = "127.0.0.1") -> bool:
+    """Check if a port is available to bind on host."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind((host, port))
+            return True
+        except OSError:
+            return False
+
+
+def _find_free_port(start: int = 8000, max_attempts: int = 50, host: str = "127.0.0.1") -> int:
+    """Find the first available port starting from *start* on *host*."""
+    bind_host = host if host not in ("0.0.0.0", "::") else "0.0.0.0"
     for port in range(start, start + max_attempts):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(("127.0.0.1", port))
-                return port
-            except OSError:
-                continue
-    return start  # give up, let uvicorn fail with the original port
+        if _is_port_available(port, host=bind_host):
+            return port
+    return start  # give up, let caller handle potential bind error
 
 
-def run_server(host: str = "127.0.0.1", port: int = 8000, log_level: str = "info"):
+def run_server(
+    host: str = "127.0.0.1",
+    port: int | None = None,
+    log_level: str = "info",
+    explicit_port: bool = False,
+):
     import uvicorn
 
-    original_port = port
-    port = _find_free_port(port)
-    if port != original_port:
-        logger.info("Port %d in use — using port %d instead", original_port, port)
+    if port is None:
+        env_port = os.environ.get("PORT")
+        if env_port and env_port.isdigit():
+            port = int(env_port)
+            explicit_port = True
+        else:
+            port = 8000
+
+    if not explicit_port:
+        original_port = port
+        port = _find_free_port(port, host=host)
+        if port != original_port:
+            logger.info("Port %d in use — using port %d instead", original_port, port)
+    else:
+        bind_host = host if host not in ("0.0.0.0", "::") else "0.0.0.0"
+        if not _is_port_available(port, host=bind_host):
+            logger.warning(
+                "Port %d on %s appears to be already in use or unavailable; uvicorn will attempt to bind",
+                port,
+                host,
+            )
 
     logging.basicConfig(
         level=getattr(logging, log_level.upper(), logging.INFO),
@@ -650,23 +828,35 @@ def run_server(host: str = "127.0.0.1", port: int = 8000, log_level: str = "info
     uvicorn.run(app, host=host, port=int(port), log_level=log_level)
 
 
-def run_desktop():
+def run_desktop(host: str = "127.0.0.1", port: int | None = None):
     # Single-instance guard: only one desktop window allowed.
-    # Acquires the lock BEFORE starting the server thread, so that
-    # any concurrent call to run_desktop() (e.g. from a forked process
-    # or re-import) will bail immediately.
     if not _acquire_instance_lock():
         logger.warning("Another AMDL desktop instance is already running — skipping")
         return
 
     import webview
 
-    host = "127.0.0.1"
-    port = _find_free_port(8000)
+    if port is None:
+        port = _find_free_port(8000, host=host)
 
-    server_thread = threading.Thread(target=run_server, args=(host, port), daemon=True)
+    server_thread = threading.Thread(
+        target=run_server,
+        kwargs={"host": host, "port": port, "log_level": "info", "explicit_port": True},
+        daemon=True,
+    )
     server_thread.start()
-    time.sleep(2)
+
+    # Poll until server responds or timeout
+    check_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
+    for _ in range(40):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.25)
+                if s.connect_ex((check_host, port)) == 0:
+                    break
+        except Exception:
+            pass
+        time.sleep(0.1)
 
     url = f"http://{host}:{port}"
     window_ref: list = []
@@ -697,9 +887,5 @@ def run_desktop():
 
 
 if __name__ == "__main__":
-    import sys
-
-    if "--desktop" in sys.argv:
-        run_desktop()
-    else:
-        run_server()
+    from amdl.cli import main
+    main()

@@ -135,7 +135,14 @@ class TaskManager:
 
     def start(self) -> None:
         """Start the background worker. Call on FastAPI startup."""
-        loop = asyncio.get_running_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
         # Create asyncio objects HERE (inside the running loop) so that
         # internal weakrefs to the loop are always valid.
         self._queue = asyncio.Queue()
@@ -163,7 +170,8 @@ class TaskManager:
 
     async def submit(self, kwargs: dict) -> str:
         """Submit a download task and return the task_id."""
-        assert self._queue is not None, "TaskManager.start() must be called first"
+        if self._queue is None:
+            self.start()
         task_id = str(uuid.uuid4())
         task = DownloadTask(task_id, kwargs)
         with self._lock:
@@ -185,7 +193,7 @@ class TaskManager:
                 reverse=True,
             )
 
-    # ── Task cancellation ────────────────────────────────
+    # ── Task cancellation & cleanup ──────────────────────
 
     async def cancel_task(self, task_id: str) -> bool:
         """Cancel a task. PENDING tasks are cancelled immediately; RUNNING tasks are marked for cancellation."""
@@ -202,6 +210,34 @@ class TaskManager:
             task._future.cancel()
         await self._broadcast_status(task)
         return True
+
+    async def delete_task(self, task_id: str) -> bool:
+        """Cancel and remove a task completely from history."""
+        task = self.get_task(task_id)
+        if not task:
+            return False
+        if task.status in (TaskStatus.PENDING, TaskStatus.RUNNING):
+            await self.cancel_task(task_id)
+        with self._lock:
+            self._tasks.pop(task_id, None)
+        for ws in list(task.websockets):
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        task.websockets.clear()
+        return True
+
+    async def clear_finished(self) -> int:
+        """Remove all completed, failed, or cancelled tasks."""
+        finished_ids = []
+        with self._lock:
+            for tid, task in self._tasks.items():
+                if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+                    finished_ids.append(tid)
+            for tid in finished_ids:
+                self._tasks.pop(tid, None)
+        return len(finished_ids)
 
     # ── Background worker loop ───────────────────────────
 
@@ -281,14 +317,28 @@ class TaskManager:
 
         for key in ("cookies_path", "output_path", "temp_path"):
             val = kwargs.get(key)
-            if isinstance(val, str):
+            if isinstance(val, (str, Path)):
                 p = Path(val)
-                kwargs[key] = p if p.is_absolute() else _data_dir / val
+                if p.is_absolute():
+                    kwargs[key] = p
+                elif p.exists():
+                    kwargs[key] = p.resolve()
+                elif (_data_dir / p).exists():
+                    kwargs[key] = (_data_dir / p).resolve()
+                else:
+                    kwargs[key] = p.resolve()
 
         wvd = kwargs.get("wvd_path")
-        if isinstance(wvd, str) and wvd:
+        if isinstance(wvd, (str, Path)) and wvd:
             p = Path(wvd)
-            kwargs["wvd_path"] = p if p.is_absolute() else _data_dir / p
+            if p.is_absolute():
+                kwargs["wvd_path"] = p
+            elif p.exists():
+                kwargs["wvd_path"] = p.resolve()
+            elif (_data_dir / p).exists():
+                kwargs["wvd_path"] = (_data_dir / p).resolve()
+            else:
+                kwargs["wvd_path"] = p.resolve()
 
         try:
             err_count = await _download_urls_async(

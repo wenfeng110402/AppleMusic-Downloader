@@ -347,7 +347,7 @@ jobs:
 
           gh release create "$TAG" release-assets/* \
             --verify-tag \
-            --title "AppleMusic Downloader $TAG" \
+            --title "$TAG" \
             --generate-notes
 
   pypi:
